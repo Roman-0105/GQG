@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kern-api",
+      "runtimeExecutable": "D:/NJS/npm.cmd",
+      "runtimeArgs": ["run", "start:dev", "--workspace", "apps/api"],
+      "port": 3000
+    },
+    {
+      "name": "kern-web",
+      "runtimeExecutable": "D:/NJS/npm.cmd",
+      "runtimeArgs": ["run", "dev", "--workspace", "apps/web"],
+      "port": 5173
+    }
+  ]
+}
