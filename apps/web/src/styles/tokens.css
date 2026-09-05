@@ -1,0 +1,54 @@
+/**
+ * Дизайн-токены платформы КЕРН — та же палитра, что и в
+ * docs/project-plan.md / опубликованном проектном журнале, чтобы
+ * рабочий интерфейс и проектная документация читались как один продукт.
+ */
+
+:root {
+  --kern-bg: #eef0ea;
+  --kern-surface: #fbfbf7;
+  --kern-surface-2: #f2f1e9;
+  --kern-ink: #1e2a22;
+  --kern-ink-muted: #55625a;
+  --kern-line: #d8d9ce;
+  --kern-accent: #b25c2e;
+  --kern-accent-2: #35647f;
+  --kern-good: #4c7a4a;
+  --kern-warn: #a3721f;
+  --kern-crit: #af3f38;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --kern-bg: #141d17;
+    --kern-surface: #1b2620;
+    --kern-surface-2: #202d25;
+    --kern-ink: #e8ece4;
+    --kern-ink-muted: #a3ae9e;
+    --kern-line: #2c3a30;
+    --kern-accent: #dd8551;
+    --kern-accent-2: #7fb0c8;
+    --kern-good: #7fbc7a;
+    --kern-warn: #d1a24d;
+    --kern-crit: #e07a72;
+  }
+}
+
+:root[data-theme='dark'] {
+  --kern-bg: #141d17;
+  --kern-surface: #1b2620;
+  --kern-surface-2: #202d25;
+  --kern-ink: #e8ece4;
+  --kern-ink-muted: #a3ae9e;
+  --kern-line: #2c3a30;
+  --kern-accent: #dd8551;
+  --kern-accent-2: #7fb0c8;
+  --kern-good: #7fbc7a;
+  --kern-warn: #d1a24d;
+  --kern-crit: #e07a72;
+}
+
+body {
+  background: var(--kern-bg);
+  color: var(--kern-ink);
+}

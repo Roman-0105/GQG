@@ -1,0 +1,276 @@
+// Схема данных платформы КЕРН.
+// Соответствует доменной модели из docs/project-plan.md (раздел 3) и
+// ролевой модели из раздела 2. Любое изменение, ломающее совместимость,
+// фиксируется отдельным ADR в docs/adr/.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------
+// Компания и пользователи
+// ---------------------------------------------------------------------
+
+model Company {
+  id            String   @id @default(cuid())
+  name          String
+  timezone      String   @default("Europe/Moscow")
+  currency      String   @default("RUB")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users       User[]
+  roles       Role[]
+  sites       Site[]
+  positions   Position[]
+  rateRules   RateRule[]
+  payrollRuns PayrollRun[]
+  employees   Employee[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  roleAssignments     RoleAssignment[]
+  employee            Employee?
+  foremanOfCrews      Crew[]      @relation("CrewForeman")
+  submittedTimesheets Timesheet[] @relation("TimesheetSubmittedBy")
+  approvedTimesheets  Timesheet[] @relation("TimesheetApprovedBy")
+}
+
+// ---------------------------------------------------------------------
+// Роли и права: право = (ресурс, действие, область видимости).
+// Роли не зашиты в enum — владелец компании собирает свои из тех же
+// прав (см. docs/project-plan.md, раздел 2).
+// ---------------------------------------------------------------------
+
+model Role {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  name      String
+  isSystem  Boolean  @default(false) // семь базовых ролей из плана vs кастомные
+
+  permissions Permission[]
+  assignments RoleAssignment[]
+
+  @@unique([companyId, name])
+}
+
+// resource: site | crew | employee | timesheet | payroll | rate_rule | role | analytics
+// action:   create | read | update | approve | lock | delete | export
+// scope:    own_crew | own_sites | company
+model Permission {
+  id       String @id @default(cuid())
+  roleId   String
+  role     Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  resource String
+  action   String
+  scope    String
+
+  @@unique([roleId, resource, action, scope])
+}
+
+model RoleAssignment {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+  // Ограничивает scope "own_sites" конкретными участками, если задано.
+  siteIds String[] @default([])
+
+  @@unique([userId, roleId])
+}
+
+// ---------------------------------------------------------------------
+// Административная иерархия: Компания -> Участок -> Бригада -> Сотрудник
+// ---------------------------------------------------------------------
+
+model Site {
+  id             String    @id @default(cuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id])
+  name           String
+  code           String
+  description    String?
+  workType       String // geology | geotech | drilling | mixed
+  client         String?
+  contractNumber String?
+  latitude       Float?
+  longitude      Float?
+  budget         Decimal?  @db.Decimal(14, 2)
+  status         String    @default("planned") // planned | active | paused | closed
+  startDate      DateTime?
+  endDate        DateTime?
+  createdAt      DateTime  @default(now())
+
+  crews      Crew[]
+  timesheets Timesheet[]
+  rateRules  RateRule[]
+
+  @@unique([companyId, code])
+}
+
+model Crew {
+  id           String    @id @default(cuid())
+  siteId       String
+  site         Site      @relation(fields: [siteId], references: [id])
+  name         String
+  foremanId    String?
+  foreman      User?     @relation("CrewForeman", fields: [foremanId], references: [id])
+  shiftPattern String? // напр. "вахта 15/15", "дневная"
+  startDate    DateTime?
+  endDate      DateTime?
+
+  members    Employee[]
+  timesheets Timesheet[]
+}
+
+model Position {
+  id                 String  @id @default(cuid())
+  companyId          String
+  company            Company @relation(fields: [companyId], references: [id])
+  name               String // бурильщик, геолог, помощник бурильщика, механик...
+  baseHourlyRate     Decimal @db.Decimal(10, 2)
+  overtimeMultiplier Decimal @default(1.5) @db.Decimal(4, 2)
+  hazardPay          Boolean @default(false)
+
+  employees Employee[]
+
+  @@unique([companyId, name])
+}
+
+model Employee {
+  id               String    @id @default(cuid())
+  companyId        String
+  company          Company   @relation(fields: [companyId], references: [id])
+  userId           String?   @unique
+  user             User?     @relation(fields: [userId], references: [id])
+  crewId           String?
+  crew             Crew?     @relation(fields: [crewId], references: [id])
+  positionId       String
+  position         Position  @relation(fields: [positionId], references: [id])
+  fullName         String
+  employmentType   String    @default("staff") // staff | contract | day_rate
+  baseRateOverride Decimal?  @db.Decimal(10, 2)
+  hiredAt          DateTime?
+  isActive         Boolean   @default(true)
+
+  timesheets   Timesheet[]
+  payrollLines PayrollLine[]
+}
+
+// ---------------------------------------------------------------------
+// Конструктор правил расчёта: компания -> участок -> должность,
+// приоритет решает, какое правило применяется при пересечении.
+// Формулы утверждает агент payroll-rules (docs/project-plan.md, раздел 4).
+// ---------------------------------------------------------------------
+
+model RateRule {
+  id             String   @id @default(cuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
+  siteId         String? // null = действует на всю компанию
+  site           Site?    @relation(fields: [siteId], references: [id])
+  positionId     String? // null = действует на все должности
+  name           String
+  nightShiftPct  Decimal  @default(0) @db.Decimal(5, 2)
+  holidayPct     Decimal  @default(0) @db.Decimal(5, 2)
+  remoteBonusPct Decimal  @default(0) @db.Decimal(5, 2)
+  perDiemAmount  Decimal  @default(0) @db.Decimal(10, 2)
+  perMeterBonus  Decimal  @default(0) @db.Decimal(10, 2)
+  priority       Int      @default(0)
+  createdAt      DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------
+// Табель — сквозная сущность (docs/project-plan.md, раздел 3-4)
+// ---------------------------------------------------------------------
+
+model Timesheet {
+  id               String    @id @default(cuid())
+  employeeId       String
+  employee         Employee  @relation(fields: [employeeId], references: [id])
+  siteId           String
+  site             Site      @relation(fields: [siteId], references: [id])
+  crewId           String
+  crew             Crew      @relation(fields: [crewId], references: [id])
+  workDate         DateTime
+  workType         String // drilling | standby | travel | repair | training | weather_down
+  regularHours     Decimal   @db.Decimal(5, 2)
+  overtimeHours    Decimal   @default(0) @db.Decimal(5, 2)
+  nightHours       Decimal   @default(0) @db.Decimal(5, 2)
+  metersDrilled    Decimal?  @db.Decimal(8, 2)
+  notes            String?
+  photoUrls        String[]  @default([])
+  gpsLat           Float?
+  gpsLng           Float?
+  status           String    @default("draft") // draft | submitted | approved | locked | rejected
+  submittedById    String?
+  submittedBy      User?     @relation("TimesheetSubmittedBy", fields: [submittedById], references: [id])
+  approvedById     String?
+  approvedBy       User?     @relation("TimesheetApprovedBy", fields: [approvedById], references: [id])
+  // Штамп времени с офлайн-устройства — нужен для разрешения конфликтов
+  // синхронизации (раздел 6 плана): заблокированный на сервере период
+  // всегда побеждает независимо от clientCreatedAt.
+  clientCreatedAt DateTime?
+  syncedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  payrollLineId String?
+  payrollLine   PayrollLine? @relation(fields: [payrollLineId], references: [id])
+
+  @@index([siteId, workDate])
+  @@index([employeeId, workDate])
+}
+
+// ---------------------------------------------------------------------
+// Расчёт зарплаты — сквозная сущность
+// ---------------------------------------------------------------------
+
+model PayrollRun {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  periodStart DateTime
+  periodEnd   DateTime
+  status      String   @default("draft") // draft | processed | closed
+  createdAt   DateTime @default(now())
+
+  lines PayrollLine[]
+}
+
+// Каждая сумма хранится отдельно, чтобы расчётный лист был объясним
+// (см. docs/project-plan.md, раздел 4: "чёрный ящик" без объяснения не принимается).
+model PayrollLine {
+  id                String     @id @default(cuid())
+  payrollRunId      String
+  payrollRun        PayrollRun @relation(fields: [payrollRunId], references: [id])
+  employeeId        String
+  employee          Employee   @relation(fields: [employeeId], references: [id])
+  timesheets        Timesheet[]
+  baseAmount        Decimal    @db.Decimal(12, 2)
+  overtimeAmount    Decimal    @default(0) @db.Decimal(12, 2)
+  nightAmount       Decimal    @default(0) @db.Decimal(12, 2)
+  holidayAmount     Decimal    @default(0) @db.Decimal(12, 2)
+  remoteBonusAmount Decimal    @default(0) @db.Decimal(12, 2)
+  perDiemAmount     Decimal    @default(0) @db.Decimal(12, 2)
+  pieceRateAmount   Decimal    @default(0) @db.Decimal(12, 2)
+  deductions        Decimal    @default(0) @db.Decimal(12, 2)
+  advanceDeduction  Decimal    @default(0) @db.Decimal(12, 2)
+  netAmount         Decimal    @db.Decimal(12, 2)
+}
