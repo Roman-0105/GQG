@@ -93,10 +93,21 @@ export class TimesheetsService {
     });
   }
 
-  async findAll(user: KernUser) {
+  async findAll(user: KernUser, status?: string) {
     const ownCrewIds = await this.getOwnCrewIds(user.id);
     const where = buildCrewScopeWhere(user, 'timesheet', 'read', ownCrewIds);
-    return this.prisma.timesheet.findMany({ where, orderBy: { workDate: 'desc' } });
+    return this.prisma.timesheet.findMany({
+      where: status ? { ...where, status } : where,
+      orderBy: { workDate: 'desc' },
+      include: {
+        employee: { select: { id: true, fullName: true, position: { select: { name: true } } } },
+        crew: { select: { id: true, name: true } },
+        site: { select: { id: true, name: true, code: true } },
+        // Только безопасные поля — см. урок с passwordHash в crews (Этап 01).
+        submittedBy: { select: { id: true, fullName: true } },
+        approvedBy: { select: { id: true, fullName: true } },
+      },
+    });
   }
 
   /**

@@ -53,4 +53,14 @@ export class CrewsService {
       },
     });
   }
+
+  findMine(userId: string) {
+    return this.prisma.crew.findMany({
+      where: { foremanId: userId },
+      include: {
+        site: { select: { id: true, name: true, code: true } },
+        members: { include: { position: true } },
+      },
+    });
+  }
 }

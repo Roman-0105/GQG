@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RbacGuard } from '../../common/rbac/rbac.guard';
 import { RequirePermission } from '../../common/rbac/permissions.decorator';
@@ -20,8 +20,8 @@ export class TimesheetsController {
 
   @Get()
   @RequirePermission('timesheet', 'read')
-  findAll(@CurrentKernUser() user: KernUser) {
-    return this.timesheetsService.findAll(user);
+  findAll(@CurrentKernUser() user: KernUser, @Query('status') status?: string) {
+    return this.timesheetsService.findAll(user, status);
   }
 
   @Post(':id/submit')
@@ -34,6 +34,12 @@ export class TimesheetsController {
   @RequirePermission('timesheet', 'approve')
   approve(@CurrentKernUser() user: KernUser, @Param('id') id: string) {
     return this.timesheetsService.transition(user, id, 'approved');
+  }
+
+  @Post(':id/reject')
+  @RequirePermission('timesheet', 'approve')
+  reject(@CurrentKernUser() user: KernUser, @Param('id') id: string) {
+    return this.timesheetsService.transition(user, id, 'rejected');
   }
 
   @Post(':id/lock')

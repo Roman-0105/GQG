@@ -7,6 +7,8 @@ import { SiteDetail } from './pages/SiteDetail';
 import { Team } from './pages/Team';
 import { Positions } from './pages/Positions';
 import { TimesheetForm } from './pages/TimesheetForm';
+import { MyTimesheets } from './pages/MyTimesheets';
+import { Approvals } from './pages/Approvals';
 
 // TODO(frontend-dev, Этап 01+): защитить приватные маршруты проверкой
 // авторизации (редирект на /login без токена) — сейчас открыты, чтобы
@@ -24,6 +26,8 @@ export function App() {
       <Route path="/team" element={<Team />} />
       <Route path="/positions" element={<Positions />} />
       <Route path="/timesheets/new" element={<TimesheetForm />} />
+      <Route path="/timesheets" element={<MyTimesheets />} />
+      <Route path="/approvals" element={<Approvals />} />
     </Routes>
   );
 }

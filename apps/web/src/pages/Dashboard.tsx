@@ -26,6 +26,14 @@ export function Dashboard() {
           <h2 className="font-medium text-ink mb-1">Внести табель</h2>
           <p className="text-sm text-ink-muted">Работает офлайн</p>
         </Link>
+        <Link to="/timesheets" className="block bg-surface border border-line rounded-lg p-5 hover:border-accent transition-colors">
+          <h2 className="font-medium text-ink mb-1">Мои табели</h2>
+          <p className="text-sm text-ink-muted">Статус согласования</p>
+        </Link>
+        <Link to="/approvals" className="block bg-surface border border-line rounded-lg p-5 hover:border-accent transition-colors">
+          <h2 className="font-medium text-ink mb-1">Согласование</h2>
+          <p className="text-sm text-ink-muted">Для руководителя участка</p>
+        </Link>
         <div className="block bg-surface border border-line rounded-lg p-5 opacity-60">
           <h2 className="font-medium text-ink mb-1">Расчёт зарплаты</h2>
           <p className="text-sm text-ink-muted">Этап 03 — ещё не реализовано</p>

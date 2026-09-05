@@ -29,6 +29,12 @@ export interface QueuedTimesheet {
   notes?: string;
   clientCreatedAt: string;
   synced: boolean;
+  // Снимок имён на момент заполнения — офлайн-очередь показывает их
+  // сразу, не дожидаясь связи, чтобы бригадир видел "Пётр Сидоров",
+  // а не голый id (список бригады тоже кэшируется с последнего онлайн-визита).
+  employeeName: string;
+  siteName: string;
+  crewName: string;
 }
 
 function readQueue(userId: string): QueuedTimesheet[] {
