@@ -1,9 +1,9 @@
 import { Link } from 'react-router-dom';
 
 /**
- * Заглушка ролевого дашборда. Реальные витрины (день/неделя/месяц/
- * квартал/год/произвольный период) — Этап 04 (docs/project-plan.md,
- * раздел 5). Здесь — карта разделов, чтобы каркас был кликабелен.
+ * Заглушка ролевого дашборда. Здесь — карта разделов, чтобы каркас был
+ * кликабелен; настоящие ролевые виджеты (разный набор плиток по
+ * должности) — отдельная доработка поверх уже готовой аналитики.
  */
 export function Dashboard() {
   return (
@@ -42,10 +42,10 @@ export function Dashboard() {
           <h2 className="font-medium text-ink mb-1">Правила расчёта</h2>
           <p className="text-sm text-ink-muted">Надбавки, суточные, метраж</p>
         </Link>
-        <div className="block bg-surface border border-line rounded-lg p-5 opacity-60">
+        <Link to="/analytics" className="block bg-surface border border-line rounded-lg p-5 hover:border-accent transition-colors">
           <h2 className="font-medium text-ink mb-1">Аналитика</h2>
-          <p className="text-sm text-ink-muted">Этап 04 — ещё не реализовано</p>
-        </div>
+          <p className="text-sm text-ink-muted">День/неделя/месяц/квартал/год, бюджет участков</p>
+        </Link>
       </div>
     </div>
   );

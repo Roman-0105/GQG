@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateSiteDto {
   @IsString()
@@ -19,4 +19,11 @@ export class CreateSiteDto {
   @IsOptional()
   @IsString()
   client?: string;
+
+  // Плановый бюджет участка — сравнивается с фактическими затратами на
+  // ЗП в аналитике (docs/project-plan.md, раздел 5).
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  budget?: number;
 }

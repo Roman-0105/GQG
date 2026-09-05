@@ -1,12 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Prisma, RateRule } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { computePerDiem, computeRowAmounts, pickRateRule, round2 } from '../../common/payroll/rate-rule.util';
 
 type DB = Prisma.TransactionClient | PrismaService;
-
-function round2(d: Prisma.Decimal): Prisma.Decimal {
-  return d.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-}
 
 function toDecimal(v: number | Prisma.Decimal | undefined): Prisma.Decimal {
   if (v === undefined) return new Prisma.Decimal(0);
@@ -29,13 +26,10 @@ export interface AppliedRule {
  * payroll-rules — docs/payroll-formulas.md. Любое расхождение с этим
  * файлом — баг, заводится через qa-tester, а не тихо правится здесь.
  *
- * Ключевое архитектурное решение из спецификации (раздел 1.3, D1):
- * при пересечении RateRule побеждает ОДНО правило целиком (по priority,
- * затем специфичности, затем дате создания) — не пофилевое наследование.
- * Причина: RateRule хранит проценты как non-nullable Decimal с default
- * 0, поэтому "не задано" и "явно 0" неразличимы на уровне схемы.
- * Пофилевое наследование потребовало бы миграции на nullable-поля —
- * см. docs/adr/0004-payroll-engine.md.
+ * Само построчное вычисление сумм и выбор RateRule — в общем модуле
+ * common/payroll/rate-rule.util.ts, которым пользуется и AnalyticsService
+ * (Этап 04), чтобы цифры "фонд оплаты труда" в аналитике не могли
+ * разойтись с реальным расчётом ЗП.
  */
 @Injectable()
 export class PayrollCalcService {
@@ -76,7 +70,7 @@ export class PayrollCalcService {
     // раз на сотрудника за период — Timesheet.siteId своё у каждой
     // строки (спецификация, раздел 1.1).
     for (const t of timesheets) {
-      const rule = this.pickRule(allRules, t.siteId, employee.positionId);
+      const rule = pickRateRule(allRules, t.siteId, employee.positionId);
       if (!rule) {
         throw new BadRequestException(
           `Нет применимого правила расчёта (RateRule) для табеля ${t.id} ` +
@@ -86,28 +80,16 @@ export class PayrollCalcService {
       }
       appliedRules.push({ timesheetId: t.id, ruleId: rule.id, ruleName: rule.name });
 
-      const rowBase = t.regularHours.mul(rate);
-      const rowOvertime = t.overtimeHours.mul(rate).mul(mult);
-      const rowNight = t.nightHours.mul(rate).mul(rule.nightShiftPct.div(100));
-      const rowHoliday = t.isHoliday
-        ? t.regularHours.plus(t.overtimeHours).mul(rate).mul(rule.holidayPct.div(100))
-        : new Prisma.Decimal(0);
-      // Вахтовая/удалённая надбавка — от уже заработанного (база + сверхурочные) этой строки.
-      const rowRemote = rowBase.plus(rowOvertime).mul(rule.remoteBonusPct.div(100));
-      const rowPieceRate = (t.metersDrilled ?? new Prisma.Decimal(0)).mul(rule.perMeterBonus);
-
-      baseAmount = baseAmount.plus(rowBase);
-      overtimeAmount = overtimeAmount.plus(rowOvertime);
-      nightAmount = nightAmount.plus(rowNight);
-      holidayAmount = holidayAmount.plus(rowHoliday);
-      remoteBonusAmount = remoteBonusAmount.plus(rowRemote);
-      pieceRateAmount = pieceRateAmount.plus(rowPieceRate);
+      const row = computeRowAmounts(t, rate, mult, rule);
+      baseAmount = baseAmount.plus(row.base);
+      overtimeAmount = overtimeAmount.plus(row.overtime);
+      nightAmount = nightAmount.plus(row.night);
+      holidayAmount = holidayAmount.plus(row.holiday);
+      remoteBonusAmount = remoteBonusAmount.plus(row.remote);
+      pieceRateAmount = pieceRateAmount.plus(row.pieceRate);
     }
 
-    // Суточные — по уникальным календарным дням, не по строкам табеля,
-    // иначе задваиваются при нескольких табелях на одну дату
-    // (спецификация, раздел 2.6).
-    const perDiemAmount = this.calculatePerDiem(timesheets, allRules, employee.positionId);
+    const perDiemAmount = computePerDiem(timesheets, allRules, employee.positionId);
 
     const rounded = {
       baseAmount: round2(baseAmount),
@@ -144,44 +126,5 @@ export class PayrollCalcService {
       // перепроверить вручную (см. docs/payroll-formulas.md, раздел 4).
       appliedRules,
     };
-  }
-
-  private pickRule(rules: RateRule[], siteId: string, positionId: string): RateRule | null {
-    const candidates = rules.filter(
-      (r) => (r.siteId === null || r.siteId === siteId) && (r.positionId === null || r.positionId === positionId),
-    );
-    if (candidates.length === 0) return null;
-
-    candidates.sort((a, b) => {
-      if (b.priority !== a.priority) return b.priority - a.priority;
-      const specA = (a.siteId ? 1 : 0) + (a.positionId ? 1 : 0);
-      const specB = (b.siteId ? 1 : 0) + (b.positionId ? 1 : 0);
-      if (specB !== specA) return specB - specA;
-      return b.createdAt.getTime() - a.createdAt.getTime();
-    });
-
-    return candidates[0];
-  }
-
-  private calculatePerDiem(
-    timesheets: { workDate: Date; siteId: string }[],
-    rules: RateRule[],
-    positionId: string,
-  ): Prisma.Decimal {
-    const siteByDate = new Map<string, string>();
-    for (const t of timesheets) {
-      const key = t.workDate.toISOString().slice(0, 10);
-      // Если на одну дату есть табели с разных участков — берём первый
-      // встреченный; корректная обработка требует бизнес-решения
-      // (см. docs/payroll-formulas.md, D7) и здесь намеренно не решается.
-      if (!siteByDate.has(key)) siteByDate.set(key, t.siteId);
-    }
-
-    let total = new Prisma.Decimal(0);
-    for (const siteId of siteByDate.values()) {
-      const rule = this.pickRule(rules, siteId, positionId);
-      if (rule) total = total.plus(rule.perDiemAmount);
-    }
-    return total;
   }
 }

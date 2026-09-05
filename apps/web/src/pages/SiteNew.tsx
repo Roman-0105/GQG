@@ -17,6 +17,7 @@ export function SiteNew() {
   const [workType, setWorkType] = useState('drilling');
   const [description, setDescription] = useState('');
   const [client, setClient] = useState('');
+  const [budget, setBudget] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -27,7 +28,14 @@ export function SiteNew() {
     try {
       const site = await apiFetch<{ id: string }>('/sites', {
         method: 'POST',
-        body: JSON.stringify({ name, code, workType, description: description || undefined, client: client || undefined }),
+        body: JSON.stringify({
+          name,
+          code,
+          workType,
+          description: description || undefined,
+          client: client || undefined,
+          budget: budget ? Number(budget) : undefined,
+        }),
       });
       navigate(`/sites/${site.id}`);
     } catch (err) {
@@ -64,9 +72,15 @@ export function SiteNew() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Клиент (необязательно)</label>
-            <input value={client} onChange={(e) => setClient(e.target.value)} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Клиент (необязательно)</label>
+              <input value={client} onChange={(e) => setClient(e.target.value)} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Бюджет, ₽ (необязательно)</label>
+              <input type="number" min={0} value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="напр. 500000" className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
+            </div>
           </div>
 
           <div>

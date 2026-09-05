@@ -11,6 +11,7 @@ import { MyTimesheets } from './pages/MyTimesheets';
 import { Approvals } from './pages/Approvals';
 import { RateRules } from './pages/RateRules';
 import { Payroll } from './pages/Payroll';
+import { Analytics } from './pages/Analytics';
 
 // TODO(frontend-dev, Этап 01+): защитить приватные маршруты проверкой
 // авторизации (редирект на /login без токена) — сейчас открыты, чтобы
@@ -32,6 +33,7 @@ export function App() {
       <Route path="/approvals" element={<Approvals />} />
       <Route path="/rate-rules" element={<RateRules />} />
       <Route path="/payroll" element={<Payroll />} />
+      <Route path="/analytics" element={<Analytics />} />
     </Routes>
   );
 }

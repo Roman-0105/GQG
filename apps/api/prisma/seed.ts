@@ -67,6 +67,7 @@ const ROLE_PERMISSIONS: Record<string, PermissionSeed[]> = {
     { resource: 'payroll', action: 'create', scope: 'company' },
     { resource: 'payroll', action: 'read', scope: 'company' },
     { resource: 'payroll', action: 'export', scope: 'company' },
+    { resource: 'analytics', action: 'read', scope: 'company' },
   ],
   Работник: [
     { resource: 'timesheet', action: 'read', scope: 'own_crew' },

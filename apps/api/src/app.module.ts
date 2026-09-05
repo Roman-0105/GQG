@@ -10,6 +10,7 @@ import { PositionsModule } from './modules/positions/positions.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { UsersModule } from './modules/users/users.module';
 import { RateRulesModule } from './modules/rate-rules/rate-rules.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { RateRulesModule } from './modules/rate-rules/rate-rules.module';
     RolesModule,
     UsersModule,
     RateRulesModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}
