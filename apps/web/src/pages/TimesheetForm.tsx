@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { enqueueTimesheet, getUnsyncedCount, syncQueue, QueuedTimesheet } from '../lib/offlineQueue';
+import { getSessionUser } from '../lib/session';
 
 const WORK_TYPES: { value: string; label: string }[] = [
   { value: 'drilling', label: 'Бурение' },
@@ -15,8 +16,13 @@ const WORK_TYPES: { value: string; label: string }[] = [
  * Офлайн-первая форма табеля бригадира (docs/project-plan.md, раздел 6):
  * запись сразу уходит в локальную очередь, отправка на сервер —
  * отдельным шагом, который можно повторить при появлении связи.
+ *
+ * Очередь ключуется по текущему пользователю устройства (lib/session) —
+ * иначе на общем планшете следующий вошедший бригадир видел бы чужие
+ * несинхронизированные записи (найдено security-review).
  */
 export function TimesheetForm() {
+  const sessionUser = getSessionUser();
   const [siteId, setSiteId] = useState('');
   const [crewId, setCrewId] = useState('');
   const [employeeId, setEmployeeId] = useState('');
@@ -27,7 +33,7 @@ export function TimesheetForm() {
   const [nightHours, setNightHours] = useState(0);
   const [notes, setNotes] = useState('');
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
-  const [unsyncedCount, setUnsyncedCount] = useState(getUnsyncedCount());
+  const [unsyncedCount, setUnsyncedCount] = useState(() => (sessionUser ? getUnsyncedCount(sessionUser.id) : 0));
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
@@ -41,9 +47,18 @@ export function TimesheetForm() {
     };
   }, []);
 
+  if (!sessionUser) {
+    return (
+      <div className="min-h-screen bg-bg p-8">
+        <p className="text-crit">Сессия не найдена — войдите заново.</p>
+      </div>
+    );
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    enqueueTimesheet({
+    if (!sessionUser) return;
+    enqueueTimesheet(sessionUser.id, {
       employeeId,
       siteId,
       crewId,
@@ -55,13 +70,14 @@ export function TimesheetForm() {
       notes: notes || undefined,
       clientCreatedAt: new Date().toISOString(),
     });
-    setUnsyncedCount(getUnsyncedCount());
+    setUnsyncedCount(getUnsyncedCount(sessionUser.id));
     setSavedMessage('Сохранено на устройстве. Появится на сервере при синхронизации.');
     setNotes('');
   }
 
   async function handleSync() {
-    const result = await syncQueue((entry: QueuedTimesheet) =>
+    if (!sessionUser) return;
+    const result = await syncQueue(sessionUser.id, (entry: QueuedTimesheet) =>
       apiFetch('/timesheets', {
         method: 'POST',
         body: JSON.stringify({
@@ -78,7 +94,7 @@ export function TimesheetForm() {
         }),
       }),
     );
-    setUnsyncedCount(getUnsyncedCount());
+    setUnsyncedCount(getUnsyncedCount(sessionUser.id));
     setSavedMessage(`Синхронизировано: ${result.synced}. Не удалось: ${result.failed}.`);
   }
 

@@ -21,9 +21,7 @@ export class TimesheetsController {
   @Get()
   @RequirePermission('timesheet', 'read')
   findAll(@CurrentKernUser() user: KernUser) {
-    // TODO(backend-dev): подставить реальный список бригад пользователя
-    // (сейчас own_crew вернёт пустой список — заполняется на Этапе 01/02).
-    return this.timesheetsService.findAll(user, []);
+    return this.timesheetsService.findAll(user);
   }
 
   @Post(':id/submit')

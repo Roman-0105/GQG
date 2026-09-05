@@ -4,9 +4,17 @@
  * IndexedDB — у localStorage мал лимит объёма и нет транзакций, но для
  * каркаса Этапа 00 достаточно, чтобы продемонстрировать принцип:
  * запись всегда пишется локально первой, синхронизация — отдельным шагом.
+ *
+ * Очередь ключуется по id пользователя (queueKey), а не одним общим
+ * ключом на устройство — в поле планшет часто передаётся между
+ * бригадирами по смене, и без разделения по пользователю следующий
+ * вошедший видел бы (и мог случайно отправить под собой) чужие
+ * несинхронизированные записи (найдено security-review).
  */
 
-const QUEUE_KEY = 'kern:timesheet-queue';
+function queueKey(userId: string): string {
+  return `kern:timesheet-queue:${userId}`;
+}
 
 export interface QueuedTimesheet {
   localId: string;
@@ -23,65 +31,72 @@ export interface QueuedTimesheet {
   synced: boolean;
 }
 
-function readQueue(): QueuedTimesheet[] {
+function readQueue(userId: string): QueuedTimesheet[] {
   try {
-    const raw = localStorage.getItem(QUEUE_KEY);
+    const raw = localStorage.getItem(queueKey(userId));
     return raw ? (JSON.parse(raw) as QueuedTimesheet[]) : [];
   } catch {
     return [];
   }
 }
 
-function writeQueue(queue: QueuedTimesheet[]) {
+function writeQueue(userId: string, queue: QueuedTimesheet[]) {
   try {
-    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+    localStorage.setItem(queueKey(userId), JSON.stringify(queue));
   } catch {
     // Хранилище недоступно (приватный режим и т.п.) — запись потеряется
     // в рамках этого черновика; TODO(frontend-dev): предупредить пользователя.
   }
 }
 
-export function enqueueTimesheet(entry: Omit<QueuedTimesheet, 'localId' | 'synced'>): QueuedTimesheet {
+export function enqueueTimesheet(
+  userId: string,
+  entry: Omit<QueuedTimesheet, 'localId' | 'synced'>,
+): QueuedTimesheet {
   const queued: QueuedTimesheet = {
     ...entry,
     localId: crypto.randomUUID(),
     synced: false,
   };
-  writeQueue([...readQueue(), queued]);
+  writeQueue(userId, [...readQueue(userId), queued]);
   return queued;
 }
 
-export function getUnsyncedCount(): number {
-  return readQueue().filter((t) => !t.synced).length;
+export function getUnsyncedCount(userId: string): number {
+  return readQueue(userId).filter((t) => !t.synced).length;
 }
 
-export function listQueue(): QueuedTimesheet[] {
-  return readQueue();
+export function listQueue(userId: string): QueuedTimesheet[] {
+  return readQueue(userId);
 }
 
 /**
  * Пытается отправить все несинхронизированные записи на сервер.
  * При ошибке сети запись остаётся в очереди — вызывающий код решает,
- * когда повторить (например по событию 'online').
+ * когда повторить (например по событию 'online'). Успешно
+ * синхронизированные записи сразу удаляются, а не копятся бесконечно —
+ * не хранить чужие/старые данные дольше необходимого (раздел 6 плана).
  */
 export async function syncQueue(
+  userId: string,
   send: (entry: QueuedTimesheet) => Promise<void>,
 ): Promise<{ synced: number; failed: number }> {
-  const queue = readQueue();
+  const queue = readQueue(userId);
   let synced = 0;
   let failed = 0;
+  const remaining: QueuedTimesheet[] = [];
 
   for (const entry of queue) {
     if (entry.synced) continue;
     try {
       await send(entry);
-      entry.synced = true;
       synced += 1;
     } catch {
       failed += 1;
+      remaining.push(entry);
     }
   }
 
-  writeQueue(queue);
+  writeQueue(userId, remaining);
   return { synced, failed };
 }

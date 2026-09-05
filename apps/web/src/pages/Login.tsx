@@ -1,6 +1,12 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import { setSessionUser } from '../lib/session';
+
+interface LoginResponse {
+  accessToken: string;
+  user: { id: string; fullName: string; email: string; companyId: string };
+}
 
 export function Login() {
   const navigate = useNavigate();
@@ -14,11 +20,12 @@ export function Login() {
     setError(null);
     setLoading(true);
     try {
-      const result = await apiFetch<{ accessToken: string }>('/auth/login', {
+      const result = await apiFetch<LoginResponse>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
       localStorage.setItem('kern:token', result.accessToken);
+      setSessionUser(result.user);
       navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось войти');

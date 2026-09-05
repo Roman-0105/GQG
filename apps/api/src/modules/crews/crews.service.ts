@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KernUser } from '../../common/rbac/rbac.types';
 import { buildSiteScopeWhere } from '../../common/rbac/scope.util';
@@ -24,6 +24,20 @@ export class CrewsService {
 
   async create(user: KernUser, dto: CreateCrewDto) {
     await this.assertSiteInScope(user, dto.siteId, 'create');
+
+    if (dto.foremanId) {
+      // Prisma проверит только существование строки User (FK), не
+      // компанию — без этой проверки при появлении второй компании в
+      // БД можно было бы назначить бригадиром чужого пользователя
+      // (найдено security-review).
+      const foreman = await this.prisma.user.findFirst({
+        where: { id: dto.foremanId, companyId: user.companyId },
+      });
+      if (!foreman) {
+        throw new BadRequestException('Указанный пользователь не найден в вашей компании');
+      }
+    }
+
     return this.prisma.crew.create({ data: dto });
   }
 
