@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RbacGuard } from '../../common/rbac/rbac.guard';
 import { RequirePermission } from '../../common/rbac/permissions.decorator';
@@ -15,6 +15,24 @@ export class PayrollController {
   @Post('runs')
   @RequirePermission('payroll', 'create')
   run(@CurrentKernUser() user: KernUser, @Body() dto: RunPayrollDto) {
-    return this.payrollService.runPayroll(user, dto.periodStart, dto.periodEnd);
+    return this.payrollService.runPayroll(
+      user,
+      dto.periodStart,
+      dto.periodEnd,
+      dto.advances?.map((a) => ({ employeeId: a.employeeId, amount: a.amount })),
+      dto.deductions?.map((d) => ({ employeeId: d.employeeId, amount: d.amount })),
+    );
+  }
+
+  @Get('runs')
+  @RequirePermission('payroll', 'read')
+  findAll(@CurrentKernUser() user: KernUser) {
+    return this.payrollService.findAll(user);
+  }
+
+  @Get('runs/:id')
+  @RequirePermission('payroll', 'read')
+  findOne(@CurrentKernUser() user: KernUser, @Param('id') id: string) {
+    return this.payrollService.findOne(user, id);
   }
 }

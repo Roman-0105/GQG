@@ -149,6 +149,7 @@ model Position {
   hazardPay          Boolean @default(false)
 
   employees Employee[]
+  rateRules RateRule[]
 
   @@unique([companyId, name])
 }
@@ -180,12 +181,13 @@ model Employee {
 // ---------------------------------------------------------------------
 
 model RateRule {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   companyId      String
-  company        Company  @relation(fields: [companyId], references: [id])
+  company        Company   @relation(fields: [companyId], references: [id])
   siteId         String? // null = действует на всю компанию
-  site           Site?    @relation(fields: [siteId], references: [id])
+  site           Site?     @relation(fields: [siteId], references: [id])
   positionId     String? // null = действует на все должности
+  position       Position? @relation(fields: [positionId], references: [id])
   name           String
   nightShiftPct  Decimal  @default(0) @db.Decimal(5, 2)
   holidayPct     Decimal  @default(0) @db.Decimal(5, 2)
@@ -213,6 +215,11 @@ model Timesheet {
   regularHours     Decimal   @db.Decimal(5, 2)
   overtimeHours    Decimal   @default(0) @db.Decimal(5, 2)
   nightHours       Decimal   @default(0) @db.Decimal(5, 2)
+  // Смена в праздничный день — влияет на holidayPct в расчёте ЗП
+  // (см. PayrollCalcService). Отдельное поле, а не вывод по календарю,
+  // потому что список праздников/выходных различается по регионам и
+  // ещё не подтверждён (docs/project-plan.md, раздел 10, пункт 1).
+  isHoliday        Boolean   @default(false)
   metersDrilled    Decimal?  @db.Decimal(8, 2)
   notes            String?
   photoUrls        String[]  @default([])

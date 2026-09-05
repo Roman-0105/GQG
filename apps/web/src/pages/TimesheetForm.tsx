@@ -28,6 +28,7 @@ export function TimesheetForm() {
   const [regularHours, setRegularHours] = useState(8);
   const [overtimeHours, setOvertimeHours] = useState(0);
   const [nightHours, setNightHours] = useState(0);
+  const [isHoliday, setIsHoliday] = useState(false);
   const [notes, setNotes] = useState('');
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [unsyncedCount, setUnsyncedCount] = useState(() => (sessionUser ? getUnsyncedCount(sessionUser.id) : 0));
@@ -90,6 +91,7 @@ export function TimesheetForm() {
       regularHours: Number(regularHours),
       overtimeHours: Number(overtimeHours),
       nightHours: Number(nightHours),
+      isHoliday,
       notes: notes || undefined,
       clientCreatedAt: new Date().toISOString(),
       employeeName: employee.fullName,
@@ -115,6 +117,7 @@ export function TimesheetForm() {
           regularHours: entry.regularHours,
           overtimeHours: entry.overtimeHours,
           nightHours: entry.nightHours,
+          isHoliday: entry.isHoliday,
           notes: entry.notes,
           clientCreatedAt: entry.clientCreatedAt,
         }),
@@ -211,6 +214,11 @@ export function TimesheetForm() {
                 <input type="number" min={0} step={0.5} value={nightHours} onChange={(e) => setNightHours(Number(e.target.value))} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
               </div>
             </div>
+
+            <label className="flex items-center gap-2 text-sm text-ink-muted">
+              <input type="checkbox" checked={isHoliday} onChange={(e) => setIsHoliday(e.target.checked)} />
+              Праздничный/выходной день
+            </label>
 
             <div>
               <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Заметка (необязательно)</label>

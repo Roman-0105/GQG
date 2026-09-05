@@ -26,6 +26,7 @@ export interface QueuedTimesheet {
   regularHours: number;
   overtimeHours: number;
   nightHours: number;
+  isHoliday: boolean;
   notes?: string;
   clientCreatedAt: string;
   synced: boolean;

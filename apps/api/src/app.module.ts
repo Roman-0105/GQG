@@ -9,6 +9,7 @@ import { PayrollModule } from './modules/payroll/payroll.module';
 import { PositionsModule } from './modules/positions/positions.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { UsersModule } from './modules/users/users.module';
+import { RateRulesModule } from './modules/rate-rules/rate-rules.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { UsersModule } from './modules/users/users.module';
     PositionsModule,
     RolesModule,
     UsersModule,
+    RateRulesModule,
   ],
 })
 export class AppModule {}

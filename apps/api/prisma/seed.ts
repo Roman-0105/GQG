@@ -60,7 +60,10 @@ const ROLE_PERMISSIONS: Record<string, PermissionSeed[]> = {
   ],
   'Расчётчик / бухгалтер': [
     { resource: 'rate_rule', action: 'create', scope: 'company' },
+    { resource: 'rate_rule', action: 'read', scope: 'company' },
     { resource: 'rate_rule', action: 'update', scope: 'company' },
+    { resource: 'position', action: 'read', scope: 'company' },
+    { resource: 'employee', action: 'read', scope: 'company' },
     { resource: 'payroll', action: 'create', scope: 'company' },
     { resource: 'payroll', action: 'read', scope: 'company' },
     { resource: 'payroll', action: 'export', scope: 'company' },
@@ -153,6 +156,28 @@ async function main() {
       where: { companyId_name: { companyId: company.id, name: position.name } },
       update: {},
       create: { companyId: company.id, ...position },
+    });
+  }
+
+  // Обязательный wildcard-правило компании (siteId=null, positionId=null,
+  // priority=0) — движок расчёта (docs/payroll-formulas.md, D11) требует,
+  // чтобы для каждого табеля нашлось хотя бы одно применимое RateRule,
+  // иначе расчёт зарплаты падает ошибкой валидации. У RateRule нет
+  // уникального ключа для upsert — проверяем существование вручную.
+  const hasWildcardRule = await prisma.rateRule.findFirst({
+    where: { companyId: company.id, siteId: null, positionId: null },
+  });
+  if (!hasWildcardRule) {
+    await prisma.rateRule.create({
+      data: {
+        companyId: company.id,
+        name: 'Базовые условия (без надбавок)',
+        priority: 0,
+        // Проценты/суммы — 0 по умолчанию (см. поля модели); реальные
+        // значения задаёт владелец компании на странице «Правила
+        // расчёта», когда региональные нормы будут подтверждены
+        // (docs/project-plan.md, раздел 10, пункт 1).
+      },
     });
   }
 

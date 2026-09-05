@@ -85,6 +85,7 @@ export class TimesheetsService {
         overtimeHours: dto.overtimeHours ?? 0,
         nightHours: dto.nightHours ?? 0,
         metersDrilled: dto.metersDrilled,
+        isHoliday: dto.isHoliday ?? false,
         notes: dto.notes,
         clientCreatedAt: dto.clientCreatedAt ? new Date(dto.clientCreatedAt) : undefined,
         status: 'draft',

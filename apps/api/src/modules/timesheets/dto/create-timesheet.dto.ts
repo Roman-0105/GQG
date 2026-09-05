@@ -1,4 +1,4 @@
-import { IsIn, IsISO8601, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsISO8601, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export const WORK_TYPES = ['drilling', 'standby', 'travel', 'repair', 'training', 'weather_down'] as const;
 
@@ -36,6 +36,11 @@ export class CreateTimesheetDto {
   @IsNumber()
   @Min(0)
   metersDrilled?: number;
+
+  // Влияет на holidayAmount при расчёте ЗП — см. docs/payroll-formulas.md.
+  @IsOptional()
+  @IsBoolean()
+  isHoliday?: boolean;
 
   @IsOptional()
   @IsString()
