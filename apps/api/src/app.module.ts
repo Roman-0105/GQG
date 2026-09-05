@@ -6,6 +6,9 @@ import { CrewsModule } from './modules/crews/crews.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { TimesheetsModule } from './modules/timesheets/timesheets.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
+import { PositionsModule } from './modules/positions/positions.module';
+import { RolesModule } from './modules/roles/roles.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -16,6 +19,9 @@ import { PayrollModule } from './modules/payroll/payroll.module';
     EmployeesModule,
     TimesheetsModule,
     PayrollModule,
+    PositionsModule,
+    RolesModule,
+    UsersModule,
   ],
 })
 export class AppModule {}

@@ -8,6 +8,8 @@ export type Resource =
   | 'payroll'
   | 'rate_rule'
   | 'role'
+  | 'user'
+  | 'position'
   | 'analytics';
 
 export type Action = 'create' | 'read' | 'update' | 'approve' | 'lock' | 'delete' | 'export';

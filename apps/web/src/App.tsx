@@ -2,11 +2,16 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Sites } from './pages/Sites';
+import { SiteNew } from './pages/SiteNew';
+import { SiteDetail } from './pages/SiteDetail';
+import { Team } from './pages/Team';
+import { Positions } from './pages/Positions';
 import { TimesheetForm } from './pages/TimesheetForm';
 
-// TODO(frontend-dev, Этап 01): защитить /dashboard, /sites, /timesheets/new
-// проверкой авторизации (редирект на /login без токена) — в каркасе
-// Этапа 00 маршруты открыты, чтобы показать структуру экранов.
+// TODO(frontend-dev, Этап 01+): защитить приватные маршруты проверкой
+// авторизации (редирект на /login без токена) — сейчас открыты, чтобы
+// показать структуру экранов; сервер всё равно не отдаст данные без
+// валидного JWT, так что это только вопрос UX, не безопасности.
 export function App() {
   return (
     <Routes>
@@ -14,6 +19,10 @@ export function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/sites" element={<Sites />} />
+      <Route path="/sites/new" element={<SiteNew />} />
+      <Route path="/sites/:id" element={<SiteDetail />} />
+      <Route path="/team" element={<Team />} />
+      <Route path="/positions" element={<Positions />} />
       <Route path="/timesheets/new" element={<TimesheetForm />} />
     </Routes>
   );

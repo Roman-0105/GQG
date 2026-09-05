@@ -11,7 +11,18 @@ type PermissionSeed = { resource: string; action: string; scope: 'own_crew' | 'o
 
 const ROLE_PERMISSIONS: Record<string, PermissionSeed[]> = {
   'Владелец компании': [
-    ...(['site', 'crew', 'employee', 'timesheet', 'payroll', 'rate_rule', 'role', 'analytics'].flatMap((resource) =>
+    ...([
+      'site',
+      'crew',
+      'employee',
+      'timesheet',
+      'payroll',
+      'rate_rule',
+      'role',
+      'user',
+      'position',
+      'analytics',
+    ].flatMap((resource) =>
       ['create', 'read', 'update', 'approve', 'lock', 'delete', 'export'].map((action) => ({
         resource,
         action,
@@ -24,11 +35,19 @@ const ROLE_PERMISSIONS: Record<string, PermissionSeed[]> = {
     { resource: 'employee', action: 'read', scope: 'company' },
     { resource: 'employee', action: 'update', scope: 'company' },
     { resource: 'role', action: 'read', scope: 'company' },
+    { resource: 'user', action: 'create', scope: 'company' },
+    { resource: 'user', action: 'read', scope: 'company' },
+    { resource: 'position', action: 'create', scope: 'company' },
+    { resource: 'position', action: 'read', scope: 'company' },
   ],
   'Руководитель участка': [
     { resource: 'site', action: 'read', scope: 'own_sites' },
     { resource: 'crew', action: 'create', scope: 'own_sites' },
     { resource: 'crew', action: 'read', scope: 'own_sites' },
+    { resource: 'employee', action: 'create', scope: 'own_sites' },
+    { resource: 'employee', action: 'read', scope: 'own_sites' },
+    { resource: 'position', action: 'read', scope: 'company' },
+    { resource: 'user', action: 'read', scope: 'company' },
     { resource: 'timesheet', action: 'read', scope: 'own_sites' },
     { resource: 'timesheet', action: 'approve', scope: 'own_sites' },
     { resource: 'timesheet', action: 'lock', scope: 'own_sites' },
@@ -50,7 +69,17 @@ const ROLE_PERMISSIONS: Record<string, PermissionSeed[]> = {
     { resource: 'timesheet', action: 'read', scope: 'own_crew' },
   ],
   Аудитор: [
-    ...(['site', 'crew', 'employee', 'timesheet', 'payroll', 'rate_rule', 'analytics'].map((resource) => ({
+    ...([
+      'site',
+      'crew',
+      'employee',
+      'timesheet',
+      'payroll',
+      'rate_rule',
+      'user',
+      'position',
+      'analytics',
+    ].map((resource) => ({
       resource,
       action: 'read' as const,
       scope: 'company' as const,
@@ -109,6 +138,23 @@ async function main() {
     update: {},
     create: { userId: owner.id, roleId: ownerRole.id },
   });
+
+  const DEFAULT_POSITIONS: { name: string; baseHourlyRate: number; hazardPay?: boolean }[] = [
+    { name: 'Бурильщик', baseHourlyRate: 450, hazardPay: true },
+    { name: 'Помощник бурильщика', baseHourlyRate: 320, hazardPay: true },
+    { name: 'Геолог', baseHourlyRate: 500 },
+    { name: 'Инженер-геотехник', baseHourlyRate: 520 },
+    { name: 'Машинист буровой установки', baseHourlyRate: 480, hazardPay: true },
+    { name: 'Разнорабочий', baseHourlyRate: 250 },
+  ];
+
+  for (const position of DEFAULT_POSITIONS) {
+    await prisma.position.upsert({
+      where: { companyId_name: { companyId: company.id, name: position.name } },
+      update: {},
+      create: { companyId: company.id, ...position },
+    });
+  }
 
   // eslint-disable-next-line no-console
   console.log('Сид завершён. Демо-логин: owner@demo.kern / change-me-now (сменить перед реальным использованием).');
