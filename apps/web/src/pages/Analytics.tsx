@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import { describeApiError } from '../lib/apiError';
+import { PageHeader } from '../components/PageHeader';
+import { Card, EmptyState, ErrorState, ListRow, SegmentedControl, Select } from '../components/ui';
+import { BarChart } from '../components/BarChart';
+import { IconAnalytics } from '../components/icons';
 
 type Grain = 'day' | 'week' | 'month' | 'quarter' | 'year';
 type Preset = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
@@ -117,7 +121,7 @@ function formatBucket(bucket: string, grain: Grain): string {
   if (grain === 'day' || grain === 'week') {
     const d = new Date(bucket);
     const label = d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
-    return grain === 'week' ? `нед. с ${label}` : label;
+    return grain === 'week' ? `нед. ${label}` : label;
   }
   if (grain === 'month') {
     const [y, m] = bucket.split('-');
@@ -149,7 +153,7 @@ export function Analytics() {
   const [totals, setTotals] = useState<Totals | null>(null);
   const [series, setSeries] = useState<TimeseriesRow[]>([]);
   const [budget, setBudget] = useState<BudgetRow[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
     apiFetch<Site[]>('/sites').then(setSites).catch(() => {});
@@ -185,127 +189,152 @@ export function Analytics() {
         setSeries(s);
         setBudget(b);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Не удалось загрузить аналитику'));
+      .catch(setError);
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [query, grain]);
 
-  const maxCost = Math.max(1, ...series.map((s) => Number(s.laborCost)));
-
   return (
-    <div className="min-h-screen bg-bg p-8">
-      <div className="max-w-4xl mx-auto">
-        <Link to="/dashboard" className="text-sm text-accent-2 mb-4 inline-block">← Панель</Link>
-        <h1 className="text-2xl font-semibold text-ink mb-1">Аналитика</h1>
-        <p className="text-sm text-ink-muted mb-6">
-          Только подтверждённые часы (согласовано/заблокировано) — черновики бригадиров в цифры не входят.
-        </p>
+    <div className="max-w-4xl">
+      <PageHeader
+        title="Аналитика"
+        description="Только подтверждённые часы (согласовано/заблокировано) — черновики бригадиров в цифры не входят."
+      />
 
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          {(Object.keys(PRESET_LABEL) as Preset[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => applyPreset(p)}
-              className={`px-3 py-1.5 rounded-full text-sm ${preset === p ? 'bg-accent text-white' : 'bg-surface-2 text-ink-muted'}`}
-            >
-              {PRESET_LABEL[p]}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 mb-6 bg-surface border border-line rounded-lg p-4">
-          {preset === 'custom' && (
-            <>
-              <input type="date" value={toISODate(from)} onChange={(e) => setFrom(new Date(e.target.value))} className="px-3 py-1.5 rounded border border-line bg-surface-2 text-ink text-sm" />
-              <span className="text-ink-muted text-sm">—</span>
-              <input type="date" value={toISODate(to)} onChange={(e) => setTo(new Date(e.target.value))} className="px-3 py-1.5 rounded border border-line bg-surface-2 text-ink text-sm" />
-            </>
-          )}
-          <select value={grain} onChange={(e) => setGrain(e.target.value as Grain)} className="px-3 py-1.5 rounded border border-line bg-surface-2 text-ink text-sm">
-            {(Object.keys(GRAIN_LABEL) as Grain[]).map((g) => (
-              <option key={g} value={g}>{GRAIN_LABEL[g]}</option>
-            ))}
-          </select>
-          <select value={siteId} onChange={(e) => setSiteId(e.target.value)} className="px-3 py-1.5 rounded border border-line bg-surface-2 text-ink text-sm">
-            <option value="">Все участки</option>
-            {sites.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-          <span className="text-xs text-ink-muted ml-auto">
-            {toISODate(from)} — {toISODate(to)}
-          </span>
-        </div>
-
-        {error && <p className="text-crit mb-4">{error}</p>}
-
-        {totals && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-            <div className="bg-surface border border-line rounded-lg p-4">
-              <div className="text-xs uppercase tracking-wide text-ink-muted mb-1">Часы</div>
-              <div className="text-xl font-mono text-ink">{Number(totals.regularHours) + Number(totals.overtimeHours)}</div>
-              <div className="text-xs text-ink-muted">из них {Number(totals.overtimeHours)} сверхурочных</div>
-            </div>
-            <div className="bg-surface border border-line rounded-lg p-4">
-              <div className="text-xs uppercase tracking-wide text-ink-muted mb-1">ФОТ</div>
-              <div className="text-xl font-mono text-ink">{ruble(totals.laborCost)} ₽</div>
-            </div>
-            <div className="bg-surface border border-line rounded-lg p-4">
-              <div className="text-xs uppercase tracking-wide text-ink-muted mb-1">Метраж</div>
-              <div className="text-xl font-mono text-ink">{Number(totals.metersDrilled)} м</div>
-            </div>
-            <div className="bg-surface border border-line rounded-lg p-4">
-              <div className="text-xs uppercase tracking-wide text-ink-muted mb-1">₽ за метр</div>
-              <div className="text-xl font-mono text-ink">{totals.costPerMeter ? ruble(totals.costPerMeter) : '—'}</div>
-            </div>
-          </div>
-        )}
-
-        <h2 className="text-lg font-medium text-ink mb-3">ФОТ по периодам</h2>
-        <div className="bg-surface border border-line rounded-lg p-4 mb-6">
-          {series.length === 0 && <p className="text-sm text-ink-muted">Нет подтверждённых часов за выбранный период.</p>}
-          <div className="space-y-2">
-            {series.map((row) => (
-              <div key={row.bucket} className="flex items-center gap-3">
-                <span className="text-xs text-ink-muted w-16 shrink-0">{formatBucket(row.bucket, grain)}</span>
-                <div className="flex-1 bg-surface-2 rounded h-5 overflow-hidden">
-                  <div className="bg-accent h-full rounded" style={{ width: `${(Number(row.laborCost) / maxCost) * 100}%` }} />
-                </div>
-                <span className="text-xs font-mono text-ink w-20 text-right">{ruble(row.laborCost)} ₽</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <h2 className="text-lg font-medium text-ink mb-3">Бюджет участков: план vs факт</h2>
-        <div className="bg-surface border border-line rounded-lg overflow-hidden">
-          {budget.length === 0 && <p className="p-5 text-sm text-ink-muted">Нет участков в области видимости.</p>}
-          {budget.map((b) => (
-            <div key={b.siteId} className="px-5 py-3 border-b border-line last:border-b-0">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-ink font-medium">{b.siteName}</span>
-                <span className="text-xs font-mono text-ink-muted">{b.siteCode}</span>
-              </div>
-              {b.budget ? (
-                <>
-                  <div className="bg-surface-2 rounded h-2 overflow-hidden mb-1">
-                    <div
-                      className={`h-full ${Number(b.budgetUsedPct) > 100 ? 'bg-crit' : 'bg-good'}`}
-                      style={{ width: `${Math.min(100, Number(b.budgetUsedPct))}%` }}
-                    />
-                  </div>
-                  <div className="text-xs text-ink-muted">
-                    {ruble(b.actualCost)} ₽ из {ruble(b.budget)} ₽ ({b.budgetUsedPct}%) · {Number(b.hoursTotal)} ч
-                  </div>
-                </>
-              ) : (
-                <div className="text-xs text-warn">Бюджет участка не задан · факт {ruble(b.actualCost)} ₽ · {Number(b.hoursTotal)} ч</div>
-              )}
-            </div>
-          ))}
-        </div>
+      <div className="mb-4">
+        <SegmentedControl
+          value={preset}
+          onChange={applyPreset}
+          options={(Object.keys(PRESET_LABEL) as Preset[]).map((p) => ({ value: p, label: PRESET_LABEL[p] }))}
+        />
       </div>
+
+      <Card className="mb-6 flex flex-wrap items-center gap-3 p-4">
+        {preset === 'custom' && (
+          <>
+            <input
+              type="date"
+              value={toISODate(from)}
+              onChange={(e) => setFrom(new Date(e.target.value))}
+              className="h-10 rounded-md border border-line bg-surface-2 px-3 text-sm text-ink"
+            />
+            <span className="text-sm text-ink-muted">—</span>
+            <input
+              type="date"
+              value={toISODate(to)}
+              onChange={(e) => setTo(new Date(e.target.value))}
+              className="h-10 rounded-md border border-line bg-surface-2 px-3 text-sm text-ink"
+            />
+          </>
+        )}
+        <Select
+          value={grain}
+          onChange={(e) => setGrain(e.target.value as Grain)}
+          className="!h-10"
+          wrapperClassName="w-auto min-w-[9rem]"
+        >
+          {(Object.keys(GRAIN_LABEL) as Grain[]).map((g) => (
+            <option key={g} value={g}>
+              {GRAIN_LABEL[g]}
+            </option>
+          ))}
+        </Select>
+        <Select
+          value={siteId}
+          onChange={(e) => setSiteId(e.target.value)}
+          className="!h-10"
+          wrapperClassName="w-auto min-w-[9rem]"
+        >
+          <option value="">Все участки</option>
+          {sites.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </Select>
+        <span className="ml-auto text-xs text-ink-muted">
+          {toISODate(from)} — {toISODate(to)}
+        </span>
+      </Card>
+
+      {error ? (
+        <ErrorState {...describeApiError(error)} onRetry={load} />
+      ) : (
+        <>
+          {totals && (
+            <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Card className="p-4">
+                <div className="mb-1 text-xs uppercase tracking-wide text-ink-muted">Часы</div>
+                <div className="font-mono text-xl text-ink">{Number(totals.regularHours) + Number(totals.overtimeHours)}</div>
+                <div className="text-xs text-ink-muted">из них {Number(totals.overtimeHours)} сверхурочных</div>
+              </Card>
+              <Card className="p-4">
+                <div className="mb-1 text-xs uppercase tracking-wide text-ink-muted">ФОТ</div>
+                <div className="font-mono text-xl text-ink">{ruble(totals.laborCost)} ₽</div>
+              </Card>
+              <Card className="p-4">
+                <div className="mb-1 text-xs uppercase tracking-wide text-ink-muted">Метраж</div>
+                <div className="font-mono text-xl text-ink">{Number(totals.metersDrilled)} м</div>
+              </Card>
+              <Card className="p-4">
+                <div className="mb-1 text-xs uppercase tracking-wide text-ink-muted">₽ за метр</div>
+                <div className="font-mono text-xl text-ink">{totals.costPerMeter ? ruble(totals.costPerMeter) : '—'}</div>
+              </Card>
+            </div>
+          )}
+
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-medium text-ink">ФОТ по периодам</h2>
+            <span className="flex items-center gap-1.5 text-xs text-ink-muted">
+              <span className="h-2.5 w-2.5 rounded-sm bg-accent" /> ФОТ, ₽
+            </span>
+          </div>
+          <Card className="mb-6 p-4">
+            {series.length === 0 ? (
+              <EmptyState icon={IconAnalytics} title="Нет подтверждённых часов за выбранный период" description="Измените период или участок выше." />
+            ) : (
+              <BarChart
+                data={series.map((row) => ({ label: formatBucket(row.bucket, grain), value: Number(row.laborCost) }))}
+                formatValue={(v) => ruble(String(v))}
+              />
+            )}
+          </Card>
+
+          <h2 className="mb-3 text-lg font-medium text-ink">Бюджет участков: план vs факт</h2>
+          <Card className="overflow-hidden">
+            {budget.length === 0 ? (
+              <EmptyState icon={IconAnalytics} title="Нет участков в области видимости" />
+            ) : (
+              budget.map((b) => (
+                <ListRow key={b.siteId}>
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="font-medium text-ink">{b.siteName}</span>
+                    <span className="font-mono text-xs text-ink-muted">{b.siteCode}</span>
+                  </div>
+                  {b.budget ? (
+                    <>
+                      <div className="mb-1 h-2 overflow-hidden rounded bg-surface-2">
+                        <div
+                          className={`h-full ${Number(b.budgetUsedPct) > 100 ? 'bg-crit' : 'bg-good'}`}
+                          style={{ width: `${Math.min(100, Number(b.budgetUsedPct))}%` }}
+                        />
+                      </div>
+                      <div className="text-xs text-ink-muted">
+                        {ruble(b.actualCost)} ₽ из {ruble(b.budget)} ₽ ({b.budgetUsedPct}%) · {Number(b.hoursTotal)} ч
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-warn">
+                      Бюджет участка не задан · факт {ruble(b.actualCost)} ₽ · {Number(b.hoursTotal)} ч
+                    </div>
+                  )}
+                </ListRow>
+              ))
+            )}
+          </Card>
+        </>
+      )}
     </div>
   );
 }

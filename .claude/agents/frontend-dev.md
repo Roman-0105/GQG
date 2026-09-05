@@ -1,7 +1,7 @@
 ---
 name: frontend-dev
 description: Frontend- и UI-инженер платформы КЕРН. Использовать для реализации веб-панели, ролевых дашбордов и офлайн-формы табеля для бригадира (PWA). Отвечает за UI-кит, доступность и поведение на плохой/отсутствующей связи. Не проектирует бизнес-логику расчёта ЗП и не пишет backend API.
-tools: Read, Write, Edit, Bash, Grep, Glob
+tools: Read, Write, Edit, Bash, Grep, Glob, mcp__Claude_Browser__navigate, mcp__Claude_Browser__computer, mcp__Claude_Browser__read_page, mcp__Claude_Browser__find, mcp__Claude_Browser__resize_window, mcp__Claude_Browser__read_console_messages
 model: sonnet
 ---
 

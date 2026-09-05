@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
-import { STATUS_COLOR, STATUS_LABEL, WORK_TYPE_LABEL } from '../lib/labels';
+import { STATUS_LABEL, STATUS_TONE, WORK_TYPE_LABEL } from '../lib/labels';
+import { describeApiError } from '../lib/apiError';
+import { PageHeader } from '../components/PageHeader';
+import { Badge, Button, Card, EmptyState, ErrorState, ListRow, SegmentedControl } from '../components/ui';
+import { IconApprovals, IconLock } from '../components/icons';
 
 interface ReviewTimesheet {
   id: string;
@@ -25,99 +28,108 @@ interface ReviewTimesheet {
  * готово к блокировке периода.
  */
 export function Approvals() {
-  const [timesheets, setTimesheets] = useState<ReviewTimesheet[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [timesheets, setTimesheets] = useState<ReviewTimesheet[] | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'submitted' | 'approved' | 'all'>('submitted');
 
   function load() {
+    setError(null);
     const query = filter === 'all' ? '' : `?status=${filter}`;
-    apiFetch<ReviewTimesheet[]>(`/timesheets${query}`)
-      .then(setTimesheets)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Не удалось загрузить табели'));
+    apiFetch<ReviewTimesheet[]>(`/timesheets${query}`).then(setTimesheets).catch(setError);
   }
 
   useEffect(load, [filter]);
 
   async function act(id: string, action: 'approve' | 'reject' | 'lock') {
     setBusyId(id);
-    setError(null);
+    setActionError(null);
     try {
       await apiFetch(`/timesheets/${id}/${action}`, { method: 'POST' });
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось выполнить действие');
+      setActionError(err instanceof Error ? err.message : 'Не удалось выполнить действие');
     } finally {
       setBusyId(null);
     }
   }
 
   return (
-    <div className="min-h-screen bg-bg p-8">
-      <div className="max-w-3xl mx-auto">
-        <Link to="/dashboard" className="text-sm text-accent-2 mb-4 inline-block">← Панель</Link>
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold text-ink">Согласование табелей</h1>
-          <div className="flex gap-1 text-sm">
-            {(['submitted', 'approved', 'all'] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 rounded-full ${filter === f ? 'bg-accent text-white' : 'bg-surface-2 text-ink-muted'}`}
-              >
-                {f === 'submitted' ? 'На согласовании' : f === 'approved' ? 'Подтверждены' : 'Все'}
-              </button>
-            ))}
-          </div>
-        </div>
+    <div className="max-w-3xl">
+      <PageHeader
+        crumbs={[{ label: 'Полевая работа' }]}
+        title="Согласование табелей"
+        action={
+          <SegmentedControl
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'submitted', label: 'На согласовании' },
+              { value: 'approved', label: 'Подтверждены' },
+              { value: 'all', label: 'Все' },
+            ]}
+          />
+        }
+      />
 
-        {error && <p className="text-crit mb-4">{error}</p>}
+      {actionError && <p className="mb-3 text-sm text-crit">{actionError}</p>}
 
-        <div className="bg-surface border border-line rounded-lg overflow-hidden">
-          {timesheets.length === 0 && !error && (
-            <p className="p-5 text-sm text-ink-muted">Нет табелей в этом фильтре.</p>
-          )}
-          {timesheets.map((t) => (
-            <div key={t.id} className="px-5 py-3 border-b border-line last:border-b-0">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-ink font-medium">{t.employee.fullName}</span>
-                  <span className="text-ink-muted text-sm ml-2">
+      <Card className="overflow-hidden">
+        {error ? (
+          <ErrorState {...describeApiError(error)} onRetry={load} />
+        ) : timesheets === null ? (
+          <p className="p-5 text-sm text-ink-muted">Загрузка…</p>
+        ) : timesheets.length === 0 ? (
+          <EmptyState
+            icon={IconApprovals}
+            title="Нет табелей в этом фильтре"
+            description={
+              filter === 'submitted'
+                ? 'Пока никто не отправил табель на согласование — здесь появятся смены сразу после отправки бригадиром.'
+                : 'Попробуйте другой фильтр выше.'
+            }
+          />
+        ) : (
+          timesheets.map((t) => (
+            <ListRow key={t.id}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="font-medium text-ink">{t.employee.fullName}</span>
+                  <span className="ml-2 text-sm text-ink-muted">
                     {t.crew.name} · {t.site.name} · {new Date(t.workDate).toLocaleDateString('ru-RU')} ·{' '}
                     {WORK_TYPE_LABEL[t.workType] ?? t.workType}
                   </span>
                 </div>
-                <span className={`text-xs font-mono px-2 py-1 rounded-full ${STATUS_COLOR[t.status] ?? ''}`}>
-                  {STATUS_LABEL[t.status] ?? t.status}
-                </span>
+                <Badge tone={STATUS_TONE[t.status] ?? 'neutral'}>{STATUS_LABEL[t.status] ?? t.status}</Badge>
               </div>
-              <div className="flex items-center justify-between mt-2">
+              <div className="mt-2 flex items-center justify-between gap-3">
                 <span className="text-xs text-ink-muted">
                   {Number(t.regularHours)} ч{Number(t.overtimeHours) > 0 && ` + ${Number(t.overtimeHours)} сверхурочных`}
                   {t.submittedBy && ` · внёс: ${t.submittedBy.fullName}`}
                 </span>
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   {t.status === 'submitted' && (
                     <>
-                      <button onClick={() => act(t.id, 'approve')} disabled={busyId === t.id} className="text-sm font-medium text-good disabled:opacity-50">
+                      <Button size="sm" variant="secondary" onClick={() => act(t.id, 'approve')} disabled={busyId === t.id}>
                         Подтвердить
-                      </button>
-                      <button onClick={() => act(t.id, 'reject')} disabled={busyId === t.id} className="text-sm font-medium text-crit disabled:opacity-50">
+                      </Button>
+                      <Button size="sm" variant="danger" onClick={() => act(t.id, 'reject')} disabled={busyId === t.id}>
                         Вернуть
-                      </button>
+                      </Button>
                     </>
                   )}
                   {t.status === 'approved' && (
-                    <button onClick={() => act(t.id, 'lock')} disabled={busyId === t.id} className="text-sm font-medium text-accent-2 disabled:opacity-50">
-                      Заблокировать период
-                    </button>
+                    <Button size="sm" variant="secondary" onClick={() => act(t.id, 'lock')} disabled={busyId === t.id}>
+                      <IconLock size={14} /> Заблокировать период
+                    </Button>
                   )}
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
+            </ListRow>
+          ))
+        )}
+      </Card>
     </div>
   );
 }

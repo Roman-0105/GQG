@@ -1,6 +1,8 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import { PageHeader } from '../components/PageHeader';
+import { Button, Card, Field, Input, Select, Textarea } from '../components/ui';
 
 const WORK_TYPES: { value: string; label: string }[] = [
   { value: 'geology', label: 'Геология' },
@@ -46,55 +48,50 @@ export function SiteNew() {
   }
 
   return (
-    <div className="min-h-screen bg-bg p-8">
-      <div className="max-w-lg mx-auto">
-        <Link to="/sites" className="text-sm text-accent-2 mb-4 inline-block">← К списку участков</Link>
-        <h1 className="text-2xl font-semibold text-ink mb-6">Новый участок</h1>
+    <div className="max-w-lg">
+      <PageHeader crumbs={[{ label: 'Администрирование' }, { label: 'Участки', to: '/sites' }]} title="Новый участок" />
 
-        <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-lg p-6 space-y-4">
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Название</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Скв. №14, Восточный" className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-          </div>
+      <Card className="p-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Field label="Название">
+            <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Скв. №14, Восточный" />
+          </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Код участка</label>
-              <input value={code} onChange={(e) => setCode(e.target.value)} required placeholder="SITE-14" className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Тип работ</label>
-              <select value={workType} onChange={(e) => setWorkType(e.target.value)} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink">
+            <Field label="Код участка">
+              <Input value={code} onChange={(e) => setCode(e.target.value)} required placeholder="SITE-14" />
+            </Field>
+            <Field label="Тип работ">
+              <Select value={workType} onChange={(e) => setWorkType(e.target.value)}>
                 {WORK_TYPES.map((w) => (
-                  <option key={w.value} value={w.value}>{w.label}</option>
+                  <option key={w.value} value={w.value}>
+                    {w.label}
+                  </option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Клиент (необязательно)</label>
-              <input value={client} onChange={(e) => setClient(e.target.value)} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Бюджет, ₽ (необязательно)</label>
-              <input type="number" min={0} value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="напр. 500000" className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
+            <Field label="Клиент" hint="Необязательно">
+              <Input value={client} onChange={(e) => setClient(e.target.value)} />
+            </Field>
+            <Field label="Бюджет, ₽" hint="Необязательно">
+              <Input type="number" min={0} value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="напр. 500000" />
+            </Field>
           </div>
 
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Описание (необязательно)</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-          </div>
+          <Field label="Описание" hint="Необязательно">
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+          </Field>
 
           {error && <p className="text-sm text-crit">{error}</p>}
 
-          <button type="submit" disabled={saving} className="w-full py-2 rounded bg-accent text-white font-medium disabled:opacity-60">
+          <Button type="submit" disabled={saving} className="w-full">
             {saving ? 'Создаём…' : 'Создать участок'}
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

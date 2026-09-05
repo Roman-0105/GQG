@@ -135,7 +135,8 @@
 |---|---|---|
 | Архитектор | `.claude/agents/architect.md` | Декомпозиция этапов, ADR, целостность модели |
 | Backend-инженер | `.claude/agents/backend-dev.md` | API, БД, интеграции |
-| Frontend / дизайн | `.claude/agents/frontend-dev.md` | UI-кит, дашборды, офлайн-табель |
+| Frontend | `.claude/agents/frontend-dev.md` | Реализация экранов, офлайн-табель |
+| Дизайнер | `.claude/agents/designer.md` | Навигация, тулбары, иконки, графики — целостный визуальный язык |
 | Эксперт по ЗП | `.claude/agents/payroll-rules.md` | Формулы, ставки, надбавки |
 | Независимый тестировщик | `.claude/agents/qa-tester.md` | Тест-планы, юнит/e2e, баг-репорты |
 | Безопасность | `.claude/agents/security-reviewer.md` | Модель угроз, аудит ролевой модели и зависимостей |

@@ -1,4 +1,17 @@
-import { Link } from 'react-router-dom';
+import { PageHeader } from '../components/PageHeader';
+import { Tile } from '../components/Tile';
+import { useCurrentUser } from '../lib/useCurrentUser';
+import {
+  IconAnalytics,
+  IconApprovals,
+  IconPayroll,
+  IconPosition,
+  IconRateRules,
+  IconSites,
+  IconTeam,
+  IconTimesheetList,
+  IconTimesheetNew,
+} from '../components/icons';
 
 /**
  * Заглушка ролевого дашборда. Здесь — карта разделов, чтобы каркас был
@@ -6,46 +19,45 @@ import { Link } from 'react-router-dom';
  * должности) — отдельная доработка поверх уже готовой аналитики.
  */
 export function Dashboard() {
+  const { user } = useCurrentUser();
+
   return (
-    <div className="min-h-screen bg-bg p-8">
-      <h1 className="text-2xl font-semibold text-ink mb-6">Панель</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl">
-        <Link to="/sites" className="block bg-surface border border-line rounded-lg p-5 hover:border-accent transition-colors">
-          <h2 className="font-medium text-ink mb-1">Участки</h2>
-          <p className="text-sm text-ink-muted">Объекты, бригады и сотрудники</p>
-        </Link>
-        <Link to="/team" className="block bg-surface border border-line rounded-lg p-5 hover:border-accent transition-colors">
-          <h2 className="font-medium text-ink mb-1">Команда</h2>
-          <p className="text-sm text-ink-muted">Логины и роли — отсюда назначают бригадиров</p>
-        </Link>
-        <Link to="/positions" className="block bg-surface border border-line rounded-lg p-5 hover:border-accent transition-colors">
-          <h2 className="font-medium text-ink mb-1">Должности</h2>
-          <p className="text-sm text-ink-muted">Справочник ставок</p>
-        </Link>
-        <Link to="/timesheets/new" className="block bg-surface border border-line rounded-lg p-5 hover:border-accent transition-colors">
-          <h2 className="font-medium text-ink mb-1">Внести табель</h2>
-          <p className="text-sm text-ink-muted">Работает офлайн</p>
-        </Link>
-        <Link to="/timesheets" className="block bg-surface border border-line rounded-lg p-5 hover:border-accent transition-colors">
-          <h2 className="font-medium text-ink mb-1">Мои табели</h2>
-          <p className="text-sm text-ink-muted">Статус согласования</p>
-        </Link>
-        <Link to="/approvals" className="block bg-surface border border-line rounded-lg p-5 hover:border-accent transition-colors">
-          <h2 className="font-medium text-ink mb-1">Согласование</h2>
-          <p className="text-sm text-ink-muted">Для руководителя участка</p>
-        </Link>
-        <Link to="/payroll" className="block bg-surface border border-line rounded-lg p-5 hover:border-accent transition-colors">
-          <h2 className="font-medium text-ink mb-1">Расчёт зарплаты</h2>
-          <p className="text-sm text-ink-muted">По заблокированным табелям</p>
-        </Link>
-        <Link to="/rate-rules" className="block bg-surface border border-line rounded-lg p-5 hover:border-accent transition-colors">
-          <h2 className="font-medium text-ink mb-1">Правила расчёта</h2>
-          <p className="text-sm text-ink-muted">Надбавки, суточные, метраж</p>
-        </Link>
-        <Link to="/analytics" className="block bg-surface border border-line rounded-lg p-5 hover:border-accent transition-colors">
-          <h2 className="font-medium text-ink mb-1">Аналитика</h2>
-          <p className="text-sm text-ink-muted">День/неделя/месяц/квартал/год, бюджет участков</p>
-        </Link>
+    <div>
+      <PageHeader
+        title={user ? `Здравствуйте, ${user.fullName.split(' ')[0]}` : 'Панель'}
+        description="Быстрый доступ ко всем разделам платформы."
+      />
+
+      <div className="mb-6">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Администрирование</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Tile to="/sites" icon={IconSites} title="Участки" description="Объекты, бригады и сотрудники" />
+          <Tile to="/team" icon={IconTeam} title="Команда" description="Логины и роли — отсюда назначают бригадиров" />
+          <Tile to="/positions" icon={IconPosition} title="Должности" description="Справочник ставок" />
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Полевая работа</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Tile to="/timesheets/new" icon={IconTimesheetNew} title="Внести табель" description="Работает офлайн" />
+          <Tile to="/timesheets" icon={IconTimesheetList} title="Мои табели" description="Статус согласования" />
+          <Tile to="/approvals" icon={IconApprovals} title="Согласование" description="Для руководителя участка" />
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-ink-muted">Финансы и аналитика</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Tile to="/payroll" icon={IconPayroll} title="Расчёт зарплаты" description="По заблокированным табелям" />
+          <Tile to="/rate-rules" icon={IconRateRules} title="Правила расчёта" description="Надбавки, суточные, метраж" />
+          <Tile
+            to="/analytics"
+            icon={IconAnalytics}
+            title="Аналитика"
+            description="День/неделя/месяц/квартал/год, бюджет участков"
+          />
+        </div>
       </div>
     </div>
   );

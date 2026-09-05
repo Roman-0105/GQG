@@ -1,6 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import { describeApiError } from '../lib/apiError';
+import { PageHeader } from '../components/PageHeader';
+import { Button, Card, EmptyState, ErrorState, Field, IconButton, Input, ListRow, Select } from '../components/ui';
+import { IconPayroll, IconTrash } from '../components/icons';
 
 interface Employee {
   id: string;
@@ -36,7 +39,18 @@ interface AdvanceRow {
   amount: number;
 }
 
-const COMPONENT_LABELS: { key: keyof PayrollLine; label: string }[] = [
+type LineAmountKey =
+  | 'baseAmount'
+  | 'overtimeAmount'
+  | 'nightAmount'
+  | 'holidayAmount'
+  | 'remoteBonusAmount'
+  | 'perDiemAmount'
+  | 'pieceRateAmount'
+  | 'deductions'
+  | 'advanceDeduction';
+
+const COMPONENT_LABELS: { key: LineAmountKey; label: string }[] = [
   { key: 'baseAmount', label: 'База' },
   { key: 'overtimeAmount', label: 'Сверхурочные' },
   { key: 'nightAmount', label: 'Ночные' },
@@ -44,7 +58,7 @@ const COMPONENT_LABELS: { key: keyof PayrollLine; label: string }[] = [
   { key: 'remoteBonusAmount', label: 'Вахта' },
   { key: 'perDiemAmount', label: 'Суточные' },
   { key: 'pieceRateAmount', label: 'Метраж' },
-  { key: 'deductions', label: 'Удержания', },
+  { key: 'deductions', label: 'Удержания' },
   { key: 'advanceDeduction', label: 'Аванс' },
 ];
 
@@ -67,13 +81,15 @@ export function Payroll() {
   const [periodEnd, setPeriodEnd] = useState(() => new Date().toISOString().slice(0, 10));
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [advances, setAdvances] = useState<AdvanceRow[]>([]);
-  const [runs, setRuns] = useState<PayrollRun[]>([]);
+  const [runs, setRuns] = useState<PayrollRun[] | null>(null);
+  const [runsError, setRunsError] = useState<unknown>(null);
   const [current, setCurrent] = useState<PayrollRun | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
 
   function loadRuns() {
-    apiFetch<PayrollRun[]>('/payroll/runs').then(setRuns).catch(() => {});
+    setRunsError(null);
+    apiFetch<PayrollRun[]>('/payroll/runs').then(setRuns).catch(setRunsError);
   }
 
   useEffect(() => {
@@ -126,103 +142,126 @@ export function Payroll() {
   }
 
   return (
-    <div className="min-h-screen bg-bg p-8">
-      <div className="max-w-4xl mx-auto">
-        <Link to="/dashboard" className="text-sm text-accent-2 mb-4 inline-block">← Панель</Link>
-        <h1 className="text-2xl font-semibold text-ink mb-1">Расчёт зарплаты</h1>
-        <p className="text-sm text-ink-muted mb-6">
-          Берутся только заблокированные табели за период. Формулы и правила — на странице{' '}
-          <Link to="/rate-rules" className="underline">Правила расчёта</Link>.
-        </p>
+    <div className="max-w-4xl">
+      <PageHeader
+        crumbs={[{ label: 'Финансы' }]}
+        title="Расчёт зарплаты"
+        description="Берутся только заблокированные табели за период. Формулы и правила — на странице «Правила расчёта»."
+      />
 
-        <form onSubmit={handleRun} className="bg-surface border border-line rounded-lg p-6 space-y-4 mb-6">
+      <Card className="mb-6 p-6">
+        <form onSubmit={handleRun} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Начало периода</label>
-              <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} required className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Конец периода</label>
-              <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} required className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
+            <Field label="Начало периода">
+              <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} required />
+            </Field>
+            <Field label="Конец периода">
+              <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} required />
+            </Field>
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs uppercase tracking-wide text-ink-muted">Авансы (необязательно)</label>
-              <button type="button" onClick={addAdvanceRow} className="text-sm text-accent-2 font-medium">+ Добавить</button>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-medium uppercase tracking-wide text-ink-muted">Авансы (необязательно)</span>
+              <Button type="button" size="sm" variant="ghost" onClick={addAdvanceRow}>
+                + Добавить
+              </Button>
             </div>
             {advances.map((a, i) => (
-              <div key={i} className="flex gap-2 mb-2">
-                <select value={a.employeeId} onChange={(e) => updateAdvance(i, { employeeId: e.target.value })} className="flex-1 px-3 py-2 rounded border border-line bg-surface-2 text-ink text-sm">
+              <div key={i} className="mb-2 flex gap-2">
+                <Select
+                  value={a.employeeId}
+                  onChange={(e) => updateAdvance(i, { employeeId: e.target.value })}
+                  wrapperClassName="flex-1"
+                >
                   {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>{emp.fullName}</option>
+                    <option key={emp.id} value={emp.id}>
+                      {emp.fullName}
+                    </option>
                   ))}
-                </select>
-                <input type="number" min={0} value={a.amount} onChange={(e) => updateAdvance(i, { amount: Number(e.target.value) })} className="w-32 px-3 py-2 rounded border border-line bg-surface-2 text-ink text-sm" />
-                <button type="button" onClick={() => removeAdvance(i)} className="text-sm text-crit">✕</button>
+                </Select>
+                <Input
+                  type="number"
+                  min={0}
+                  value={a.amount}
+                  onChange={(e) => updateAdvance(i, { amount: Number(e.target.value) })}
+                  className="!w-32 shrink-0"
+                />
+                <IconButton
+                  type="button"
+                  label="Удалить строку"
+                  onClick={() => removeAdvance(i)}
+                  className="hover:!bg-crit/10 hover:!text-crit"
+                >
+                  <IconTrash size={16} />
+                </IconButton>
               </div>
             ))}
           </div>
 
           {error && <p className="text-sm text-crit">{error}</p>}
 
-          <button type="submit" disabled={running} className="py-2 px-5 rounded bg-accent text-white font-medium disabled:opacity-60">
+          <Button type="submit" disabled={running}>
             {running ? 'Считаем…' : 'Запустить расчёт'}
-          </button>
+          </Button>
         </form>
+      </Card>
 
-        {current && (
-          <div className="bg-surface border border-line rounded-lg overflow-hidden mb-6">
-            <div className="px-5 py-3 border-b border-line flex items-center justify-between">
-              <span className="text-sm font-medium text-ink">
-                {new Date(current.periodStart).toLocaleDateString('ru-RU')} — {new Date(current.periodEnd).toLocaleDateString('ru-RU')}
-              </span>
-              <span className="text-xs font-mono text-ink-muted">{current.lines.length} чел.</span>
-            </div>
-            {current.lines.length === 0 && (
-              <p className="p-5 text-sm text-ink-muted">Нет заблокированных табелей за этот период — считать нечего.</p>
-            )}
-            {current.lines.map((line) => (
-              <div key={line.id} className="px-5 py-4 border-b border-line last:border-b-0">
-                <div className="flex items-baseline justify-between mb-2">
-                  <span className="text-ink font-medium">{line.employee.fullName}</span>
-                  <span className="text-ink-muted text-xs">{line.employee.position.name}</span>
-                </div>
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-x-4 gap-y-1 text-xs text-ink-muted mb-2">
-                  {COMPONENT_LABELS.map(({ key, label }) => {
-                    const v = Number(line[key]);
-                    if (v === 0) return null;
-                    return (
-                      <div key={key}>
-                        {label}: <span className="font-mono">{key.includes('deduction') || key === 'deductions' ? '−' : ''}{ruble(line[key])}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="text-right font-mono font-semibold text-ink">{ruble(line.netAmount)} ₽</div>
+      {current && (
+        <Card className="mb-6 overflow-hidden">
+          <ListRow className="flex items-center justify-between">
+            <span className="text-sm font-medium text-ink">
+              {new Date(current.periodStart).toLocaleDateString('ru-RU')} — {new Date(current.periodEnd).toLocaleDateString('ru-RU')}
+            </span>
+            <span className="font-mono text-xs text-ink-muted">{current.lines.length} чел.</span>
+          </ListRow>
+          {current.lines.length === 0 && (
+            <p className="p-5 text-sm text-ink-muted">Нет заблокированных табелей за этот период — считать нечего.</p>
+          )}
+          {current.lines.map((line) => (
+            <ListRow key={line.id} className="py-4">
+              <div className="mb-2 flex items-baseline justify-between">
+                <span className="font-medium text-ink">{line.employee.fullName}</span>
+                <span className="text-xs text-ink-muted">{line.employee.position.name}</span>
               </div>
-            ))}
-          </div>
-        )}
-
-        <h2 className="text-lg font-medium text-ink mb-3">История расчётов</h2>
-        <div className="bg-surface border border-line rounded-lg overflow-hidden">
-          {runs.length === 0 && <p className="p-5 text-sm text-ink-muted">Расчётов ещё не было.</p>}
-          {runs.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => openRun(r.id)}
-              className="w-full text-left px-5 py-3 border-b border-line last:border-b-0 hover:bg-surface-2 flex items-center justify-between"
-            >
-              <span className="text-sm text-ink">
-                {new Date(r.periodStart).toLocaleDateString('ru-RU')} — {new Date(r.periodEnd).toLocaleDateString('ru-RU')}
-              </span>
-              <span className="text-xs text-ink-muted">{r.lines.length} чел.</span>
-            </button>
+              <div className="mb-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-muted sm:grid-cols-4">
+                {COMPONENT_LABELS.map(({ key, label }) => {
+                  const v = Number(line[key]);
+                  if (v === 0) return null;
+                  return (
+                    <div key={key}>
+                      {label}: <span className="font-mono">{key.includes('deduction') || key === 'deductions' ? '−' : ''}{ruble(line[key])}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="text-right font-mono font-semibold text-ink">{ruble(line.netAmount)} ₽</div>
+            </ListRow>
           ))}
-        </div>
-      </div>
+        </Card>
+      )}
+
+      <h2 className="mb-3 text-lg font-medium text-ink">История расчётов</h2>
+      <Card className="overflow-hidden">
+        {runsError ? (
+          <ErrorState {...describeApiError(runsError)} onRetry={loadRuns} />
+        ) : runs === null ? (
+          <p className="p-5 text-sm text-ink-muted">Загрузка…</p>
+        ) : runs.length === 0 ? (
+          <EmptyState icon={IconPayroll} title="Расчётов ещё не было" description="Запустите первый расчёт формой выше." />
+        ) : (
+          runs.map((r) => (
+            <button key={r.id} onClick={() => openRun(r.id)} className="block w-full text-left transition-colors hover:bg-surface-2">
+              <ListRow className="flex items-center justify-between">
+                <span className="text-sm text-ink">
+                  {new Date(r.periodStart).toLocaleDateString('ru-RU')} — {new Date(r.periodEnd).toLocaleDateString('ru-RU')}
+                </span>
+                <span className="text-xs text-ink-muted">{r.lines.length} чел.</span>
+              </ListRow>
+            </button>
+          ))
+        )}
+      </Card>
     </div>
   );
 }

@@ -2,6 +2,8 @@ import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { setSessionUser } from '../lib/session';
+import { Button, Field, Input } from '../components/ui';
+import { IconKernMark } from '../components/icons';
 
 interface LoginResponse {
   accessToken: string;
@@ -35,38 +37,33 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm bg-surface border border-line rounded-lg p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold text-ink mb-1">КЕРН</h1>
-        <p className="text-sm text-ink-muted mb-6">Вход в платформу полевого учёта</p>
+    <div className="flex min-h-screen items-center justify-center bg-bg px-4">
+      <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-lg border border-line bg-surface p-8 shadow-sm">
+        <div className="mb-6 flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-md bg-accent text-white">
+            <IconKernMark size={24} />
+          </span>
+          <div>
+            <h1 className="text-xl font-semibold text-ink">КЕРН</h1>
+            <p className="text-xs text-ink-muted">Полевой учёт часов и расчёт ЗП</p>
+          </div>
+        </div>
 
-        <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">E-mail</label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full mb-4 px-3 py-2 rounded border border-line bg-surface-2 text-ink"
-          required
-        />
+        <div className="space-y-4">
+          <Field label="E-mail">
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+          </Field>
 
-        <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Пароль</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full mb-4 px-3 py-2 rounded border border-line bg-surface-2 text-ink"
-          required
-        />
+          <Field label="Пароль">
+            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          </Field>
+        </div>
 
-        {error && <p className="text-sm text-crit mb-4">{error}</p>}
+        {error && <p className="mt-4 text-sm text-crit">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-2 rounded bg-accent text-white font-medium disabled:opacity-60"
-        >
+        <Button type="submit" disabled={loading} className="mt-6 w-full">
           {loading ? 'Входим…' : 'Войти'}
-        </button>
+        </Button>
       </form>
     </div>
   );

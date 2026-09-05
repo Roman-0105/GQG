@@ -1,4 +1,5 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { AppShell } from './components/AppShell';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Sites } from './pages/Sites';
@@ -13,6 +14,15 @@ import { RateRules } from './pages/RateRules';
 import { Payroll } from './pages/Payroll';
 import { Analytics } from './pages/Analytics';
 
+/** Общая навигационная оболочка для всех приватных экранов (см. components/AppShell.tsx). */
+function ShellLayout() {
+  return (
+    <AppShell>
+      <Outlet />
+    </AppShell>
+  );
+}
+
 // TODO(frontend-dev, Этап 01+): защитить приватные маршруты проверкой
 // авторизации (редирект на /login без токена) — сейчас открыты, чтобы
 // показать структуру экранов; сервер всё равно не отдаст данные без
@@ -22,18 +32,20 @@ export function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/sites" element={<Sites />} />
-      <Route path="/sites/new" element={<SiteNew />} />
-      <Route path="/sites/:id" element={<SiteDetail />} />
-      <Route path="/team" element={<Team />} />
-      <Route path="/positions" element={<Positions />} />
-      <Route path="/timesheets/new" element={<TimesheetForm />} />
-      <Route path="/timesheets" element={<MyTimesheets />} />
-      <Route path="/approvals" element={<Approvals />} />
-      <Route path="/rate-rules" element={<RateRules />} />
-      <Route path="/payroll" element={<Payroll />} />
-      <Route path="/analytics" element={<Analytics />} />
+      <Route element={<ShellLayout />}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/sites" element={<Sites />} />
+        <Route path="/sites/new" element={<SiteNew />} />
+        <Route path="/sites/:id" element={<SiteDetail />} />
+        <Route path="/team" element={<Team />} />
+        <Route path="/positions" element={<Positions />} />
+        <Route path="/timesheets/new" element={<TimesheetForm />} />
+        <Route path="/timesheets" element={<MyTimesheets />} />
+        <Route path="/approvals" element={<Approvals />} />
+        <Route path="/rate-rules" element={<RateRules />} />
+        <Route path="/payroll" element={<Payroll />} />
+        <Route path="/analytics" element={<Analytics />} />
+      </Route>
     </Routes>
   );
 }

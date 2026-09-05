@@ -1,6 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import { describeApiError } from '../lib/apiError';
+import { PageHeader } from '../components/PageHeader';
+import { Badge, Button, Card, Checkbox, EmptyState, ErrorState, Field, Input, ListRow } from '../components/ui';
+import { IconPosition } from '../components/icons';
 
 interface Position {
   id: string;
@@ -15,7 +18,8 @@ interface Position {
  * должна быть базовая ставка, docs/project-plan.md, раздел 4).
  */
 export function Positions() {
-  const [positions, setPositions] = useState<Position[]>([]);
+  const [positions, setPositions] = useState<Position[] | null>(null);
+  const [listError, setListError] = useState<unknown>(null);
   const [name, setName] = useState('');
   const [rate, setRate] = useState(400);
   const [hazardPay, setHazardPay] = useState(false);
@@ -23,9 +27,8 @@ export function Positions() {
   const [saving, setSaving] = useState(false);
 
   function load() {
-    apiFetch<Position[]>('/positions')
-      .then(setPositions)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Не удалось загрузить должности'));
+    setListError(null);
+    apiFetch<Position[]>('/positions').then(setPositions).catch(setListError);
   }
 
   useEffect(load, []);
@@ -50,48 +53,49 @@ export function Positions() {
   }
 
   return (
-    <div className="min-h-screen bg-bg p-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/dashboard" className="text-sm text-accent-2 mb-4 inline-block">← Панель</Link>
-        <h1 className="text-2xl font-semibold text-ink mb-6">Должности и ставки</h1>
+    <div className="max-w-2xl">
+      <PageHeader title="Должности и ставки" description="Базовая почасовая ставка и множитель сверхурочных по должности." />
 
-        <div className="bg-surface border border-line rounded-lg overflow-hidden mb-6">
-          {positions.length === 0 && (
-            <p className="p-5 text-sm text-ink-muted">Пока нет ни одной должности.</p>
-          )}
-          {positions.map((p) => (
-            <div key={p.id} className="flex items-center justify-between px-5 py-3 border-b border-line last:border-b-0">
-              <div>
-                <span className="text-ink font-medium">{p.name}</span>
-                {p.hazardPay && <span className="ml-2 text-xs text-warn">вредность</span>}
+      <Card className="mb-6 overflow-hidden">
+        {listError ? (
+          <ErrorState {...describeApiError(listError)} onRetry={load} />
+        ) : positions === null ? (
+          <p className="p-5 text-sm text-ink-muted">Загрузка…</p>
+        ) : positions.length === 0 ? (
+          <EmptyState icon={IconPosition} title="Пока нет ни одной должности" description="Добавьте первую формой ниже." />
+        ) : (
+          positions.map((p) => (
+            <ListRow key={p.id} className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-ink">{p.name}</span>
+                {p.hazardPay && <Badge tone="warn">вредность</Badge>}
               </div>
-              <span className="text-ink-muted text-sm">{Number(p.baseHourlyRate).toFixed(0)} ₽/ч · ×{Number(p.overtimeMultiplier)} сверхурочные</span>
-            </div>
-          ))}
-        </div>
+              <span className="text-sm text-ink-muted">
+                {Number(p.baseHourlyRate).toFixed(0)} ₽/ч · ×{Number(p.overtimeMultiplier)} сверхурочные
+              </span>
+            </ListRow>
+          ))
+        )}
+      </Card>
 
-        <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-lg p-6 space-y-4">
+      <Card className="p-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <h2 className="text-sm font-medium text-ink">Добавить должность</h2>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Название</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Бурильщик" className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Ставка, ₽/ч</label>
-              <input type="number" min={0} value={rate} onChange={(e) => setRate(Number(e.target.value))} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
+            <Field label="Название">
+              <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Бурильщик" />
+            </Field>
+            <Field label="Ставка, ₽/ч">
+              <Input type="number" min={0} value={rate} onChange={(e) => setRate(Number(e.target.value))} />
+            </Field>
           </div>
-          <label className="flex items-center gap-2 text-sm text-ink-muted">
-            <input type="checkbox" checked={hazardPay} onChange={(e) => setHazardPay(e.target.checked)} />
-            Вредные/опасные условия
-          </label>
+          <Checkbox checked={hazardPay} onChange={setHazardPay} label="Вредные/опасные условия" />
           {error && <p className="text-sm text-crit">{error}</p>}
-          <button type="submit" disabled={saving} className="py-2 px-5 rounded bg-accent text-white font-medium disabled:opacity-60">
+          <Button type="submit" disabled={saving}>
             {saving ? 'Добавляем…' : 'Добавить'}
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

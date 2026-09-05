@@ -9,3 +9,6 @@ build/
 apps/api/generated/
 apps/web/dist/
 coverage/
+*.tsbuildinfo
+apps/web/vite.config.js
+apps/web/vite.config.d.ts

@@ -1,6 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import { describeApiError } from '../lib/apiError';
+import { PageHeader } from '../components/PageHeader';
+import { Badge, Card, EmptyState, ErrorState, Field, Input, ListRow, Select, Button } from '../components/ui';
+import { IconRateRules } from '../components/icons';
 
 interface Site {
   id: string;
@@ -33,7 +36,8 @@ interface RateRule {
  * высоким приоритетом целиком — см. docs/adr/0004-payroll-engine.md.
  */
 export function RateRules() {
-  const [rules, setRules] = useState<RateRule[]>([]);
+  const [rules, setRules] = useState<RateRule[] | null>(null);
+  const [listError, setListError] = useState<unknown>(null);
   const [sites, setSites] = useState<Site[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +54,8 @@ export function RateRules() {
   const [perMeterBonus, setPerMeterBonus] = useState(0);
 
   function load() {
-    apiFetch<RateRule[]>('/rate-rules').then(setRules).catch((err) => setError(err instanceof Error ? err.message : 'Не удалось загрузить правила'));
+    setListError(null);
+    apiFetch<RateRule[]>('/rate-rules').then(setRules).catch(setListError);
     apiFetch<Site[]>('/sites').then(setSites).catch(() => {});
     apiFetch<Position[]>('/positions').then(setPositions).catch(() => {});
   }
@@ -94,96 +99,98 @@ export function RateRules() {
   }
 
   return (
-    <div className="min-h-screen bg-bg p-8">
-      <div className="max-w-3xl mx-auto">
-        <Link to="/dashboard" className="text-sm text-accent-2 mb-4 inline-block">← Панель</Link>
-        <h1 className="text-2xl font-semibold text-ink mb-1">Правила расчёта</h1>
-        <p className="text-sm text-ink-muted mb-6">
-          Надбавки и суточные. При пересечении нескольких правил побеждает одно целиком — то, у которого выше приоритет.
-        </p>
+    <div className="max-w-3xl">
+      <PageHeader
+        crumbs={[{ label: 'Финансы' }]}
+        title="Правила расчёта"
+        description="Надбавки и суточные. При пересечении нескольких правил побеждает одно целиком — то, у которого выше приоритет."
+      />
 
-        <div className="bg-surface border border-line rounded-lg overflow-hidden mb-6">
-          {rules.length === 0 && <p className="p-5 text-sm text-ink-muted">Пока нет ни одного правила.</p>}
-          {rules.map((r) => (
-            <div key={r.id} className="px-5 py-3 border-b border-line last:border-b-0">
-              <div className="flex items-center justify-between">
-                <span className="text-ink font-medium">{r.name}</span>
-                <span className="text-xs font-mono text-ink-muted">приоритет {r.priority}</span>
+      <Card className="mb-6 overflow-hidden">
+        {listError ? (
+          <ErrorState {...describeApiError(listError)} onRetry={load} />
+        ) : rules === null ? (
+          <p className="p-5 text-sm text-ink-muted">Загрузка…</p>
+        ) : rules.length === 0 ? (
+          <EmptyState icon={IconRateRules} title="Пока нет ни одного правила" description="Добавьте первое формой ниже." />
+        ) : (
+          rules.map((r) => (
+            <ListRow key={r.id}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium text-ink">{r.name}</span>
+                <Badge>приоритет {r.priority}</Badge>
               </div>
-              <div className="text-xs text-ink-muted mt-1">
-                {r.site ? r.site.name : 'вся компания'} · {r.position ? r.position.name : 'все должности'} ·
-                {' '}ночные +{Number(r.nightShiftPct)}% · праздничные +{Number(r.holidayPct)}% · вахта +{Number(r.remoteBonusPct)}% ·
-                {' '}суточные {Number(r.perDiemAmount)} ₽/день · метраж {Number(r.perMeterBonus)} ₽/м
+              <div className="mt-1 text-xs text-ink-muted">
+                {r.site ? r.site.name : 'вся компания'} · {r.position ? r.position.name : 'все должности'} · ночные +
+                {Number(r.nightShiftPct)}% · праздничные +{Number(r.holidayPct)}% · вахта +{Number(r.remoteBonusPct)}% · суточные{' '}
+                {Number(r.perDiemAmount)} ₽/день · метраж {Number(r.perMeterBonus)} ₽/м
               </div>
-            </div>
-          ))}
-        </div>
+            </ListRow>
+          ))
+        )}
+      </Card>
 
-        <form onSubmit={handleSubmit} className="bg-surface border border-line rounded-lg p-6 space-y-4">
+      <Card className="p-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <h2 className="text-sm font-medium text-ink">Новое правило</h2>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Название</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Северная надбавка" className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Участок</label>
-              <select value={siteId} onChange={(e) => setSiteId(e.target.value)} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Field label="Название">
+              <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Северная надбавка" />
+            </Field>
+            <Field label="Участок">
+              <Select value={siteId} onChange={(e) => setSiteId(e.target.value)}>
                 <option value="">Вся компания</option>
                 {sites.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
                 ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Должность</label>
-              <select value={positionId} onChange={(e) => setPositionId(e.target.value)} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink">
+              </Select>
+            </Field>
+            <Field label="Должность">
+              <Select value={positionId} onChange={(e) => setPositionId(e.target.value)}>
                 <option value="">Все должности</option>
                 {positions.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </Field>
           </div>
 
-          <div className="grid grid-cols-5 gap-4">
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Приоритет</label>
-              <input type="number" value={priority} onChange={(e) => setPriority(Number(e.target.value))} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Ночные, %</label>
-              <input type="number" min={0} value={nightShiftPct} onChange={(e) => setNightShiftPct(Number(e.target.value))} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Праздничные, %</label>
-              <input type="number" min={0} value={holidayPct} onChange={(e) => setHolidayPct(Number(e.target.value))} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Вахта, %</label>
-              <input type="number" min={0} value={remoteBonusPct} onChange={(e) => setRemoteBonusPct(Number(e.target.value))} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Суточные, ₽/день</label>
-              <input type="number" min={0} value={perDiemAmount} onChange={(e) => setPerDiemAmount(Number(e.target.value))} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+            <Field label="Приоритет">
+              <Input type="number" value={priority} onChange={(e) => setPriority(Number(e.target.value))} />
+            </Field>
+            <Field label="Ночные, %">
+              <Input type="number" min={0} value={nightShiftPct} onChange={(e) => setNightShiftPct(Number(e.target.value))} />
+            </Field>
+            <Field label="Праздничные, %">
+              <Input type="number" min={0} value={holidayPct} onChange={(e) => setHolidayPct(Number(e.target.value))} />
+            </Field>
+            <Field label="Вахта, %">
+              <Input type="number" min={0} value={remoteBonusPct} onChange={(e) => setRemoteBonusPct(Number(e.target.value))} />
+            </Field>
+            <Field label="Суточные, ₽/день">
+              <Input type="number" min={0} value={perDiemAmount} onChange={(e) => setPerDiemAmount(Number(e.target.value))} />
+            </Field>
           </div>
 
-          <div className="grid grid-cols-5 gap-4">
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-ink-muted mb-1">Метраж, ₽/м</label>
-              <input type="number" min={0} value={perMeterBonus} onChange={(e) => setPerMeterBonus(Number(e.target.value))} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink" />
-            </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+            <Field label="Метраж, ₽/м">
+              <Input type="number" min={0} value={perMeterBonus} onChange={(e) => setPerMeterBonus(Number(e.target.value))} />
+            </Field>
           </div>
 
           {error && <p className="text-sm text-crit">{error}</p>}
 
-          <button type="submit" disabled={saving} className="py-2 px-5 rounded bg-accent text-white font-medium disabled:opacity-60">
+          <Button type="submit" disabled={saving}>
             {saving ? 'Добавляем…' : 'Добавить правило'}
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

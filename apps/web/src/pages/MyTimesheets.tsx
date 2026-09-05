@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { getSessionUser } from '../lib/session';
 import { listQueue, QueuedTimesheet } from '../lib/offlineQueue';
-import { STATUS_COLOR, STATUS_LABEL, WORK_TYPE_LABEL } from '../lib/labels';
+import { STATUS_LABEL, STATUS_TONE, WORK_TYPE_LABEL } from '../lib/labels';
+import { describeApiError } from '../lib/apiError';
+import { PageHeader } from '../components/PageHeader';
+import { Badge, Button, Card, EmptyState, ErrorState, ListRow } from '../components/ui';
+import { IconPlus, IconTimesheetList, IconWifiOff } from '../components/icons';
+import { useNavigate } from 'react-router-dom';
 
 interface ServerTimesheet {
   id: string;
@@ -25,16 +29,17 @@ interface ServerTimesheet {
  * этом устройстве и туда не попало (docs/project-plan.md, раздел 4).
  */
 export function MyTimesheets() {
+  const navigate = useNavigate();
   const sessionUser = getSessionUser();
-  const [timesheets, setTimesheets] = useState<ServerTimesheet[]>([]);
+  const [timesheets, setTimesheets] = useState<ServerTimesheet[] | null>(null);
   const [queued, setQueued] = useState<QueuedTimesheet[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   function load() {
-    apiFetch<ServerTimesheet[]>('/timesheets')
-      .then(setTimesheets)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Не удалось загрузить табели'));
+    setLoadError(null);
+    apiFetch<ServerTimesheet[]>('/timesheets').then(setTimesheets).catch(setLoadError);
     if (sessionUser) setQueued(listQueue(sessionUser.id));
   }
 
@@ -42,80 +47,85 @@ export function MyTimesheets() {
 
   async function handleSubmit(id: string) {
     setBusyId(id);
+    setActionError(null);
     try {
       await apiFetch(`/timesheets/${id}/submit`, { method: 'POST' });
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось отправить на согласование');
+      setActionError(err instanceof Error ? err.message : 'Не удалось отправить на согласование');
     } finally {
       setBusyId(null);
     }
   }
 
   if (!sessionUser) {
-    return (
-      <div className="min-h-screen bg-bg p-8">
-        <p className="text-crit">Сессия не найдена — войдите заново.</p>
-      </div>
-    );
+    return <p className="text-crit">Сессия не найдена — войдите заново.</p>;
   }
 
   return (
-    <div className="min-h-screen bg-bg p-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/timesheets/new" className="text-sm text-accent-2 mb-4 inline-block">← Внести табель</Link>
-        <h1 className="text-2xl font-semibold text-ink mb-6">Мои табели</h1>
+    <div className="max-w-2xl">
+      <PageHeader
+        crumbs={[{ label: 'Полевая работа' }]}
+        title="Мои табели"
+        action={
+          <Button onClick={() => navigate('/timesheets/new')}>
+            <IconPlus size={16} /> Внести табель
+          </Button>
+        }
+      />
 
-        {queued.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-sm font-medium text-ink-muted mb-2">Ждут синхронизации (только на этом устройстве)</h2>
-            <div className="bg-surface border border-line rounded-lg overflow-hidden">
-              {queued.map((q) => (
-                <div key={q.localId} className="flex items-center justify-between px-5 py-3 border-b border-line last:border-b-0">
-                  <div>
-                    <span className="text-ink font-medium">{q.employeeName}</span>
-                    <span className="text-ink-muted text-sm ml-2">{q.crewName} · {q.siteName} · {q.workDate}</span>
-                  </div>
-                  <span className="text-xs font-mono px-2 py-1 rounded-full bg-warn/15 text-warn">не синхронизировано</span>
+      {queued.length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-2 flex items-center gap-1.5 text-sm font-medium text-warn">
+            <IconWifiOff size={14} /> Ждут синхронизации (только на этом устройстве)
+          </h2>
+          <Card className="overflow-hidden">
+            {queued.map((q) => (
+              <ListRow key={q.localId} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="font-medium text-ink">{q.employeeName}</span>
+                  <span className="ml-2 text-sm text-ink-muted">
+                    {q.crewName} · {q.siteName} · {q.workDate}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+                <Badge tone="warn">не синхронизировано</Badge>
+              </ListRow>
+            ))}
+          </Card>
+        </div>
+      )}
 
-        {error && <p className="text-crit mb-4">{error}</p>}
+      {actionError && <p className="mb-3 text-sm text-crit">{actionError}</p>}
 
-        <div className="bg-surface border border-line rounded-lg overflow-hidden">
-          {timesheets.length === 0 && !error && (
-            <p className="p-5 text-sm text-ink-muted">Пока нет ни одного отправленного табеля.</p>
-          )}
-          {timesheets.map((t) => (
-            <div key={t.id} className="flex items-center justify-between px-5 py-3 border-b border-line last:border-b-0">
-              <div>
-                <span className="text-ink font-medium">{t.employee.fullName}</span>
-                <span className="text-ink-muted text-sm ml-2">
+      <Card className="overflow-hidden">
+        {loadError ? (
+          <ErrorState {...describeApiError(loadError)} onRetry={load} />
+        ) : timesheets === null ? (
+          <p className="p-5 text-sm text-ink-muted">Загрузка…</p>
+        ) : timesheets.length === 0 ? (
+          <EmptyState icon={IconTimesheetList} title="Пока нет ни одного отправленного табеля" description="Внесите первую смену кнопкой выше." />
+        ) : (
+          timesheets.map((t) => (
+            <ListRow key={t.id} className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <span className="font-medium text-ink">{t.employee.fullName}</span>
+                <span className="ml-2 text-sm text-ink-muted">
                   {t.crew.name} · {t.site.name} · {new Date(t.workDate).toLocaleDateString('ru-RU')} ·{' '}
                   {WORK_TYPE_LABEL[t.workType] ?? t.workType} · {Number(t.regularHours)} ч
                 </span>
               </div>
-              <div className="flex items-center gap-3">
-                <span className={`text-xs font-mono px-2 py-1 rounded-full ${STATUS_COLOR[t.status] ?? ''}`}>
-                  {STATUS_LABEL[t.status] ?? t.status}
-                </span>
+              <div className="flex shrink-0 items-center gap-3">
+                <Badge tone={STATUS_TONE[t.status] ?? 'neutral'}>{STATUS_LABEL[t.status] ?? t.status}</Badge>
                 {t.status === 'draft' && (
-                  <button
-                    onClick={() => handleSubmit(t.id)}
-                    disabled={busyId === t.id}
-                    className="text-sm font-medium text-accent-2 disabled:opacity-50"
-                  >
+                  <Button size="sm" variant="ghost" onClick={() => handleSubmit(t.id)} disabled={busyId === t.id}>
                     На согласование
-                  </button>
+                  </Button>
                 )}
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
+            </ListRow>
+          ))
+        )}
+      </Card>
     </div>
   );
 }

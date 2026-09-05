@@ -1,6 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
+import { describeApiError } from '../lib/apiError';
+import { PageHeader } from '../components/PageHeader';
+import { Button, Card, EmptyState, ErrorState, Field, Input, Select } from '../components/ui';
+import { IconPlus, IconTeam } from '../components/icons';
 
 interface Site {
   id: string;
@@ -69,19 +73,19 @@ function CrewCard({ crew, positions, onChanged }: { crew: Crew; positions: Posit
   }
 
   return (
-    <div className="bg-surface border border-line rounded-lg p-5">
-      <div className="flex items-baseline justify-between mb-1">
+    <Card className="p-5">
+      <div className="mb-1 flex items-baseline justify-between gap-2">
         <h3 className="font-medium text-ink">{crew.name}</h3>
         <span className="text-xs text-ink-muted">{crew.shiftPattern ?? 'график не задан'}</span>
       </div>
-      <p className="text-sm text-ink-muted mb-3">
+      <p className="mb-3 text-sm text-ink-muted">
         Бригадир: {crew.foreman ? crew.foreman.fullName : <span className="text-warn">не назначен</span>}
       </p>
 
       {crew.members.length > 0 && (
-        <ul className="mb-3 space-y-1">
+        <ul className="mb-3 space-y-1.5">
           {crew.members.map((m) => (
-            <li key={m.id} className="text-sm text-ink flex justify-between">
+            <li key={m.id} className="flex justify-between text-sm text-ink">
               <span>{m.fullName}</span>
               <span className="text-ink-muted">{m.position.name}</span>
             </li>
@@ -90,35 +94,31 @@ function CrewCard({ crew, positions, onChanged }: { crew: Crew; positions: Posit
       )}
 
       {addingEmployee ? (
-        <form onSubmit={handleAddEmployee} className="space-y-2 border-t border-line pt-3">
-          <input
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="ФИО сотрудника"
-            required
-            className="w-full px-3 py-1.5 text-sm rounded border border-line bg-surface-2 text-ink"
-          />
-          <select value={positionId} onChange={(e) => setPositionId(e.target.value)} className="w-full px-3 py-1.5 text-sm rounded border border-line bg-surface-2 text-ink">
+        <form onSubmit={handleAddEmployee} className="space-y-2.5 border-t border-line pt-3">
+          <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="ФИО сотрудника" required />
+          <Select value={positionId} onChange={(e) => setPositionId(e.target.value)}>
             {positions.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
             ))}
-          </select>
+          </Select>
           {error && <p className="text-xs text-crit">{error}</p>}
           <div className="flex gap-2">
-            <button type="submit" disabled={saving} className="text-sm py-1.5 px-3 rounded bg-accent text-white disabled:opacity-60">
+            <Button type="submit" size="sm" disabled={saving}>
               {saving ? 'Добавляем…' : 'Сохранить'}
-            </button>
-            <button type="button" onClick={() => setAddingEmployee(false)} className="text-sm py-1.5 px-3 rounded border border-line text-ink-muted">
+            </Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => setAddingEmployee(false)}>
               Отмена
-            </button>
+            </Button>
           </div>
         </form>
       ) : (
-        <button onClick={() => setAddingEmployee(true)} className="text-sm text-accent-2 font-medium">
-          + Добавить сотрудника
-        </button>
+        <Button size="sm" variant="ghost" onClick={() => setAddingEmployee(true)} className="!px-0">
+          <IconPlus size={15} /> Добавить сотрудника
+        </Button>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -128,7 +128,7 @@ export function SiteDetail() {
   const [crews, setCrews] = useState<Crew[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [users, setUsers] = useState<TeamUser[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   const [addingCrew, setAddingCrew] = useState(false);
   const [crewName, setCrewName] = useState('');
@@ -137,14 +137,20 @@ export function SiteDetail() {
   const [savingCrew, setSavingCrew] = useState(false);
   const [crewError, setCrewError] = useState<string | null>(null);
 
+  function loadSite() {
+    if (!id) return;
+    setError(null);
+    apiFetch<Site>(`/sites/${id}`).then(setSite).catch(setError);
+  }
+
   function loadCrews() {
     if (!id) return;
-    apiFetch<Crew[]>(`/crews?siteId=${id}`).then(setCrews).catch((err) => setError(err instanceof Error ? err.message : 'Не удалось загрузить бригады'));
+    apiFetch<Crew[]>(`/crews?siteId=${id}`).then(setCrews).catch(() => {});
   }
 
   useEffect(() => {
     if (!id) return;
-    apiFetch<Site>(`/sites/${id}`).then(setSite).catch((err) => setError(err instanceof Error ? err.message : 'Участок не найден'));
+    loadSite();
     apiFetch<Position[]>('/positions').then(setPositions).catch(() => {});
     apiFetch<TeamUser[]>('/users').then(setUsers).catch(() => {});
     loadCrews();
@@ -174,87 +180,86 @@ export function SiteDetail() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-bg p-8">
-        <p className="text-crit">{error}</p>
-        <Link to="/sites" className="text-accent-2 text-sm">← К списку участков</Link>
+      <div>
+        <PageHeader crumbs={[{ label: 'Администрирование' }, { label: 'Участки', to: '/sites' }]} title="Участок" />
+        <ErrorState {...describeApiError(error)} onRetry={loadSite} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-bg p-8">
-      <div className="max-w-3xl mx-auto">
-        <Link to="/sites" className="text-sm text-accent-2 mb-4 inline-block">← К списку участков</Link>
+    <div className="max-w-3xl">
+      <PageHeader
+        crumbs={[{ label: 'Администрирование' }, { label: 'Участки', to: '/sites' }]}
+        title={site?.name ?? '…'}
+        description={
+          site ? `${WORK_TYPE_LABEL[site.workType] ?? site.workType}${site.description ? ` · ${site.description}` : ''}` : undefined
+        }
+      />
 
-        {site && (
-          <div className="mb-8">
-            <div className="flex items-baseline gap-3">
-              <h1 className="text-2xl font-semibold text-ink">{site.name}</h1>
-              <span className="text-xs font-mono text-ink-muted">{site.code}</span>
-            </div>
-            <p className="text-sm text-ink-muted mt-1">
-              {WORK_TYPE_LABEL[site.workType] ?? site.workType}
-              {site.description && ` · ${site.description}`}
-            </p>
-          </div>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-medium text-ink">Бригады</h2>
+        {!addingCrew && (
+          <Button size="sm" variant="secondary" onClick={() => setAddingCrew(true)}>
+            <IconPlus size={15} /> Новая бригада
+          </Button>
         )}
+      </div>
 
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-medium text-ink">Бригады</h2>
-          {!addingCrew && (
-            <button onClick={() => setAddingCrew(true)} className="text-sm text-accent-2 font-medium">
-              + Новая бригада
-            </button>
-          )}
-        </div>
-
-        {addingCrew && (
-          <form onSubmit={handleAddCrew} className="bg-surface border border-line rounded-lg p-5 mb-4 space-y-3">
+      {addingCrew && (
+        <Card className="mb-4 p-5">
+          <form onSubmit={handleAddCrew} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <input value={crewName} onChange={(e) => setCrewName(e.target.value)} placeholder="Название бригады" required className="px-3 py-2 rounded border border-line bg-surface-2 text-ink text-sm" />
-              <input value={shiftPattern} onChange={(e) => setShiftPattern(e.target.value)} placeholder="График, напр. вахта 15/15" className="px-3 py-2 rounded border border-line bg-surface-2 text-ink text-sm" />
+              <Field label="Название бригады">
+                <Input value={crewName} onChange={(e) => setCrewName(e.target.value)} required />
+              </Field>
+              <Field label="График" hint="напр. вахта 15/15">
+                <Input value={shiftPattern} onChange={(e) => setShiftPattern(e.target.value)} />
+              </Field>
             </div>
-            <select value={foremanId} onChange={(e) => setForemanId(e.target.value)} className="w-full px-3 py-2 rounded border border-line bg-surface-2 text-ink text-sm">
-              <option value="">Без бригадира (назначить позже)</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.fullName}</option>
-              ))}
-            </select>
+            <Field label="Бригадир">
+              <Select value={foremanId} onChange={(e) => setForemanId(e.target.value)}>
+                <option value="">Без бригадира (назначить позже)</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullName}
+                  </option>
+                ))}
+              </Select>
+            </Field>
             {users.length === 0 && (
               <p className="text-xs text-warn">
-                Пока нет ни одного логина для назначения бригадиром — добавьте на странице{' '}
-                <Link to="/team" className="underline">Команда</Link>.
+                Пока нет ни одного логина для назначения бригадиром — добавьте на странице «Команда».
               </p>
             )}
             {crewError && <p className="text-xs text-crit">{crewError}</p>}
             <div className="flex gap-2">
-              <button type="submit" disabled={savingCrew} className="text-sm py-1.5 px-3 rounded bg-accent text-white disabled:opacity-60">
+              <Button type="submit" size="sm" disabled={savingCrew}>
                 {savingCrew ? 'Создаём…' : 'Создать бригаду'}
-              </button>
-              <button type="button" onClick={() => setAddingCrew(false)} className="text-sm py-1.5 px-3 rounded border border-line text-ink-muted">
+              </Button>
+              <Button type="button" size="sm" variant="secondary" onClick={() => setAddingCrew(false)}>
                 Отмена
-              </button>
+              </Button>
             </div>
           </form>
-        )}
+        </Card>
+      )}
 
-        {crews.length === 0 && !addingCrew && (
-          <p className="text-sm text-ink-muted">На этом участке пока нет бригад.</p>
-        )}
+      {crews.length === 0 && !addingCrew && (
+        <EmptyState icon={IconTeam} title="На этом участке пока нет бригад" description="Создайте первую бригаду кнопкой выше." />
+      )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {crews.map((crew) => (
-            <CrewCard key={crew.id} crew={crew} positions={positions} onChanged={loadCrews} />
-          ))}
-        </div>
-
-        {positions.length === 0 && crews.length > 0 && (
-          <p className="text-xs text-warn mt-4">
-            Нет ни одной должности — прежде чем добавлять сотрудников, заведите их на странице{' '}
-            <Link to="/positions" className="underline">Должности</Link>.
-          </p>
-        )}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {crews.map((crew) => (
+          <CrewCard key={crew.id} crew={crew} positions={positions} onChanged={loadCrews} />
+        ))}
       </div>
+
+      {positions.length === 0 && crews.length > 0 && (
+        <p className="mt-4 text-xs text-warn">
+          Нет ни одной должности — прежде чем добавлять сотрудников, заведите их на странице «Должности».
+        </p>
+      )}
     </div>
   );
 }
