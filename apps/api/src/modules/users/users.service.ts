@@ -30,11 +30,12 @@ export class UsersService {
       throw new BadRequestException('Роль не найдена');
     }
 
+    const siteIds = dto.siteIds ?? [];
     // Нельзя выдать роль с правами шире собственных — иначе HR с правом
     // user:create мог бы найти id роли «Владелец компании» через
     // GET /roles и создать себе (или сообщнику) полный доступ
     // (найдено security-review, эскалация привилегий).
-    await this.assertCanGrantRole(user, role.permissions);
+    await this.assertCanGrantRole(user, role.permissions, siteIds);
 
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) {
@@ -48,7 +49,7 @@ export class UsersService {
         email: dto.email,
         fullName: dto.fullName,
         passwordHash,
-        roleAssignments: { create: { roleId: role.id } },
+        roleAssignments: { create: { roleId: role.id, siteIds } },
       },
       include: { roleAssignments: { include: { role: true } } },
     });
@@ -78,12 +79,13 @@ export class UsersService {
       });
       if (!role) throw new BadRequestException('Роль не найдена');
 
+      const siteIds = dto.siteIds ?? [];
       // Та же проверка, что и при создании — иначе роль можно было бы
       // расширить в обход assertCanGrantRole простым редактированием.
-      await this.assertCanGrantRole(user, role.permissions);
+      await this.assertCanGrantRole(user, role.permissions, siteIds);
 
       await this.prisma.roleAssignment.deleteMany({ where: { userId: id } });
-      await this.prisma.roleAssignment.create({ data: { userId: id, roleId: role.id } });
+      await this.prisma.roleAssignment.create({ data: { userId: id, roleId: role.id, siteIds } });
     }
 
     const updated = await this.prisma.user.update({
@@ -104,36 +106,61 @@ export class UsersService {
    * более широкую область видимости, чем уже есть у назначающего —
    * но более узкую (own_sites/own_crew там, где у него company)
    * назначать можно: это не эскалация, а ограничение.
+   *
+   * Отдельно (найдено security-review, независимая проверка сегодняшнего
+   * фикса): если и у назначающего, и у выдаваемой роли scope — оба
+   * own_sites (не company) для одной и той же пары (ресурс, действие),
+   * сравнения одного лишь ранга недостаточно — иначе руководитель
+   * участка A мог бы выдать другому пользователю own_sites-право на
+   * участок B, к которому сам отношения не имеет. Поэтому запрошенные
+   * siteIds дополнительно сверяются с объединением siteIds самого
+   * назначающего по той же паре (ресурс, действие).
    */
   private async assertCanGrantRole(
     user: KernUser,
     targetPermissions: { resource: string; action: string; scope: string }[],
+    requestedSiteIds: string[],
   ) {
     const callerAssignments = await this.prisma.roleAssignment.findMany({
       where: { userId: user.id },
       include: { role: { include: { permissions: true } } },
     });
 
-    // Максимальный ранг scope, который есть у назначающего, отдельно
-    // на каждую пару (resource, action).
     const callerMaxScope = new Map<string, number>();
+    const callerSiteIdsByKey = new Map<string, Set<string>>();
+
     for (const assignment of callerAssignments) {
       for (const p of assignment.role.permissions) {
         const key = `${p.resource}:${p.action}`;
         const rank = SCOPE_RANK[p.scope] ?? 0;
         callerMaxScope.set(key, Math.max(callerMaxScope.get(key) ?? 0, rank));
+
+        if (p.scope === 'own_sites') {
+          const set = callerSiteIdsByKey.get(key) ?? new Set<string>();
+          for (const siteId of assignment.siteIds) set.add(siteId);
+          callerSiteIdsByKey.set(key, set);
+        }
       }
     }
 
-    const escalates = targetPermissions.some((p) => {
+    for (const p of targetPermissions) {
       const key = `${p.resource}:${p.action}`;
       const targetRank = SCOPE_RANK[p.scope] ?? 0;
       const callerRank = callerMaxScope.get(key) ?? 0;
-      return callerRank < targetRank;
-    });
 
-    if (escalates) {
-      throw new ForbiddenException('Нельзя назначить роль с правами шире собственных');
+      if (callerRank < targetRank) {
+        throw new ForbiddenException('Нельзя назначить роль с правами шире собственных');
+      }
+
+      if (p.scope === 'own_sites' && callerRank === SCOPE_RANK.own_sites) {
+        const allowed = callerSiteIdsByKey.get(key) ?? new Set<string>();
+        const outOfScope = requestedSiteIds.some((siteId) => !allowed.has(siteId));
+        if (outOfScope) {
+          throw new ForbiddenException(
+            'Нельзя назначить область видимости на участки, к которым у вас самих нет доступа',
+          );
+        }
+      }
     }
   }
 }

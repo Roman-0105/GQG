@@ -50,51 +50,90 @@ export class PayrollService {
     const advanceByEmployee = new Map(advances.map((a) => [a.employeeId, a.amount]));
     const deductionByEmployee = new Map(deductions.map((d) => [d.employeeId, d.amount]));
 
-    // Транзакция: если для какого-то сотрудника не найдётся применимое
-    // правило расчёта (RateRule), calculateForEmployee бросит исключение
-    // (docs/payroll-formulas.md, раздел 1.3/D11) — весь запуск должен
-    // откатиться, а не оставить в БД расчёт наполовину.
-    const runId = await this.prisma.$transaction(async (tx) => {
-      const employees = await tx.employee.findMany({ where: this.buildEmployeeScopeWhere(user) });
+    const employees = await this.prisma.employee.findMany({ where: this.buildEmployeeScopeWhere(user) });
 
-      const run = await tx.payrollRun.create({
-        data: { companyId: user.companyId, periodStart: start, periodEnd: end, status: 'draft' },
+    // Само вычисление (calculateForEmployee) — чистое чтение (табели,
+    // должности, правила), никак не связанное с записью PayrollRun/Line.
+    // Раньше оно шло внутри $transaction по одному сотруднику за раз —
+    // при N сотрудниках это N последовательных раундов запросов на
+    // соединении, удерживаемом всё это время открытым. Под параллельной
+    // нагрузкой (несколько одновременных запусков расчёта) это исчерпывало
+    // пул соединений Prisma/Postgres и упиралось в дефолтный таймаут
+    // интерактивной транзакции (5с) — часть запросов падала с 500,
+    // остальные резко замедлялись (найдено qa-tester: 15 параллельных
+    // запусков → 5-11 из 15 падают, время ответа успешных растёт до 4-9с).
+    // Здесь чтение вынесено из транзакции и делается вне её — если для
+    // кого-то из сотрудников не найдётся правило расчёта, исключение
+    // прилетит здесь же, ДО создания PayrollRun, так что инвариант
+    // "не оставлять наполовину посчитанный запуск в БД" сохраняется, а
+    // сама транзакция теперь — только быстрые записи.
+    const results: Awaited<ReturnType<PayrollCalcService['calculateForEmployee']>>[] = [];
+    for (const employee of employees) {
+      const result = await this.calc.calculateForEmployee(employee.id, start, end, {
+        advanceDeduction: advanceByEmployee.get(employee.id),
+        deductions: deductionByEmployee.get(employee.id),
       });
+      if (result.timesheetIds.length === 0) continue;
+      results.push(result);
+    }
 
-      for (const employee of employees) {
-        const result = await this.calc.calculateForEmployee(
-          employee.id,
-          start,
-          end,
-          {
-            advanceDeduction: advanceByEmployee.get(employee.id),
-            deductions: deductionByEmployee.get(employee.id),
-          },
-          tx,
-        );
-        if (result.timesheetIds.length === 0) continue;
+    const runId = await this.prisma.$transaction(
+      async (tx) => {
+        // Живьём воспроизведено (D:\Projects\GQS\api-dev.log, Postgres
+        // 40P01 "обнаружена взаимоблокировка"): два параллельных запуска
+        // расчёта по пересекающемуся периоду создают СВОИ PayrollLine и
+        // каждый делает `timesheets: { connect: [...] }` — то есть
+        // UPDATE Timesheet.payrollLineId для одних и тех же строк
+        // табелей. При разном порядке блокировки строк между двумя
+        // транзакциями это классический deadlock (было замаскировано
+        // дефолтным 5с таймаутом интерактивной транзакции — Prisma рвала
+        // соединение раньше, чем Postgres успевал сообщить настоящую
+        // причину). Advisory-лок на companyId сериализует запись
+        // расчётов одной компании между собой (сами расчёты — редкое
+        // осознанное действие бухгалтера/владельца, не hot path,
+        // сериализация здесь не создаёт ощутимой деградации), закрывая
+        // deadlock в корне, а не таймаутом/ретраем поверх symptom'а.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${user.companyId}))`;
 
-        await tx.payrollLine.create({
-          data: {
-            payrollRunId: run.id,
-            employeeId: employee.id,
-            baseAmount: result.baseAmount,
-            overtimeAmount: result.overtimeAmount,
-            nightAmount: result.nightAmount,
-            holidayAmount: result.holidayAmount,
-            remoteBonusAmount: result.remoteBonusAmount,
-            perDiemAmount: result.perDiemAmount,
-            pieceRateAmount: result.pieceRateAmount,
-            deductions: result.deductions,
-            advanceDeduction: result.advanceDeduction,
-            netAmount: result.netAmount,
-            timesheets: { connect: result.timesheetIds.map((id) => ({ id })) },
-          },
+        const run = await tx.payrollRun.create({
+          data: { companyId: user.companyId, periodStart: start, periodEnd: end, status: 'draft' },
         });
-      }
 
-      return run.id;
-    });
+        for (const result of results) {
+          await tx.payrollLine.create({
+            data: {
+              payrollRunId: run.id,
+              employeeId: result.employeeId,
+              baseAmount: result.baseAmount,
+              overtimeAmount: result.overtimeAmount,
+              nightAmount: result.nightAmount,
+              holidayAmount: result.holidayAmount,
+              remoteBonusAmount: result.remoteBonusAmount,
+              perDiemAmount: result.perDiemAmount,
+              pieceRateAmount: result.pieceRateAmount,
+              deductions: result.deductions,
+              advanceDeduction: result.advanceDeduction,
+              netAmount: result.netAmount,
+              timesheets: { connect: result.timesheetIds.map((id) => ({ id })) },
+            },
+          });
+        }
+
+        return run.id;
+      },
+      // Дефолт Prisma для интерактивной транзакции — timeout 5с, maxWait 2с.
+      // Найдено qa-tester + подтверждено живьём (D:\Projects\GQS\api-dev.log):
+      // "Transaction already closed... 5000 ms, however 10065 ms passed" —
+      // при 15 одновременных запусках расчёта транзакция большую часть
+      // времени просто ждёт свободное соединение в пуле Prisma/Postgres
+      // (сам пул при этом не исчерпан на уровне Postgres — max_connections
+      // 100, использовано ~22), а 5с дефолтного таймлимита на это ожидание
+      // не хватает. Здесь запись уже вынесена в отдельную короткую
+      // транзакцию (чтение — см. выше), поэтому щедрый timeout безопасен:
+      // сама транзакция короткая, просто может подождать своей очереди на
+      // соединение под пиковой нагрузкой вместо падения с 500.
+      { timeout: 20_000, maxWait: 15_000 },
+    );
 
     return this.findOne(user, runId);
   }

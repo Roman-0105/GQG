@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { buildSiteScopeWhere } from '../../common/rbac/scope.util';
+import { buildSiteScopeWhere, isSiteAllowedByPermissions } from '../../common/rbac/scope.util';
 import { KernUser } from '../../common/rbac/rbac.types';
 import { CreateSiteDto } from './dto/create-site.dto';
 import { UpdateSiteDto } from './dto/update-site.dto';
@@ -30,24 +30,34 @@ export class SitesService {
     });
   }
 
-  findOne(user: KernUser, id: string) {
-    const where = buildSiteScopeWhere(user, 'site', 'read');
-    return this.prisma.site.findFirst({ where: { ...where, id }, include: { crews: true } });
+  /**
+   * Проверка одной записи — через isSiteAllowedByPermissions, а не
+   * buildSiteScopeWhere: комбинирование результата buildSiteScopeWhere
+   * с явным `{ ..., id }` молча стирало проверку scope (найдено
+   * security-review — тот же класс ошибки, что и передача неверного
+   * action ниже в update/setArchived, обе исправлены разом).
+   */
+  private async assertSiteAllowed(user: KernUser, id: string) {
+    if (!isSiteAllowedByPermissions(user, id)) {
+      throw new ForbiddenException('Участок вне вашей области видимости');
+    }
+    const site = await this.prisma.site.findFirst({ where: { id, companyId: user.companyId } });
+    if (!site) throw new NotFoundException('Участок не найден');
+    return site;
+  }
+
+  async findOne(user: KernUser, id: string) {
+    const site = await this.assertSiteAllowed(user, id);
+    return this.prisma.site.findUnique({ where: { id: site.id }, include: { crews: true } });
   }
 
   async update(user: KernUser, id: string, dto: UpdateSiteDto) {
-    const where = buildSiteScopeWhere(user, 'site', 'read');
-    const existing = await this.prisma.site.findFirst({ where: { ...where, id } });
-    if (!existing) throw new NotFoundException('Участок не найден');
-
+    await this.assertSiteAllowed(user, id);
     return this.prisma.site.update({ where: { id }, data: dto });
   }
 
   async setArchived(user: KernUser, id: string, archived: boolean) {
-    const where = buildSiteScopeWhere(user, 'site', 'read');
-    const existing = await this.prisma.site.findFirst({ where: { ...where, id } });
-    if (!existing) throw new NotFoundException('Участок не найден');
-
+    await this.assertSiteAllowed(user, id);
     return this.prisma.site.update({
       where: { id },
       data: { archivedAt: archived ? new Date() : null },

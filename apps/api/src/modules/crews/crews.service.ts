@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KernUser } from '../../common/rbac/rbac.types';
-import { buildSiteScopeWhere } from '../../common/rbac/scope.util';
+import { isSiteAllowedByPermissions } from '../../common/rbac/scope.util';
 import { CreateCrewDto } from './dto/create-crew.dto';
 import { UpdateCrewDto } from './dto/update-crew.dto';
 
@@ -10,15 +10,28 @@ export class CrewsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Участок должен входить в scope пользователя и для чтения, и для
-   * создания/редактирования — иначе руководитель одного участка мог бы
-   * завести/поменять бригаду на чужом.
+   * Участок должен входить в scope пользователя для того самого
+   * действия, ради которого вызван текущий маршрут (create/read/
+   * update/delete над crew) — не для отдельного ресурса "site".
+   * user.permissions уже отфильтрован RbacGuard'ом ровно под нужный
+   * (resource, action) этого маршрута, поэтому isSiteAllowedByPermissions
+   * можно звать без повторного указания resource/action.
+   *
+   * Раньше здесь звался buildSiteScopeWhere(user, 'site', 'read') —
+   * захардкоженный ресурс 'site' никогда не совпадал с реальными
+   * правами (resource='crew') в user.permissions, поэтому проверка
+   * всегда проваливалась в пустой fallback, а затем этот fallback
+   * стирался явным `{ ...where, id: siteId }` (последний одноимённый
+   * ключ в объектном литерале побеждает) — в сумме получался запрос
+   * вообще без проверки scope (найдено security-review).
    */
   private async assertSiteInScope(user: KernUser, siteId: string, action: string) {
-    const where = buildSiteScopeWhere(user, 'site', 'read');
-    const site = await this.prisma.site.findFirst({ where: { ...where, id: siteId } });
-    if (!site) {
+    if (!isSiteAllowedByPermissions(user, siteId)) {
       throw new ForbiddenException(`Участок вне вашей области видимости (${action})`);
+    }
+    const site = await this.prisma.site.findFirst({ where: { id: siteId, companyId: user.companyId } });
+    if (!site) {
+      throw new NotFoundException('Участок не найден');
     }
     return site;
   }
@@ -42,10 +55,18 @@ export class CrewsService {
 
   async findBySite(user: KernUser, siteId: string) {
     await this.assertSiteInScope(user, siteId, 'read');
+    // Ставки (baseHourlyRate/baseRateOverride) — та же проблема, что была
+    // найдена в EmployeesService.findAll: раньше уходили всем через
+    // include без разбора scope. У "Руководителя участка" scope на crew:read
+    // — own_sites, а не company, поэтому ставок ему по разделу 2 плана
+    // видно быть не должно (найдено security-review).
+    const hasCompanyScope = user.permissions.some(
+      (p) => p.resource === 'crew' && p.action === 'read' && p.scope === 'company',
+    );
     return this.prisma.crew.findMany({
       where: { siteId },
       include: {
-        members: { include: { position: true } },
+        members: { select: this.memberSelect(hasCompanyScope) },
         // Только безопасные поля — полный User здесь содержал бы
         // passwordHash (нашлось при живой проверке Этапа 01).
         foreman: { select: { id: true, fullName: true, email: true } },
@@ -54,13 +75,39 @@ export class CrewsService {
   }
 
   findMine(userId: string) {
+    // Этот маршрут не защищён @RequirePermission (бригадир смотрит свою
+    // же бригаду в обход общей scope-проверки, см. контроллер) — поэтому
+    // здесь нет user.permissions, по которым можно было бы определить
+    // company-scope. Бригадир по разделу 2 плана в принципе не должен
+    // видеть индивидуальные ставки — hasCompanyScope всегда false.
     return this.prisma.crew.findMany({
       where: { foremanId: userId },
       include: {
         site: { select: { id: true, name: true, code: true } },
-        members: { include: { position: true } },
+        members: { select: this.memberSelect(false) },
       },
     });
+  }
+
+  private memberSelect(hasCompanyScope: boolean) {
+    return {
+      id: true,
+      fullName: true,
+      employmentType: true,
+      isActive: true,
+      hiredAt: true,
+      crewId: true,
+      positionId: true,
+      position: {
+        select: {
+          id: true,
+          name: true,
+          hazardPay: true,
+          ...(hasCompanyScope ? { baseHourlyRate: true, overtimeMultiplier: true } : {}),
+        },
+      },
+      ...(hasCompanyScope ? { baseRateOverride: true } : {}),
+    } as const;
   }
 
   private async getOwnedCrew(user: KernUser, id: string) {

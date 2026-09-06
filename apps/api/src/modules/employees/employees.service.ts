@@ -25,9 +25,10 @@ export class EmployeesService {
 
   async findAll(user: KernUser) {
     const perms = user.permissions.filter((p) => p.resource === 'employee' && p.action === 'read');
+    const hasCompanyScope = perms.some((p) => p.scope === 'company');
     const where: Prisma.EmployeeWhereInput = { companyId: user.companyId, isActive: true };
 
-    if (!perms.some((p) => p.scope === 'company')) {
+    if (!hasCompanyScope) {
       const ownSites = perms.find((p) => p.scope === 'own_sites');
       if (ownSites) {
         where.crew = { siteId: { in: ownSites.siteIds } };
@@ -38,7 +39,34 @@ export class EmployeesService {
       }
     }
 
-    return this.prisma.employee.findMany({ where, include: { position: true, crew: true } });
+    // Ставки (baseHourlyRate/baseRateOverride) — финансовые данные вне
+    // зоны видимости не-company scope (docs/project-plan.md, раздел 2:
+    // ставки — зона HR/Расчётчика, у руководителя участка — только
+    // "бригады и табели своих объектов"). Раньше уходили всем через
+    // include без разбора (найдено security-review, тот же класс
+    // проблемы, что passwordHash в бригадах на Этапе 01).
+    return this.prisma.employee.findMany({
+      where,
+      select: {
+        id: true,
+        fullName: true,
+        employmentType: true,
+        isActive: true,
+        hiredAt: true,
+        crewId: true,
+        crew: { select: { id: true, name: true, siteId: true } },
+        positionId: true,
+        position: {
+          select: {
+            id: true,
+            name: true,
+            hazardPay: true,
+            ...(hasCompanyScope ? { baseHourlyRate: true, overtimeMultiplier: true } : {}),
+          },
+        },
+        ...(hasCompanyScope ? { baseRateOverride: true } : {}),
+      },
+    });
   }
 
   /** Проверяет, что бригада принадлежит участку из scope пользователя. */

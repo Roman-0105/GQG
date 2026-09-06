@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -10,6 +10,16 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   roleId?: string;
+
+  // Учитывается только вместе с roleId (siteIds без смены роли —
+  // потребовало бы отдельного эндпоинта для правки уже существующего
+  // RoleAssignment; сейчас единственный способ поменять siteIds —
+  // переназначить роль). Обязателен для own_sites-ролей — без него
+  // такая роль не видит ни одного участка.
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  siteIds?: string[];
 
   // Отключение доступа без удаления истории (кто вносил/согласовывал
   // табели) — токен уже выданный этому пользователю перестанет
