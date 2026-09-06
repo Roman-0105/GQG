@@ -2,8 +2,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { describeApiError } from '../lib/apiError';
 import { PageHeader } from '../components/PageHeader';
-import { Badge, Card, EmptyState, ErrorState, Field, Input, ListRow, Select, Button } from '../components/ui';
-import { IconTeam } from '../components/icons';
+import { Badge, Card, Checkbox, EmptyState, ErrorState, Field, Input, ListRow, Select, Button } from '../components/ui';
+import { IconEdit, IconTeam } from '../components/icons';
 
 interface Role {
   id: string;
@@ -14,7 +14,62 @@ interface TeamUser {
   id: string;
   fullName: string;
   email: string;
+  isActive: boolean;
   roleAssignments: { role: Role }[];
+}
+
+function EditUserRow({ user, roles, onSaved, onCancel }: { user: TeamUser; roles: Role[]; onSaved: () => void; onCancel: () => void }) {
+  const [fullName, setFullName] = useState(user.fullName);
+  const [roleId, setRoleId] = useState(user.roleAssignments[0]?.role.id ?? roles[0]?.id ?? '');
+  const [isActive, setIsActive] = useState(user.isActive);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      await apiFetch(`/users/${user.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fullName, roleId, isActive }),
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось сохранить');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <ListRow>
+      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
+        <Field label="Имя" className="min-w-[10rem] flex-1">
+          <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+        </Field>
+        <Field label="Роль" className="min-w-[10rem] flex-1">
+          <Select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+            {roles.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Checkbox checked={isActive} onChange={setIsActive} label="Активен" />
+        {error && <p className="w-full text-xs text-crit">{error}</p>}
+        <div className="flex gap-2">
+          <Button type="submit" size="sm" disabled={saving}>
+            {saving ? 'Сохраняем…' : 'Сохранить'}
+          </Button>
+          <Button type="button" size="sm" variant="secondary" onClick={onCancel}>
+            Отмена
+          </Button>
+        </div>
+      </form>
+    </ListRow>
+  );
 }
 
 /**
@@ -25,6 +80,7 @@ interface TeamUser {
 export function Team() {
   const [users, setUsers] = useState<TeamUser[] | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -78,15 +134,31 @@ export function Team() {
         ) : users.length === 0 ? (
           <EmptyState icon={IconTeam} title="Пока нет ни одного логина, кроме вашего" description="Добавьте первый формой ниже." />
         ) : (
-          users.map((u) => (
-            <ListRow key={u.id} className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <span className="font-medium text-ink">{u.fullName}</span>
-                <span className="ml-2 text-sm text-ink-muted">{u.email}</span>
-              </div>
-              <Badge tone="accent">{u.roleAssignments.map((ra) => ra.role.name).join(', ') || 'без роли'}</Badge>
-            </ListRow>
-          ))
+          users.map((u) =>
+            editingId === u.id ? (
+              <EditUserRow key={u.id} user={u} roles={roles} onSaved={() => { setEditingId(null); load(); }} onCancel={() => setEditingId(null)} />
+            ) : (
+              <ListRow key={u.id} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="font-medium text-ink">{u.fullName}</span>
+                  <span className="ml-2 text-sm text-ink-muted">{u.email}</span>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {!u.isActive && <Badge tone="neutral">отключён</Badge>}
+                  <Badge tone="accent">{u.roleAssignments.map((ra) => ra.role.name).join(', ') || 'без роли'}</Badge>
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(u.id)}
+                    aria-label="Редактировать"
+                    title="Редактировать"
+                    className="text-ink-muted transition-colors hover:text-ink"
+                  >
+                    <IconEdit size={15} />
+                  </button>
+                </div>
+              </ListRow>
+            ),
+          )
         )}
       </Card>
 

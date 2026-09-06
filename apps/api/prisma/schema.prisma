@@ -116,6 +116,10 @@ model Site {
   startDate      DateTime?
   endDate        DateTime?
   createdAt      DateTime  @default(now())
+  // Архивация — мягкое скрытие, а не удаление: участок мог накопить
+  // табели/расчёты ЗП, которые нельзя терять ради "уборки" списка.
+  // Настоящее удаление участка не предлагается пользователю намеренно.
+  archivedAt     DateTime?
 
   crews      Crew[]
   timesheets Timesheet[]

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { Tile } from '../components/Tile';
-import { Button, Badge, EmptyState, ErrorState, Tone } from '../components/ui';
-import { IconPlus, IconSites } from '../components/icons';
+import { Button, Badge, EmptyState, ErrorState, SegmentedControl, Tone } from '../components/ui';
+import { IconArchive, IconPlus, IconSites } from '../components/icons';
 import { apiFetch } from '../lib/api';
 import { describeApiError } from '../lib/apiError';
 import { useNavigate } from 'react-router-dom';
@@ -38,15 +38,17 @@ const STATUS_TONE: Record<string, Tone> = {
 
 export function Sites() {
   const navigate = useNavigate();
+  const [tab, setTab] = useState<'active' | 'archived'>('active');
   const [sites, setSites] = useState<Site[] | null>(null);
   const [error, setError] = useState<unknown>(null);
 
   function load() {
     setError(null);
-    apiFetch<Site[]>('/sites').then(setSites).catch(setError);
+    setSites(null);
+    apiFetch<Site[]>(`/sites?archived=${tab === 'archived'}`).then(setSites).catch(setError);
   }
 
-  useEffect(load, []);
+  useEffect(load, [tab]);
 
   return (
     <div>
@@ -61,21 +63,36 @@ export function Sites() {
         }
       />
 
+      <div className="mb-4">
+        <SegmentedControl
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'active', label: 'Активные' },
+            { value: 'archived', label: 'Архив' },
+          ]}
+        />
+      </div>
+
       {error ? (
         <ErrorState {...describeApiError(error)} onRetry={load} />
       ) : sites === null ? (
         <p className="text-sm text-ink-muted">Загрузка…</p>
       ) : sites.length === 0 ? (
-        <EmptyState
-          icon={IconSites}
-          title="Пока нет ни одного участка"
-          description="Добавьте первый объект — после этого можно будет завести на нём бригады и сотрудников."
-          action={
-            <Button onClick={() => navigate('/sites/new')}>
-              <IconPlus size={16} /> Новый участок
-            </Button>
-          }
-        />
+        tab === 'archived' ? (
+          <EmptyState icon={IconArchive} title="В архиве пусто" description="Архивированные участки будут показаны здесь." />
+        ) : (
+          <EmptyState
+            icon={IconSites}
+            title="Пока нет ни одного участка"
+            description="Добавьте первый объект — после этого можно будет завести на нём бригады и сотрудников."
+            action={
+              <Button onClick={() => navigate('/sites/new')}>
+                <IconPlus size={16} /> Новый участок
+              </Button>
+            }
+          />
+        )
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {sites.map((site) => (

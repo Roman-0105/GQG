@@ -11,6 +11,18 @@ export const WORK_TYPE_LABEL: Record<string, string> = Object.fromEntries(
   WORK_TYPES.map((w) => [w.value, w.label]),
 );
 
+// Ограниченный набор вместо свободного текста (замечание владельца
+// компании) — значения синхронизированы с apps/api/.../crews/shift-patterns.ts.
+export const SHIFT_PATTERNS: { value: string; label: string }[] = [
+  { value: '15/15', label: 'Вахта 15/15' },
+  { value: '30/30', label: 'Вахта 30/30' },
+  { value: 'floating', label: 'Плавающий график' },
+];
+
+export const SHIFT_PATTERN_LABEL: Record<string, string> = Object.fromEntries(
+  SHIFT_PATTERNS.map((s) => [s.value, s.label]),
+);
+
 export const STATUS_LABEL: Record<string, string> = {
   draft: 'Черновик',
   submitted: 'На согласовании',

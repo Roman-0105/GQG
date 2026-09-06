@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { SHIFT_PATTERNS } from '../shift-patterns';
 
 export class CreateCrewDto {
   @IsString()
@@ -13,6 +14,6 @@ export class CreateCrewDto {
   foremanId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsIn(SHIFT_PATTERNS)
   shiftPattern?: string;
 }

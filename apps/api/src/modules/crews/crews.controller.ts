@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Query, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Query, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RbacGuard } from '../../common/rbac/rbac.guard';
 import { RequirePermission } from '../../common/rbac/permissions.decorator';
@@ -7,6 +7,7 @@ import { CurrentUser, AuthUser } from '../auth/current-user.decorator';
 import { KernUser } from '../../common/rbac/rbac.types';
 import { CrewsService } from './crews.service';
 import { CreateCrewDto } from './dto/create-crew.dto';
+import { UpdateCrewDto } from './dto/update-crew.dto';
 
 @Controller('crews')
 @UseGuards(JwtAuthGuard, RbacGuard)
@@ -35,5 +36,17 @@ export class CrewsController {
   @Get('mine')
   findMine(@CurrentUser() user: AuthUser) {
     return this.crewsService.findMine(user.id);
+  }
+
+  @Patch(':id')
+  @RequirePermission('crew', 'update')
+  update(@CurrentKernUser() user: KernUser, @Param('id') id: string, @Body() dto: UpdateCrewDto) {
+    return this.crewsService.update(user, id, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermission('crew', 'delete')
+  remove(@CurrentKernUser() user: KernUser, @Param('id') id: string) {
+    return this.crewsService.remove(user, id);
   }
 }

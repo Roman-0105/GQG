@@ -317,3 +317,22 @@ export function IconBriefcase(props: IconProps) {
     </Svg>
   );
 }
+
+export function IconEdit(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+      <path d="M14.5 5.5l3 3" />
+    </Svg>
+  );
+}
+
+export function IconArchive(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="4" width="18" height="4.5" rx="1.2" />
+      <path d="M5 8.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V8.5" />
+      <path d="M10 12.5h4" />
+    </Svg>
+  );
+}
