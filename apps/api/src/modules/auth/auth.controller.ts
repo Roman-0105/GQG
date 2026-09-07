@@ -2,6 +2,9 @@ import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { CurrentUser, AuthUser } from './current-user.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -15,5 +18,17 @@ export class AuthController {
   @Throttle({ login: { limit: 5, ttl: 60_000 } })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto.email, dto.password);
+  }
+
+  // Не за RbacGuard — смена СОБСТВЕННОГО пароля не завязана на права
+  // на ресурс 'user', иначе, например, Бригадир (нет user:update) не
+  // смог бы сменить даже свой пароль. Та же троттлинг-защита, что и на
+  // логине — подбор currentPassword здесь эквивалентен подбору пароля.
+  @Post('change-password')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, ThrottlerGuard)
+  @Throttle({ login: { limit: 5, ttl: 60_000 } })
+  changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
+    return this.authService.changeOwnPassword(user.id, dto.currentPassword, dto.newPassword);
   }
 }

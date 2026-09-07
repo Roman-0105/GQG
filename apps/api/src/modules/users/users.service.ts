@@ -93,6 +93,7 @@ export class UsersService {
       data: {
         fullName: dto.fullName,
         isActive: dto.isActive,
+        passwordHash: dto.password ? await bcrypt.hash(dto.password, 10) : undefined,
       },
       include: { roleAssignments: { include: { role: true } } },
     });

@@ -116,7 +116,7 @@ export class TimesheetsService {
    * и, для approve, требует другого пользователя, чем автор —
    * согласование самим собой не в счёт (см. docs/project-plan.md, раздел 4).
    */
-  async transition(user: KernUser, id: string, nextStatus: string) {
+  async transition(user: KernUser, id: string, nextStatus: string, reason?: string) {
     const timesheet = await this.prisma.timesheet.findUnique({ where: { id } });
     if (!timesheet) throw new NotFoundException('Табель не найден');
 
@@ -138,6 +138,12 @@ export class TimesheetsService {
       data: {
         status: nextStatus,
         approvedById: nextStatus === 'approved' ? user.id : timesheet.approvedById,
+        // Причина возврата — только на момент самого отклонения; при
+        // повторной отправке (rejected -> submitted) и при согласовании
+        // старая причина больше не актуальна и очищается, чтобы в
+        // интерфейсе бригадира не висело устаревшее замечание рядом с
+        // уже исправленным и повторно отправленным табелем.
+        rejectionReason: nextStatus === 'rejected' ? reason ?? null : null,
       },
     });
   }

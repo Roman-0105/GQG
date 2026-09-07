@@ -13,5 +13,16 @@
     "strict": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true
-  }
+  },
+  // Без явного include TypeScript выводит rootDir как общий предок ВСЕХ
+  // .ts-файлов, которые видит компилятор — а он видел и prisma/seed.ts
+  // (отдельный скрипт, запускается через ts-node, никогда через nest
+  // build), из-за чего rootDir "расширялся" до apps/api/, и сборка
+  // молча эмитила dist/src/main.js вместо dist/main.js. package.json
+  // ("start": "node dist/main.js") и Docker-развёртывание (Этап 06,
+  // apps/api/docker-entrypoint.sh) написаны по обычной конвенции Nest
+  // и ожидают dist/main.js — без этого исправления оба были бы
+  // молча сломаны (никто не заметил раньше, т.к. в разработке всегда
+  // использовался `nest start --watch`, у которого свой путь к файлу).
+  "include": ["src/**/*.ts"]
 }

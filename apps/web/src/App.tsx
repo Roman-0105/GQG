@@ -13,6 +13,7 @@ import { Approvals } from './pages/Approvals';
 import { RateRules } from './pages/RateRules';
 import { Payroll } from './pages/Payroll';
 import { Analytics } from './pages/Analytics';
+import { Profile } from './pages/Profile';
 
 /** Общая навигационная оболочка для всех приватных экранов (см. components/AppShell.tsx). */
 function ShellLayout() {
@@ -45,6 +46,7 @@ export function App() {
         <Route path="/rate-rules" element={<RateRules />} />
         <Route path="/payroll" element={<Payroll />} />
         <Route path="/analytics" element={<Analytics />} />
+        <Route path="/profile" element={<Profile />} />
       </Route>
     </Routes>
   );

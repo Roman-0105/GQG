@@ -1,9 +1,19 @@
-import { IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()
   @IsString()
   fullName?: string;
+
+  // Сброс ЧУЖОГО забытого пароля тем, у кого есть user:update (Owner/HR)
+  // — до сегодняшнего дня в продукте не было вообще никакого способа
+  // сменить пароль, включая демо-пароль из сида (найдено devops и
+  // docs-writer независимо при подготовке Этапа 06). Самостоятельная
+  // смена своего пароля (когда текущий известен) — отдельный эндпоинт
+  // POST /auth/change-password, не через этот DTO.
+  @IsOptional()
+  @MinLength(8)
+  password?: string;
 
   // Смена роли проходит через ту же проверку эскалации привилегий,
   // что и при создании логина (UsersService.assertCanGrantRole).

@@ -21,6 +21,7 @@ interface ServerTimesheet {
   crew: { name: string };
   site: { name: string };
   approvedBy: { fullName: string } | null;
+  rejectionReason: string | null;
 }
 
 /**
@@ -106,22 +107,35 @@ export function MyTimesheets() {
           <EmptyState icon={IconTimesheetList} title="Пока нет ни одного отправленного табеля" description="Внесите первую смену кнопкой выше." />
         ) : (
           timesheets.map((t) => (
-            <ListRow key={t.id} className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <span className="font-medium text-ink">{t.employee.fullName}</span>
-                <span className="ml-2 text-sm text-ink-muted">
-                  {t.crew.name} · {t.site.name} · {new Date(t.workDate).toLocaleDateString('ru-RU')} ·{' '}
-                  {WORK_TYPE_LABEL[t.workType] ?? t.workType} · {Number(t.regularHours)} ч
-                </span>
+            <ListRow key={t.id}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="font-medium text-ink">{t.employee.fullName}</span>
+                  <span className="ml-2 text-sm text-ink-muted">
+                    {t.crew.name} · {t.site.name} · {new Date(t.workDate).toLocaleDateString('ru-RU')} ·{' '}
+                    {WORK_TYPE_LABEL[t.workType] ?? t.workType} · {Number(t.regularHours)} ч
+                  </span>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <Badge tone={STATUS_TONE[t.status] ?? 'neutral'}>{STATUS_LABEL[t.status] ?? t.status}</Badge>
+                  {/* Тот же переход обслуживает и первую отправку (draft),
+                      и повторную после возврата на исправление (rejected) —
+                      см. ALLOWED_TRANSITIONS в timesheets.service.ts. Раньше
+                      кнопка показывалась только для draft, и отклонённый
+                      табель оставался в интерфейсе без единого доступного
+                      действия (найдено docs-writer при подготовке Этапа 06). */}
+                  {(t.status === 'draft' || t.status === 'rejected') && (
+                    <Button size="sm" variant="ghost" onClick={() => handleSubmit(t.id)} disabled={busyId === t.id}>
+                      {t.status === 'rejected' ? 'Отправить повторно' : 'На согласование'}
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <Badge tone={STATUS_TONE[t.status] ?? 'neutral'}>{STATUS_LABEL[t.status] ?? t.status}</Badge>
-                {t.status === 'draft' && (
-                  <Button size="sm" variant="ghost" onClick={() => handleSubmit(t.id)} disabled={busyId === t.id}>
-                    На согласование
-                  </Button>
-                )}
-              </div>
+              {t.status === 'rejected' && t.rejectionReason && (
+                <p className="mt-2 rounded-md bg-crit/10 p-2 text-xs text-crit">
+                  Что исправить: {t.rejectionReason}
+                </p>
+              )}
             </ListRow>
           ))
         )}

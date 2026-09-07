@@ -6,6 +6,7 @@ import { CurrentKernUser } from '../../common/rbac/current-kern-user.decorator';
 import { KernUser } from '../../common/rbac/rbac.types';
 import { TimesheetsService } from './timesheets.service';
 import { CreateTimesheetDto } from './dto/create-timesheet.dto';
+import { RejectTimesheetDto } from './dto/reject-timesheet.dto';
 
 @Controller('timesheets')
 @UseGuards(JwtAuthGuard, RbacGuard)
@@ -27,6 +28,9 @@ export class TimesheetsController {
   @Post(':id/submit')
   @RequirePermission('timesheet', 'update')
   submit(@CurrentKernUser() user: KernUser, @Param('id') id: string) {
+    // Тот же переход обслуживает и draft->submitted (первая отправка),
+    // и rejected->submitted (повторная отправка после возврата на
+    // исправление) — оба разрешены ALLOWED_TRANSITIONS в сервисе.
     return this.timesheetsService.transition(user, id, 'submitted');
   }
 
@@ -38,8 +42,8 @@ export class TimesheetsController {
 
   @Post(':id/reject')
   @RequirePermission('timesheet', 'approve')
-  reject(@CurrentKernUser() user: KernUser, @Param('id') id: string) {
-    return this.timesheetsService.transition(user, id, 'rejected');
+  reject(@CurrentKernUser() user: KernUser, @Param('id') id: string, @Body() dto: RejectTimesheetDto) {
+    return this.timesheetsService.transition(user, id, 'rejected', dto.reason);
   }
 
   @Post(':id/lock')

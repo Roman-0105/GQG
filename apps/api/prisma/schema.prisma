@@ -230,6 +230,12 @@ model Timesheet {
   gpsLat           Float?
   gpsLng           Float?
   status           String    @default("draft") // draft | submitted | approved | locked | rejected
+  // Заполняется при переходе в rejected (docs/project-plan.md, раздел 4:
+  // "возврат на исправление с комментарием") — раньше согласующий мог
+  // отклонить табель без единого слова объяснения, а бригадир не видел
+  // в интерфейсе вообще никакого действия для уже отклонённого табеля
+  // (найдено docs-writer при подготовке инструкций к Этапу 06).
+  rejectionReason  String?
   submittedById    String?
   submittedBy      User?     @relation("TimesheetSubmittedBy", fields: [submittedById], references: [id])
   approvedById     String?

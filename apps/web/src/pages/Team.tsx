@@ -70,6 +70,10 @@ function EditUserRow({
   const [roleId, setRoleId] = useState(currentAssignment?.role.id ?? roles[0]?.id ?? '');
   const [siteIds, setSiteIds] = useState<string[]>(currentAssignment?.siteIds ?? []);
   const [isActive, setIsActive] = useState(user.isActive);
+  // Сброс ЧУЖОГО забытого пароля — до Этапа 06 такой возможности не
+  // было вообще (найдено devops и docs-writer независимо при подготовке
+  // пилота). Пусто = не менять; заполняется только когда реально нужно.
+  const [newPassword, setNewPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,7 +87,13 @@ function EditUserRow({
     try {
       await apiFetch(`/users/${user.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ fullName, roleId, siteIds: needsSites ? siteIds : [], isActive }),
+        body: JSON.stringify({
+          fullName,
+          roleId,
+          siteIds: needsSites ? siteIds : [],
+          isActive,
+          ...(newPassword ? { password: newPassword } : {}),
+        }),
       });
       onSaved();
     } catch (err) {
@@ -112,6 +122,15 @@ function EditUserRow({
           <Checkbox checked={isActive} onChange={setIsActive} label="Активен" />
         </div>
         {needsSites && <SitePicker sites={sites} value={siteIds} onChange={setSiteIds} />}
+        <Field label="Новый пароль (необязательно)" className="max-w-xs">
+          <Input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Оставьте пустым, чтобы не менять"
+            minLength={8}
+          />
+        </Field>
         {error && <p className="text-xs text-crit">{error}</p>}
         <div className="flex gap-2">
           <Button type="submit" size="sm" disabled={saving}>

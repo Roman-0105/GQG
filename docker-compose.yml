@@ -1,0 +1,89 @@
+# Локальное развёртывание платформы КЕРН одной командой:
+#   docker compose up -d --build
+#
+# Поднимает: postgres (БД) -> api (NestJS, применяет миграции при
+# старте) -> web (веб-панель/полевое PWA через nginx).
+#
+# Требует файл .env в корне репозитория — см. .env.example и
+# docs/ops-runbook.md.
+#
+# Redis/BullMQ из раздела 7 проектного плана сюда сознательно не
+# включены: на момент написания этого файла в коде backend'а нет ни
+# одной очереди/фоновой задачи, которая бы их использовала (см. отчёт
+# devops) — добавлять неиспользуемый сервис в пилотное окружение смысла
+# нет. Добавить будет тривиально, когда появятся напоминания или
+# запуск расчёта ЗП по расписанию.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kern}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Заполните POSTGRES_PASSWORD в .env — см. .env.example}
+      POSTGRES_DB: ${POSTGRES_DB:-kern}
+    volumes:
+      - kern_postgres_data:/var/lib/postgresql/data
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kern}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kern}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?Заполните JWT_SECRET в .env — см. .env.example (openssl rand -hex 32)}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      PORT: 3000
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:8080}
+    ports:
+      - '${API_PORT:-3000}:3000'
+    healthcheck:
+      # Нет выделенного /health-эндпоинта в API (см. отчёт devops) —
+      # проверяем сам факт, что сервер принимает HTTP-соединения и не
+      # отвечает 5xx. Любой другой статус (в т.ч. 404 на "/") считается
+      # признаком того, что процесс жив и Nest поднялся.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://127.0.0.1:3000/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '${WEB_PORT:-8080}:80'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1/']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  kern_postgres_data:
+    name: kern_postgres_data

@@ -161,7 +161,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="border-t border-line p-3">
-        <div className="flex items-center gap-2 px-2 py-2">
+        <Link to="/profile" className="flex items-center gap-2 rounded-md px-2 py-2 transition-colors hover:bg-surface-2">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xs font-semibold text-ink">
             {user ? initials(user.fullName) : '?'}
           </span>
@@ -169,7 +169,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <p className="truncate text-sm font-medium text-ink">{user?.fullName ?? 'Гость'}</p>
             <p className="truncate text-xs text-ink-muted">{role ?? user?.email ?? '—'}</p>
           </div>
-        </div>
+        </Link>
         <div className="mt-2 flex items-center justify-between gap-2 px-2">
           <ThemeToggle />
           <button
