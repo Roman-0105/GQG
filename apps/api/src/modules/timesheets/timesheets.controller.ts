@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RbacGuard } from '../../common/rbac/rbac.guard';
 import { RequirePermission } from '../../common/rbac/permissions.decorator';
@@ -6,6 +6,7 @@ import { CurrentKernUser } from '../../common/rbac/current-kern-user.decorator';
 import { KernUser } from '../../common/rbac/rbac.types';
 import { TimesheetsService } from './timesheets.service';
 import { CreateTimesheetDto } from './dto/create-timesheet.dto';
+import { UpdateTimesheetDto } from './dto/update-timesheet.dto';
 import { RejectTimesheetDto } from './dto/reject-timesheet.dto';
 
 @Controller('timesheets')
@@ -21,8 +22,18 @@ export class TimesheetsController {
 
   @Get()
   @RequirePermission('timesheet', 'read')
-  findAll(@CurrentKernUser() user: KernUser, @Query('status') status?: string) {
-    return this.timesheetsService.findAll(user, status);
+  findAll(
+    @CurrentKernUser() user: KernUser,
+    @Query('status') status?: string,
+    @Query('timesheetPeriodId') timesheetPeriodId?: string,
+  ) {
+    return this.timesheetsService.findAll(user, status, timesheetPeriodId);
+  }
+
+  @Patch(':id')
+  @RequirePermission('timesheet', 'update')
+  update(@CurrentKernUser() user: KernUser, @Param('id') id: string, @Body() dto: UpdateTimesheetDto) {
+    return this.timesheetsService.update(user, id, dto);
   }
 
   @Post(':id/submit')

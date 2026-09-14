@@ -5,6 +5,7 @@ import { PageHeader } from '../components/PageHeader';
 import { Card, EmptyState, ErrorState, ListRow, SegmentedControl, Select } from '../components/ui';
 import { BarChart } from '../components/BarChart';
 import { IconAnalytics } from '../components/icons';
+import { CURRENCY_SYMBOL, formatMoney } from '../lib/currency';
 
 type Grain = 'day' | 'week' | 'month' | 'quarter' | 'year';
 type Preset = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
@@ -111,9 +112,6 @@ function computeRange(preset: Preset): { from: Date; to: Date; grain: Grain } {
   }
 }
 
-function ruble(v: string): string {
-  return Number(v).toLocaleString('ru-RU', { maximumFractionDigits: 0 });
-}
 
 const BUCKET_LABEL_RE = /^(\d{4})-Q(\d)$/;
 
@@ -134,7 +132,7 @@ function formatBucket(bucket: string, grain: Grain): string {
 
 /**
  * Аналитика (docs/project-plan.md, раздел 5): день/неделя/месяц/квартал/
- * год + произвольный период, разрез по участку, часы/ФОТ/₽ за метр,
+ * год + произвольный период, разрез по участку, часы/ФОТ/₸ за метр,
  * бюджет участка план vs факт. Цифры считаются той же формулой, что и
  * реальный расчёт ЗП (apps/api/src/common/payroll/rate-rule.util.ts),
  * поэтому не расходятся с "Расчётом зарплаты".
@@ -271,15 +269,15 @@ export function Analytics() {
               </Card>
               <Card className="p-4">
                 <div className="mb-1 text-xs uppercase tracking-wide text-ink-muted">ФОТ</div>
-                <div className="font-mono text-xl text-ink">{ruble(totals.laborCost)} ₽</div>
+                <div className="font-mono text-xl text-ink">{formatMoney(totals.laborCost)} {CURRENCY_SYMBOL}</div>
               </Card>
               <Card className="p-4">
                 <div className="mb-1 text-xs uppercase tracking-wide text-ink-muted">Метраж</div>
                 <div className="font-mono text-xl text-ink">{Number(totals.metersDrilled)} м</div>
               </Card>
               <Card className="p-4">
-                <div className="mb-1 text-xs uppercase tracking-wide text-ink-muted">₽ за метр</div>
-                <div className="font-mono text-xl text-ink">{totals.costPerMeter ? ruble(totals.costPerMeter) : '—'}</div>
+                <div className="mb-1 text-xs uppercase tracking-wide text-ink-muted">{CURRENCY_SYMBOL} за метр</div>
+                <div className="font-mono text-xl text-ink">{totals.costPerMeter ? formatMoney(totals.costPerMeter) : '—'}</div>
               </Card>
             </div>
           )}
@@ -287,7 +285,7 @@ export function Analytics() {
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-medium text-ink">ФОТ по периодам</h2>
             <span className="flex items-center gap-1.5 text-xs text-ink-muted">
-              <span className="h-2.5 w-2.5 rounded-sm bg-accent" /> ФОТ, ₽
+              <span className="h-2.5 w-2.5 rounded-sm bg-accent" /> ФОТ, {CURRENCY_SYMBOL}
             </span>
           </div>
           <Card className="mb-6 p-4">
@@ -296,7 +294,7 @@ export function Analytics() {
             ) : (
               <BarChart
                 data={series.map((row) => ({ label: formatBucket(row.bucket, grain), value: Number(row.laborCost) }))}
-                formatValue={(v) => ruble(String(v))}
+                formatValue={(v) => formatMoney(String(v))}
               />
             )}
           </Card>
@@ -321,12 +319,13 @@ export function Analytics() {
                         />
                       </div>
                       <div className="text-xs text-ink-muted">
-                        {ruble(b.actualCost)} ₽ из {ruble(b.budget)} ₽ ({b.budgetUsedPct}%) · {Number(b.hoursTotal)} ч
+                        {formatMoney(b.actualCost)} {CURRENCY_SYMBOL} из {formatMoney(b.budget)} {CURRENCY_SYMBOL} ({b.budgetUsedPct}%) ·{' '}
+                        {Number(b.hoursTotal)} ч
                       </div>
                     </>
                   ) : (
                     <div className="text-xs text-warn">
-                      Бюджет участка не задан · факт {ruble(b.actualCost)} ₽ · {Number(b.hoursTotal)} ч
+                      Бюджет участка не задан · факт {formatMoney(b.actualCost)} {CURRENCY_SYMBOL} · {Number(b.hoursTotal)} ч
                     </div>
                   )}
                 </ListRow>

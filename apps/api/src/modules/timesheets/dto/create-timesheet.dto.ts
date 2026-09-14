@@ -12,6 +12,13 @@ export class CreateTimesheetDto {
   @IsString()
   crewId!: string;
 
+  // Заполняется, когда строка создаётся из таблицы одобренного
+  // TimesheetPeriod (см. TimesheetPeriodsService) — необязательно для
+  // одиночной формы "Внести табель" вне периода.
+  @IsOptional()
+  @IsString()
+  timesheetPeriodId?: string;
+
   @IsISO8601()
   workDate!: string;
 

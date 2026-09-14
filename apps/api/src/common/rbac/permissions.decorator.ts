@@ -5,6 +5,8 @@ export type Resource =
   | 'crew'
   | 'employee'
   | 'timesheet'
+  | 'timesheet_period'
+  | 'task'
   | 'payroll'
   | 'rate_rule'
   | 'role'

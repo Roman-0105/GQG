@@ -3,72 +3,17 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { clearSession } from '../lib/session';
 import { useCurrentUser } from '../lib/useCurrentUser';
 import { useTheme } from '../lib/useTheme';
+import { DASHBOARD_NAV_ITEM, NAV_SECTIONS, visibleNavSections } from '../lib/nav';
 import {
-  IconApprovals,
-  IconDashboard,
   IconKernMark,
   IconLogout,
   IconMenu,
   IconMonitor,
   IconMoon,
-  IconPayroll,
-  IconPosition,
-  IconRateRules,
-  IconSites,
   IconSun,
-  IconTeam,
-  IconTimesheetList,
-  IconTimesheetNew,
-  IconAnalytics,
   IconClose,
   IconProps,
 } from './icons';
-
-interface NavItem {
-  to: string;
-  label: string;
-  icon: ComponentType<IconProps>;
-  match?: (path: string) => boolean;
-}
-
-interface NavSection {
-  title: string;
-  items: NavItem[];
-}
-
-const NAV_SECTIONS: NavSection[] = [
-  {
-    title: 'Обзор',
-    items: [{ to: '/dashboard', label: 'Панель', icon: IconDashboard }],
-  },
-  {
-    title: 'Администрирование',
-    items: [
-      { to: '/sites', label: 'Участки', icon: IconSites, match: (p) => p.startsWith('/sites') },
-      { to: '/team', label: 'Команда', icon: IconTeam },
-      { to: '/positions', label: 'Должности', icon: IconPosition },
-    ],
-  },
-  {
-    title: 'Полевая работа',
-    items: [
-      { to: '/timesheets/new', label: 'Внести табель', icon: IconTimesheetNew },
-      { to: '/timesheets', label: 'Мои табели', icon: IconTimesheetList },
-      { to: '/approvals', label: 'Согласование', icon: IconApprovals },
-    ],
-  },
-  {
-    title: 'Финансы',
-    items: [
-      { to: '/payroll', label: 'Расчёт зарплаты', icon: IconPayroll },
-      { to: '/rate-rules', label: 'Правила расчёта', icon: IconRateRules },
-    ],
-  },
-  {
-    title: 'Аналитика',
-    items: [{ to: '/analytics', label: 'Аналитика', icon: IconAnalytics }],
-  },
-];
 
 function initials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
@@ -106,12 +51,20 @@ function ThemeToggle() {
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, role } = useCurrentUser();
+  const { user, role, permissions, loaded } = useCurrentUser();
 
   function handleLogout() {
     clearSession();
     navigate('/login');
   }
+
+  // Пока права не загружены — показываем полный список, чтобы не
+  // мигать пустым сайдбаром долю секунды после входа; как только
+  // /auth/me ответит, список сужается до реально доступного.
+  const sections = [
+    { title: 'Обзор', items: [DASHBOARD_NAV_ITEM] },
+    ...(loaded ? visibleNavSections(permissions) : NAV_SECTIONS),
+  ];
 
   return (
     <div className="flex h-full flex-col">
@@ -126,7 +79,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 pb-4">
-        {NAV_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <div key={section.title} className="mb-4">
             <p className="px-2.5 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
               {section.title}

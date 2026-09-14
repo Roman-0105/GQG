@@ -8,12 +8,16 @@ import { SiteDetail } from './pages/SiteDetail';
 import { Team } from './pages/Team';
 import { Positions } from './pages/Positions';
 import { TimesheetForm } from './pages/TimesheetForm';
-import { MyTimesheets } from './pages/MyTimesheets';
+import { Timesheets } from './pages/Timesheets';
 import { Approvals } from './pages/Approvals';
 import { RateRules } from './pages/RateRules';
 import { Payroll } from './pages/Payroll';
 import { Analytics } from './pages/Analytics';
 import { Profile } from './pages/Profile';
+import { MyCrew } from './pages/MyCrew';
+import { TimesheetPeriodDetail } from './pages/TimesheetPeriodDetail';
+import { Tasks } from './pages/Tasks';
+import { TaskDetail } from './pages/TaskDetail';
 
 /** Общая навигационная оболочка для всех приватных экранов (см. components/AppShell.tsx). */
 function ShellLayout() {
@@ -41,7 +45,11 @@ export function App() {
         <Route path="/team" element={<Team />} />
         <Route path="/positions" element={<Positions />} />
         <Route path="/timesheets/new" element={<TimesheetForm />} />
-        <Route path="/timesheets" element={<MyTimesheets />} />
+        <Route path="/timesheets" element={<Timesheets />} />
+        <Route path="/my-crew" element={<MyCrew />} />
+        <Route path="/tasks" element={<Tasks />} />
+        <Route path="/tasks/:id" element={<TaskDetail />} />
+        <Route path="/timesheet-periods/:id" element={<TimesheetPeriodDetail />} />
         <Route path="/approvals" element={<Approvals />} />
         <Route path="/rate-rules" element={<RateRules />} />
         <Route path="/payroll" element={<Payroll />} />

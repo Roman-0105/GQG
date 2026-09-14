@@ -1,3 +1,14 @@
+// Вид оплаты сотрудника (Employee.payType) — задаётся отдельно на
+// каждого человека в бригаде: часть может быть на почасовой, часть на
+// метраже (найдено при тестировании владельцем). Определяет, какие
+// поля видит сетка табеля за период для этого сотрудника.
+export const PAY_TYPES: { value: string; label: string }[] = [
+  { value: 'hourly', label: 'Почасовая' },
+  { value: 'per_meter', label: 'За метраж' },
+];
+
+export const PAY_TYPE_LABEL: Record<string, string> = Object.fromEntries(PAY_TYPES.map((p) => [p.value, p.label]));
+
 export const WORK_TYPES: { value: string; label: string }[] = [
   { value: 'drilling', label: 'Бурение' },
   { value: 'standby', label: 'Дежурство' },
@@ -47,4 +58,20 @@ export const STATUS_TONE: Record<string, 'neutral' | 'good' | 'warn' | 'crit' | 
   approved: 'good',
   rejected: 'crit',
   locked: 'accent',
+};
+
+// Статусы TimesheetPeriod (табель за период) — отдельная сущность от
+// одиночных записей табеля выше, свой набор статусов и подписей.
+export const PERIOD_STATUS_LABEL: Record<string, string> = {
+  draft: 'Черновик',
+  submitted: 'Отправлен на согласование',
+  approved: 'Согласован',
+  rejected: 'Не согласован',
+};
+
+export const PERIOD_STATUS_TONE: Record<string, 'neutral' | 'good' | 'warn' | 'crit' | 'accent'> = {
+  draft: 'neutral',
+  submitted: 'warn',
+  approved: 'good',
+  rejected: 'crit',
 };

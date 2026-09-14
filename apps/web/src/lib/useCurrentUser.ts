@@ -3,51 +3,74 @@ import { apiFetch } from './api';
 import { getSessionUser, SessionUser } from './session';
 
 /**
- * Роль текущего пользователя для шапки навигации ("имя и роль" —
- * см. .claude/agents/designer.md). ВАЖНО: /auth/login сейчас не
- * возвращает роль (см. apps/api/src/modules/auth/auth.service.ts) —
- * это лучший доступный клиентский способ её узнать без изменения
- * API-контрактов: переиспользуем уже существующий GET /users (тот же
- * запрос, что и на странице «Команда») и находим себя в списке.
- *
- * У части ролей (например, Бригадир) нет права `user:read`, и запрос
- * вернёт 403 — тогда просто не показываем роль, без падения интерфейса.
- * Это обходной путь, а не архитектурное решение: правильное решение —
- * чтобы бэкенд отдавал роль прямо в /auth/login (см. итоговый отчёт).
+ * Профиль + эффективные права текущего пользователя — GET /auth/me
+ * (см. auth.service.ts). Раньше роль узнавалась окольным путём через
+ * GET /users (эндпоинт, на который у Бригадира и Бухгалтера нет права
+ * user:read — роль в шапке у них просто не показывалась), а прав
+ * фронтенд вообще не видел: видимость вкладок навигации и кнопок
+ * согласования держалась на хардкоженных сравнениях с названием роли
+ * (см. историю TimesheetPeriodDetail.tsx) — переименование роли молча
+ * ломало эти сравнения. Теперь навигация и экраны спрашивают
+ * `hasPermission`/`hasScope` напрямую.
  */
 
-interface UsersListEntry {
-  id: string;
-  roleAssignments: { role: { name: string } }[];
+export type Scope = 'own_crew' | 'own_sites' | 'company';
+
+export interface EffectivePermission {
+  resource: string;
+  action: string;
+  scope: Scope;
+  siteIds: string[];
 }
 
-let cachedRole: { userId: string; role: string | null } | null = null;
+interface Me {
+  id: string;
+  email: string;
+  fullName: string;
+  roles: string[];
+  permissions: EffectivePermission[];
+}
 
-export function useCurrentUser(): { user: SessionUser | null; role: string | null } {
+interface CurrentUser {
+  user: SessionUser | null;
+  /** Название первой роли — для отображения в шапке/профиле. */
+  role: string | null;
+  roles: string[];
+  permissions: EffectivePermission[];
+  loaded: boolean;
+  /** Есть ли право (resource, action) хоть в каком-то scope. */
+  hasPermission: (resource: string, action: string) => boolean;
+  /** Есть ли право (resource, action) именно с этим scope. */
+  hasScope: (resource: string, action: string, scope: Scope) => boolean;
+}
+
+let cached: { userId: string; me: Me | null } | null = null;
+
+export function useCurrentUser(): CurrentUser {
   const user = getSessionUser();
-  const [role, setRole] = useState<string | null>(() =>
-    user && cachedRole?.userId === user.id ? cachedRole.role : null,
-  );
+  const [me, setMe] = useState<Me | null>(() => (user && cached?.userId === user.id ? cached.me : null));
+  const [loaded, setLoaded] = useState(() => user != null && cached?.userId === user.id);
 
   useEffect(() => {
     if (!user) return;
-    if (cachedRole?.userId === user.id) {
-      setRole(cachedRole.role);
+    if (cached?.userId === user.id) {
+      setMe(cached.me);
+      setLoaded(true);
       return;
     }
     let cancelled = false;
-    apiFetch<UsersListEntry[]>('/users')
-      .then((list) => {
+    apiFetch<Me>('/auth/me')
+      .then((result) => {
         if (cancelled) return;
-        const self = list.find((u) => u.id === user.id);
-        const roleName = self?.roleAssignments[0]?.role.name ?? null;
-        cachedRole = { userId: user.id, role: roleName };
-        setRole(roleName);
+        cached = { userId: user.id, me: result };
+        setMe(result);
+        setLoaded(true);
       })
       .catch(() => {
         if (cancelled) return;
-        cachedRole = { userId: user.id, role: null };
-        setRole(null);
+        cached = { userId: user.id, me: null };
+        setMe(null);
+        setLoaded(true);
       });
     return () => {
       cancelled = true;
@@ -55,5 +78,17 @@ export function useCurrentUser(): { user: SessionUser | null; role: string | nul
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  return { user, role };
+  const permissions = me?.permissions ?? [];
+
+  return {
+    user,
+    role: me?.roles[0] ?? null,
+    roles: me?.roles ?? [],
+    permissions,
+    loaded,
+    hasPermission: (resource, action) =>
+      permissions.some((p) => p.resource === resource && p.action === action),
+    hasScope: (resource, action, scope) =>
+      permissions.some((p) => p.resource === resource && p.action === action && p.scope === scope),
+  };
 }

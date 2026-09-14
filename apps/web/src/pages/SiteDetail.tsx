@@ -5,7 +5,10 @@ import { describeApiError } from '../lib/apiError';
 import { PageHeader } from '../components/PageHeader';
 import { Badge, Button, Card, EmptyState, ErrorState, Field, Input, Select, Textarea } from '../components/ui';
 import { IconArchive, IconEdit, IconPlus, IconTeam, IconTrash } from '../components/icons';
-import { SHIFT_PATTERN_LABEL, SHIFT_PATTERNS, WORK_TYPE_LABEL } from '../lib/labels';
+import { PAY_TYPE_LABEL, PAY_TYPES, SHIFT_PATTERN_LABEL, SHIFT_PATTERNS, WORK_TYPE_LABEL } from '../lib/labels';
+import { TimesheetPeriodsSection } from '../components/TimesheetPeriodsSection';
+import { TasksSection } from '../components/TasksSection';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 interface Site {
   id: string;
@@ -33,6 +36,7 @@ interface Employee {
   id: string;
   fullName: string;
   position: Position;
+  payType: string;
 }
 
 interface Crew {
@@ -41,6 +45,117 @@ interface Crew {
   shiftPattern: string | null;
   foreman: TeamUser | null;
   members: Employee[];
+}
+
+function EmployeeRow({
+  employee,
+  positions,
+  onChanged,
+}: {
+  employee: Employee;
+  positions: Position[];
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [fullName, setFullName] = useState(employee.fullName);
+  const [positionId, setPositionId] = useState(employee.position.id);
+  const [payType, setPayType] = useState(employee.payType);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      await apiFetch(`/employees/${employee.id}`, { method: 'PATCH', body: JSON.stringify({ fullName, positionId, payType }) });
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось сохранить');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm(`Убрать сотрудника «${employee.fullName}» из бригады?`)) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await apiFetch(`/employees/${employee.id}`, { method: 'DELETE' });
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось удалить');
+      setSaving(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <li className="border-t border-line py-2 first:border-t-0 first:pt-0">
+        <form onSubmit={handleSave} className="space-y-2">
+          <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+          <Select value={positionId} onChange={(e) => setPositionId(e.target.value)}>
+            {positions.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </Select>
+          <Select value={payType} onChange={(e) => setPayType(e.target.value)}>
+            {PAY_TYPES.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+          </Select>
+          {error && <p className="text-xs text-crit">{error}</p>}
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? 'Сохраняем…' : 'Сохранить'}
+            </Button>
+            <Button type="button" size="sm" variant="secondary" onClick={() => setEditing(false)}>
+              Отмена
+            </Button>
+          </div>
+        </form>
+      </li>
+    );
+  }
+
+  return (
+    <li className="group text-sm text-ink">
+      <div className="flex items-center justify-between">
+        <span>{employee.fullName}</span>
+        <span className="flex items-center gap-2">
+          <span className="text-ink-muted">
+            {employee.position.name} · {PAY_TYPE_LABEL[employee.payType] ?? employee.payType}
+          </span>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label="Редактировать сотрудника"
+            title="Редактировать сотрудника"
+            className="text-ink-muted opacity-0 transition-opacity hover:text-ink group-hover:opacity-100"
+          >
+            <IconEdit size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={saving}
+            aria-label="Убрать сотрудника"
+            title="Убрать сотрудника"
+            className="text-ink-muted opacity-0 transition-opacity hover:text-crit group-hover:opacity-100"
+          >
+            <IconTrash size={13} />
+          </button>
+        </span>
+      </div>
+      {error && <p className="mt-0.5 text-xs text-crit">{error}</p>}
+    </li>
+  );
 }
 
 function CrewCard({
@@ -57,6 +172,7 @@ function CrewCard({
   const [addingEmployee, setAddingEmployee] = useState(false);
   const [fullName, setFullName] = useState('');
   const [positionId, setPositionId] = useState(positions[0]?.id ?? '');
+  const [payType, setPayType] = useState('hourly');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -75,7 +191,7 @@ function CrewCard({
     try {
       await apiFetch('/employees', {
         method: 'POST',
-        body: JSON.stringify({ fullName, positionId, crewId: crew.id }),
+        body: JSON.stringify({ fullName, positionId, payType, crewId: crew.id }),
       });
       setFullName('');
       setAddingEmployee(false);
@@ -194,10 +310,7 @@ function CrewCard({
       {crew.members.length > 0 && (
         <ul className="mb-3 space-y-1.5">
           {crew.members.map((m) => (
-            <li key={m.id} className="flex justify-between text-sm text-ink">
-              <span>{m.fullName}</span>
-              <span className="text-ink-muted">{m.position.name}</span>
-            </li>
+            <EmployeeRow key={m.id} employee={m} positions={positions} onChanged={onChanged} />
           ))}
         </ul>
       )}
@@ -209,6 +322,13 @@ function CrewCard({
             {positions.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
+              </option>
+            ))}
+          </Select>
+          <Select value={payType} onChange={(e) => setPayType(e.target.value)}>
+            {PAY_TYPES.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
               </option>
             ))}
           </Select>
@@ -227,6 +347,8 @@ function CrewCard({
           <IconPlus size={15} /> Добавить сотрудника
         </Button>
       )}
+
+      <TimesheetPeriodsSection crewId={crew.id} />
     </Card>
   );
 }
@@ -410,7 +532,7 @@ export function SiteDetail() {
                   ))}
                 </Select>
               </Field>
-              <Field label="Бюджет, ₽" hint="Необязательно">
+              <Field label={`Бюджет, ${CURRENCY_SYMBOL}`} hint="Необязательно">
                 <Input type="number" min={0} value={siteForm.budget} onChange={(e) => setSiteForm({ ...siteForm, budget: e.target.value })} />
               </Field>
             </div>
@@ -431,6 +553,14 @@ export function SiteDetail() {
             </div>
           </form>
         </Card>
+      )}
+
+      {site && (
+        <TasksSection
+          siteId={site.id}
+          siteName={site.name}
+          foremen={crews.filter((c): c is Crew & { foreman: TeamUser } => c.foreman != null).map((c) => c.foreman)}
+        />
       )}
 
       <div className="mb-3 flex items-center justify-between">

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { PageHeader } from '../components/PageHeader';
 import { Button, Card, Field, Input, Select, Textarea } from '../components/ui';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 const WORK_TYPES: { value: string; label: string }[] = [
   { value: 'geology', label: 'Геология' },
@@ -76,7 +77,7 @@ export function SiteNew() {
             <Field label="Клиент" hint="Необязательно">
               <Input value={client} onChange={(e) => setClient(e.target.value)} />
             </Field>
-            <Field label="Бюджет, ₽" hint="Необязательно">
+            <Field label={`Бюджет, ${CURRENCY_SYMBOL}`} hint="Необязательно">
               <Input type="number" min={0} value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="напр. 500000" />
             </Field>
           </div>

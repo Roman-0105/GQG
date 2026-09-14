@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { KernUser } from '../../common/rbac/rbac.types';
 import { buildCrewScopeWhere } from '../../common/rbac/scope.util';
 import { CreateTimesheetDto } from './dto/create-timesheet.dto';
+import { UpdateTimesheetDto } from './dto/update-timesheet.dto';
 
 /**
  * Явные переходы статусов вместо "любой статус в любой момент" —
@@ -74,12 +75,33 @@ export class TimesheetsService {
 
     await this.assertInScope(user, { crewId: crew.id, siteId: crew.siteId });
 
+    const workDate = new Date(dto.workDate);
+
+    if (dto.timesheetPeriodId) {
+      // Строка из таблицы табеля за период — вносить часы можно сразу
+      // после того, как бригадир сформировал табель (никакого
+      // предварительного согласования самого периода больше нет, см.
+      // TimesheetPeriodsService — от него отказались по итогам
+      // тестирования: он только дублировал согласование отдельных
+      // записей и не давал вносить часы, пока обе подписи не собраны).
+      // Единственная проверка здесь — дата реально входит в границы
+      // периода.
+      const period = await this.prisma.timesheetPeriod.findUnique({ where: { id: dto.timesheetPeriodId } });
+      if (!period || period.crewId !== dto.crewId) {
+        throw new BadRequestException('Табель за период не найден для этой бригады');
+      }
+      if (workDate < period.periodStart || workDate > period.periodEnd) {
+        throw new BadRequestException('Дата вне границ периода');
+      }
+    }
+
     return this.prisma.timesheet.create({
       data: {
         employeeId: dto.employeeId,
         siteId: dto.siteId,
         crewId: dto.crewId,
-        workDate: new Date(dto.workDate),
+        timesheetPeriodId: dto.timesheetPeriodId,
+        workDate,
         workType: dto.workType,
         regularHours: dto.regularHours,
         overtimeHours: dto.overtimeHours ?? 0,
@@ -94,11 +116,43 @@ export class TimesheetsService {
     });
   }
 
-  async findAll(user: KernUser, status?: string) {
+  /**
+   * Правка уже созданной строки — раньше такой возможности не было
+   * вообще: ни поправить отклонённую запись перед повторной отправкой,
+   * ни исправить опечатку в черновике (найдено при доработке
+   * "табель за период" — сетка часов именно так и редактируется).
+   * Разрешено только пока запись ещё не ушла на согласование/не
+   * закрыта — иначе это была бы правка задним числом мимо цепочки
+   * согласования.
+   */
+  async update(user: KernUser, id: string, dto: UpdateTimesheetDto) {
+    const timesheet = await this.prisma.timesheet.findUnique({ where: { id } });
+    if (!timesheet) throw new NotFoundException('Табель не найден');
+    await this.assertInScope(user, { crewId: timesheet.crewId, siteId: timesheet.siteId });
+
+    if (!['draft', 'rejected'].includes(timesheet.status)) {
+      throw new BadRequestException(`Нельзя редактировать табель в статусе "${timesheet.status}"`);
+    }
+
+    return this.prisma.timesheet.update({
+      where: { id },
+      data: {
+        workType: dto.workType,
+        regularHours: dto.regularHours,
+        overtimeHours: dto.overtimeHours,
+        nightHours: dto.nightHours,
+        metersDrilled: dto.metersDrilled,
+        isHoliday: dto.isHoliday,
+        notes: dto.notes,
+      },
+    });
+  }
+
+  async findAll(user: KernUser, status?: string, timesheetPeriodId?: string) {
     const ownCrewIds = await this.getOwnCrewIds(user.id);
     const where = buildCrewScopeWhere(user, 'timesheet', 'read', ownCrewIds);
     return this.prisma.timesheet.findMany({
-      where: status ? { ...where, status } : where,
+      where: { ...where, ...(status ? { status } : {}), ...(timesheetPeriodId ? { timesheetPeriodId } : {}) },
       orderBy: { workDate: 'desc' },
       include: {
         employee: { select: { id: true, fullName: true, position: { select: { name: true } } } },

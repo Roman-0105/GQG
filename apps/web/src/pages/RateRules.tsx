@@ -4,6 +4,7 @@ import { describeApiError } from '../lib/apiError';
 import { PageHeader } from '../components/PageHeader';
 import { Badge, Card, EmptyState, ErrorState, Field, Input, ListRow, Select, Button } from '../components/ui';
 import { IconRateRules } from '../components/icons';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 interface Site {
   id: string;
@@ -123,7 +124,7 @@ export function RateRules() {
               <div className="mt-1 text-xs text-ink-muted">
                 {r.site ? r.site.name : 'вся компания'} · {r.position ? r.position.name : 'все должности'} · ночные +
                 {Number(r.nightShiftPct)}% · праздничные +{Number(r.holidayPct)}% · вахта +{Number(r.remoteBonusPct)}% · суточные{' '}
-                {Number(r.perDiemAmount)} ₽/день · метраж {Number(r.perMeterBonus)} ₽/м
+                {Number(r.perDiemAmount)} {CURRENCY_SYMBOL}/день · метраж {Number(r.perMeterBonus)} {CURRENCY_SYMBOL}/м
               </div>
             </ListRow>
           ))
@@ -173,13 +174,13 @@ export function RateRules() {
             <Field label="Вахта, %">
               <Input type="number" min={0} value={remoteBonusPct} onChange={(e) => setRemoteBonusPct(Number(e.target.value))} />
             </Field>
-            <Field label="Суточные, ₽/день">
+            <Field label={`Суточные, ${CURRENCY_SYMBOL}/день`}>
               <Input type="number" min={0} value={perDiemAmount} onChange={(e) => setPerDiemAmount(Number(e.target.value))} />
             </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-            <Field label="Метраж, ₽/м">
+            <Field label={`Ставка за метраж, ${CURRENCY_SYMBOL}/м`} hint="Оплата за 1 пробуренный метр">
               <Input type="number" min={0} value={perMeterBonus} onChange={(e) => setPerMeterBonus(Number(e.target.value))} />
             </Field>
           </div>

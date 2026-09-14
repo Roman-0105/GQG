@@ -15,4 +15,11 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsIn(['staff', 'contract', 'day_rate'])
   employmentType?: string;
+
+  // hourly | per_meter — задаётся отдельно на каждого сотрудника
+  // бригады (найдено при тестировании: часть бригады на почасовой,
+  // часть — на метраже). См. Employee.payType в schema.prisma.
+  @IsOptional()
+  @IsIn(['hourly', 'per_meter'])
+  payType?: string;
 }

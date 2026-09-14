@@ -43,6 +43,8 @@ export interface RowAmounts {
   holiday: Prisma.Decimal;
   remote: Prisma.Decimal;
   pieceRate: Prisma.Decimal;
+  /** metersDrilled, поделённый на meterageShareCount — реально пройденный этим сотрудником метраж (см. computeRowAmounts). */
+  effectiveMeters: Prisma.Decimal;
 }
 
 /** Только те поля RateRule, что нужны для расчёта суммы одной строки. */
@@ -63,12 +65,28 @@ export const ZERO_RULE_RATES: RuleRates & { perDiemAmount: Prisma.Decimal } = {
   perDiemAmount: new Prisma.Decimal(0),
 };
 
-/** Суммы по одной строке табеля — docs/payroll-formulas.md, раздел 2. */
+/**
+ * Суммы по одной строке табеля — docs/payroll-formulas.md, раздел 2.
+ *
+ * meterageShareCount — на сколько человек делится metersDrilled этой
+ * строки. Табель за метраж теперь ведётся ОДНИМ значением в день на
+ * всю бригаду буровиков (см. TimesheetPeriodDetail.tsx —
+ * handleTeamMeterageChange), а не по каждому отдельно, и это значение
+ * дублируется в строку КАЖДОГО буровика на эту дату — иначе строка
+ * потеряла бы привязку к сотруднику. Без деления метраж бригады
+ * умножался бы на её численность (найдено владельцем: "расчёт должен
+ * делиться на количество людей, а не один и тот же метраж
+ * перемножаться на ставку"). Вызывающий обязан посчитать реальное
+ * число буровиков, деливших эту проходку в этот день (см.
+ * PayrollCalcService/AnalyticsService — там же и effectiveMeters для
+ * агрегатов метража, чтобы не задваивать и его).
+ */
 export function computeRowAmounts(
   row: RateRuleRowInput,
   rate: Prisma.Decimal,
   overtimeMultiplier: Prisma.Decimal,
   rule: RuleRates,
+  meterageShareCount = 1,
 ): RowAmounts {
   const base = row.regularHours.mul(rate);
   const overtime = row.overtimeHours.mul(rate).mul(overtimeMultiplier);
@@ -78,8 +96,10 @@ export function computeRowAmounts(
     : new Prisma.Decimal(0);
   // Вахтовая/удалённая надбавка — от уже заработанного (база + сверхурочные) этой строки.
   const remote = base.plus(overtime).mul(rule.remoteBonusPct.div(100));
-  const pieceRate = (row.metersDrilled ?? new Prisma.Decimal(0)).mul(rule.perMeterBonus);
-  return { base, overtime, night, holiday, remote, pieceRate };
+  const share = meterageShareCount > 0 ? meterageShareCount : 1;
+  const effectiveMeters = (row.metersDrilled ?? new Prisma.Decimal(0)).div(share);
+  const pieceRate = effectiveMeters.mul(rule.perMeterBonus);
+  return { base, overtime, night, holiday, remote, pieceRate, effectiveMeters };
 }
 
 /**
@@ -105,6 +125,34 @@ export function computePerDiem(
     if (rule) total = total.plus(rule.perDiemAmount);
   }
   return total;
+}
+
+/**
+ * Считает meterageShareCount для computeRowAmounts по уже загруженному
+ * набору строк табеля — группирует по (табель за период, дата) и берёт
+ * число РАЗНЫХ сотрудников в группе. `rows` должен содержать строки
+ * ВСЕХ буровиков, деливших метраж в эти дни, не только одного —
+ * PayrollCalcService (считает одного сотрудника за раз) обязан
+ * доукомплектовать список отдельным запросом по бригаде; AnalyticsService
+ * уже загружает всю бригаду разом, ему передавать нечего доукомплектовывать.
+ */
+export function buildMeterageShareCounts<T extends { id: string; timesheetPeriodId: string | null; workDate: Date; employeeId: string; metersDrilled: Prisma.Decimal | null }>(
+  rows: T[],
+): Map<string, number> {
+  const groups = new Map<string, Set<string>>();
+  for (const r of rows) {
+    if (r.metersDrilled == null || !r.timesheetPeriodId) continue;
+    const key = `${r.timesheetPeriodId}|${r.workDate.toISOString().slice(0, 10)}`;
+    if (!groups.has(key)) groups.set(key, new Set());
+    groups.get(key)!.add(r.employeeId);
+  }
+  const shareByRowId = new Map<string, number>();
+  for (const r of rows) {
+    if (r.metersDrilled == null || !r.timesheetPeriodId) continue;
+    const key = `${r.timesheetPeriodId}|${r.workDate.toISOString().slice(0, 10)}`;
+    shareByRowId.set(r.id, groups.get(key)?.size ?? 1);
+  }
+  return shareByRowId;
 }
 
 export function round2(d: Prisma.Decimal): Prisma.Decimal {

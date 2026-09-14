@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { computePerDiem, computeRowAmounts, pickRateRule, round2 } from '../../common/payroll/rate-rule.util';
+import { buildMeterageShareCounts, computePerDiem, computeRowAmounts, pickRateRule, round2 } from '../../common/payroll/rate-rule.util';
 
 type DB = Prisma.TransactionClient | PrismaService;
 
@@ -55,6 +55,24 @@ export class PayrollCalcService {
     // выбрать один раз, чем гонять запрос на каждую строку табеля.
     const allRules = await db.rateRule.findMany({ where: { companyId: employee.companyId } });
 
+    // Метраж теперь общий на весь табель за метраж (одно значение в
+    // день на всех буровиков — см. TimesheetPeriodDetail.tsx), и
+    // строка ЭТОГО сотрудника несёт полное значение бригады, а не
+    // свою долю. Считаем, сколько сотрудников делят метраж по каждому
+    // (табель за период, дата) — для этого нужны строки ДРУГИХ
+    // сотрудников той же бригады, которых в `timesheets` (только этот
+    // employeeId) нет — доукомплектовываем отдельным запросом.
+    const meterageRows = timesheets.filter((t) => t.metersDrilled != null && t.timesheetPeriodId);
+    let shareCounts = new Map<string, number>();
+    if (meterageRows.length > 0) {
+      const periodIds = [...new Set(meterageRows.map((t) => t.timesheetPeriodId as string))];
+      const teamMeterageRows = await db.timesheet.findMany({
+        where: { timesheetPeriodId: { in: periodIds }, metersDrilled: { not: null } },
+        select: { id: true, timesheetPeriodId: true, workDate: true, employeeId: true, metersDrilled: true },
+      });
+      shareCounts = buildMeterageShareCounts(teamMeterageRows);
+    }
+
     const rate = employee.baseRateOverride ?? employee.position.baseHourlyRate;
     const mult = employee.position.overtimeMultiplier;
 
@@ -80,7 +98,7 @@ export class PayrollCalcService {
       }
       appliedRules.push({ timesheetId: t.id, ruleId: rule.id, ruleName: rule.name });
 
-      const row = computeRowAmounts(t, rate, mult, rule);
+      const row = computeRowAmounts(t, rate, mult, rule, shareCounts.get(t.id) ?? 1);
       baseAmount = baseAmount.plus(row.base);
       overtimeAmount = overtimeAmount.plus(row.overtime);
       nightAmount = nightAmount.plus(row.night);

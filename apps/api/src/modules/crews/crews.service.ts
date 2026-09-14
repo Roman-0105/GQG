@@ -94,6 +94,7 @@ export class CrewsService {
       id: true,
       fullName: true,
       employmentType: true,
+      payType: true,
       isActive: true,
       hiredAt: true,
       crewId: true,

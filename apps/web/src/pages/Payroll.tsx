@@ -4,6 +4,7 @@ import { describeApiError } from '../lib/apiError';
 import { PageHeader } from '../components/PageHeader';
 import { Button, Card, EmptyState, ErrorState, Field, IconButton, Input, ListRow, Select } from '../components/ui';
 import { IconPayroll, IconTrash } from '../components/icons';
+import { CURRENCY_SYMBOL, formatMoney } from '../lib/currency';
 
 interface Employee {
   id: string;
@@ -62,9 +63,6 @@ const COMPONENT_LABELS: { key: LineAmountKey; label: string }[] = [
   { key: 'advanceDeduction', label: 'Аванс' },
 ];
 
-function ruble(v: string): string {
-  return Number(v).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 /**
  * Запуск расчёта зарплаты и просмотр разбивки (docs/project-plan.md,
@@ -230,12 +228,12 @@ export function Payroll() {
                   if (v === 0) return null;
                   return (
                     <div key={key}>
-                      {label}: <span className="font-mono">{key.includes('deduction') || key === 'deductions' ? '−' : ''}{ruble(line[key])}</span>
+                      {label}: <span className="font-mono">{key.includes('deduction') || key === 'deductions' ? '−' : ''}{formatMoney(line[key], 2)}</span>
                     </div>
                   );
                 })}
               </div>
-              <div className="text-right font-mono font-semibold text-ink">{ruble(line.netAmount)} ₽</div>
+              <div className="text-right font-mono font-semibold text-ink">{formatMoney(line.netAmount, 2)} {CURRENCY_SYMBOL}</div>
             </ListRow>
           ))}
         </Card>

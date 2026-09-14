@@ -31,6 +31,7 @@ export function TimesheetForm() {
   const [regularHours, setRegularHours] = useState(8);
   const [overtimeHours, setOvertimeHours] = useState(0);
   const [nightHours, setNightHours] = useState(0);
+  const [metersDrilled, setMetersDrilled] = useState<number | ''>('');
   const [isHoliday, setIsHoliday] = useState(false);
   const [notes, setNotes] = useState('');
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
@@ -90,6 +91,7 @@ export function TimesheetForm() {
       regularHours: Number(regularHours),
       overtimeHours: Number(overtimeHours),
       nightHours: Number(nightHours),
+      metersDrilled: metersDrilled === '' ? undefined : Number(metersDrilled),
       isHoliday,
       notes: notes || undefined,
       clientCreatedAt: new Date().toISOString(),
@@ -116,6 +118,7 @@ export function TimesheetForm() {
           regularHours: entry.regularHours,
           overtimeHours: entry.overtimeHours,
           nightHours: entry.nightHours,
+          metersDrilled: entry.metersDrilled,
           isHoliday: entry.isHoliday,
           notes: entry.notes,
           clientCreatedAt: entry.clientCreatedAt,
@@ -229,6 +232,18 @@ export function TimesheetForm() {
               </Field>
             </div>
 
+            {workType === 'drilling' && (
+              <Field label="Метраж, м" hint="Пробурено за смену — необязательно, влияет на сдельную премию (Правила расчёта)">
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  value={metersDrilled}
+                  onChange={(e) => setMetersDrilled(e.target.value === '' ? '' : Number(e.target.value))}
+                />
+              </Field>
+            )}
+
             <Checkbox checked={isHoliday} onChange={setIsHoliday} label="Праздничный/выходной день" />
 
             <Field label="Заметка" hint="Необязательно">
@@ -245,7 +260,7 @@ export function TimesheetForm() {
       )}
 
       <Link to="/timesheets" className="mt-4 block text-center text-sm font-medium text-accent-2">
-        Мои табели →
+        Табеля →
       </Link>
     </div>
   );

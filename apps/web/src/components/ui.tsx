@@ -159,6 +159,50 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   );
 });
 
+// ---------- Индикатор прогресса ----------
+
+const PROGRESS_FILL_CLASS: Record<Tone, string> = {
+  neutral: 'bg-ink-muted',
+  good: 'bg-good',
+  warn: 'bg-warn',
+  crit: 'bg-crit',
+  accent: 'bg-accent',
+};
+
+/** Тонкая горизонтальная полоса заполнения — единый паттерн для метрик "факт/план". */
+export function ProgressBar({
+  value,
+  tone = 'accent',
+  marker,
+  markerLabel,
+  className = '',
+}: {
+  /** 0–100, значения вне диапазона обрезаются. */
+  value: number;
+  tone?: Tone;
+  /** Необязательная отметка (0–100) поверх полосы — например, "план на сегодня". */
+  marker?: number;
+  markerLabel?: string;
+  className?: string;
+}) {
+  const pct = Math.max(0, Math.min(100, value));
+  return (
+    <div className={`relative h-2.5 w-full overflow-visible rounded-full bg-surface-2 ${className}`}>
+      <div
+        className={`h-full rounded-full transition-[width] duration-300 ${PROGRESS_FILL_CLASS[tone]}`}
+        style={{ width: `${pct}%` }}
+      />
+      {marker != null && (
+        <div
+          title={markerLabel}
+          className="absolute -top-0.5 h-3.5 w-0.5 -translate-x-1/2 rounded-full bg-ink/60"
+          style={{ left: `${Math.max(0, Math.min(100, marker))}%` }}
+        />
+      )}
+    </div>
+  );
+}
+
 // ---------- Чекбокс ----------
 
 export function Checkbox({

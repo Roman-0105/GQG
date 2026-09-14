@@ -10,18 +10,26 @@ const prisma = new PrismaClient();
 type PermissionSeed = { resource: string; action: string; scope: 'own_crew' | 'own_sites' | 'company' };
 
 const ROLE_PERMISSIONS: Record<string, PermissionSeed[]> = {
-  'Владелец компании': [
+  // Владелец компании и руководитель участка объединены в одну роль —
+  // в реальной компании это один и тот же человек (найдено при
+  // тестировании владельцем). Полный доступ ко всем ресурсам компании;
+  // у него намеренно нет отдельного understanding "своей бригады" —
+  // он не бригадир, табель за смену не ведёт и не должен быть назначен
+  // Crew.foremanId (own_crew-права ему не нужны и не выдаются).
+  'Начальник участка': [
     ...([
       'site',
       'crew',
       'employee',
       'timesheet',
+      'timesheet_period',
       'payroll',
       'rate_rule',
       'role',
       'user',
       'position',
       'analytics',
+      'task',
     ].flatMap((resource) =>
       ['create', 'read', 'update', 'approve', 'lock', 'delete', 'export'].map((action) => ({
         resource,
@@ -30,81 +38,63 @@ const ROLE_PERMISSIONS: Record<string, PermissionSeed[]> = {
       })),
     )),
   ],
-  'Администратор / HR': [
-    { resource: 'employee', action: 'create', scope: 'company' },
+  // Отвечает за расчёт зарплаты и правила расчёта; вместе с
+  // начальником участка согласовывает табели (approve/lock — как и у
+  // него, только на действия табеля, не на административные разделы) —
+  // после отказа от отдельного двухподписного согласования табеля за
+  // период (см. TimesheetPeriodsService) согласование теперь одно, на
+  // уровне ежедневных записей, и бухгалтер в нём участвует наравне с
+  // начальником участка. site/crew:read — только чтобы найти нужный
+  // табель в разделе «Табеля» (участок → бригада → табели), не для
+  // администрирования.
+  Бухгалтер: [
+    { resource: 'site', action: 'read', scope: 'company' },
+    { resource: 'crew', action: 'read', scope: 'company' },
     { resource: 'employee', action: 'read', scope: 'company' },
-    { resource: 'employee', action: 'update', scope: 'company' },
-    { resource: 'role', action: 'read', scope: 'company' },
-    { resource: 'user', action: 'create', scope: 'company' },
-    { resource: 'user', action: 'read', scope: 'company' },
-    { resource: 'user', action: 'update', scope: 'company' },
-    { resource: 'position', action: 'create', scope: 'company' },
     { resource: 'position', action: 'read', scope: 'company' },
+    { resource: 'rate_rule', action: 'create', scope: 'company' },
+    { resource: 'rate_rule', action: 'read', scope: 'company' },
+    { resource: 'rate_rule', action: 'update', scope: 'company' },
+    { resource: 'payroll', action: 'create', scope: 'company' },
+    { resource: 'payroll', action: 'read', scope: 'company' },
+    { resource: 'payroll', action: 'export', scope: 'company' },
+    { resource: 'timesheet_period', action: 'read', scope: 'company' },
+    { resource: 'timesheet_period', action: 'approve', scope: 'company' },
+    { resource: 'timesheet', action: 'read', scope: 'company' },
+    { resource: 'timesheet', action: 'approve', scope: 'company' },
+    { resource: 'timesheet', action: 'lock', scope: 'company' },
+    { resource: 'analytics', action: 'read', scope: 'company' },
   ],
-  'Руководитель участка': [
-    { resource: 'site', action: 'read', scope: 'own_sites' },
-    { resource: 'crew', action: 'create', scope: 'own_sites' },
-    { resource: 'crew', action: 'read', scope: 'own_sites' },
-    { resource: 'crew', action: 'update', scope: 'own_sites' },
-    { resource: 'employee', action: 'create', scope: 'own_sites' },
-    { resource: 'employee', action: 'read', scope: 'own_sites' },
-    { resource: 'position', action: 'read', scope: 'company' },
-    { resource: 'user', action: 'read', scope: 'company' },
-    { resource: 'timesheet', action: 'read', scope: 'own_sites' },
-    { resource: 'timesheet', action: 'approve', scope: 'own_sites' },
-    { resource: 'timesheet', action: 'lock', scope: 'own_sites' },
-    { resource: 'analytics', action: 'read', scope: 'own_sites' },
-  ],
+  // Ведёт табель только своей бригады: формирует табель за период,
+  // ежедневно вносит часы/метраж и отправляет на согласование
+  // начальнику участка/бухгалтеру. Не согласовывает ничего сам — нет
+  // action:'approve' ни на что.
   Бригадир: [
     { resource: 'timesheet', action: 'create', scope: 'own_crew' },
     { resource: 'timesheet', action: 'read', scope: 'own_crew' },
     { resource: 'timesheet', action: 'update', scope: 'own_crew' },
-  ],
-  'Расчётчик / бухгалтер': [
-    { resource: 'rate_rule', action: 'create', scope: 'company' },
-    { resource: 'rate_rule', action: 'read', scope: 'company' },
-    { resource: 'rate_rule', action: 'update', scope: 'company' },
-    { resource: 'position', action: 'read', scope: 'company' },
-    { resource: 'employee', action: 'read', scope: 'company' },
-    { resource: 'payroll', action: 'create', scope: 'company' },
-    { resource: 'payroll', action: 'read', scope: 'company' },
-    { resource: 'payroll', action: 'export', scope: 'company' },
-    { resource: 'analytics', action: 'read', scope: 'company' },
-  ],
-  Работник: [
-    { resource: 'timesheet', action: 'read', scope: 'own_crew' },
-  ],
-  Аудитор: [
-    ...([
-      'site',
-      'crew',
-      'employee',
-      'timesheet',
-      'payroll',
-      'rate_rule',
-      'user',
-      'position',
-      'analytics',
-    ].map((resource) => ({
-      resource,
-      action: 'read' as const,
-      scope: 'company' as const,
-    }))),
+    { resource: 'timesheet_period', action: 'create', scope: 'own_crew' },
+    { resource: 'timesheet_period', action: 'read', scope: 'own_crew' },
+    { resource: 'timesheet_period', action: 'update', scope: 'own_crew' },
+    { resource: 'analytics', action: 'read', scope: 'own_crew' },
   ],
 };
 
-async function main() {
-  const company = await prisma.company.upsert({
-    where: { id: 'demo-company' },
-    update: {},
-    create: { id: 'demo-company', name: 'Демо-компания КЕРН', currency: 'RUB' },
-  });
-
+/**
+ * Только каталог ролей/прав — ничего похожего на "тестовые данные"
+ * (демо-пользователь, участок, должности). Вынесено отдельной функцией,
+ * чтобы можно было довести ROLE_PERMISSIONS до актуального состояния на
+ * уже работающей (не демо) компании через prisma/sync-permissions.ts,
+ * не запуская весь seed.ts заново — иначе он пересоздал бы демо-логин
+ * owner@demo.kern и демо-должности, которые пользователь уже удалил
+ * (найдено на Этапе 06, при добавлении TimesheetPeriod).
+ */
+export async function seedRolesAndPermissions(companyId: string) {
   for (const [roleName, permissions] of Object.entries(ROLE_PERMISSIONS)) {
     const role = await prisma.role.upsert({
-      where: { companyId_name: { companyId: company.id, name: roleName } },
+      where: { companyId_name: { companyId, name: roleName } },
       update: {},
-      create: { companyId: company.id, name: roleName, isSystem: true },
+      create: { companyId, name: roleName, isSystem: true },
     });
 
     for (const permission of permissions) {
@@ -122,20 +112,39 @@ async function main() {
       });
     }
   }
+}
 
-  const ownerRole = await prisma.role.findUniqueOrThrow({
-    where: { companyId_name: { companyId: company.id, name: 'Владелец компании' } },
+async function main() {
+  const company = await prisma.company.upsert({
+    where: { id: 'demo-company' },
+    update: {},
+    create: { id: 'demo-company', name: 'Демо-компания КЕРН', currency: 'RUB' },
   });
 
-  const ownerPasswordHash = await bcrypt.hash('change-me-now', 10);
+  await seedRolesAndPermissions(company.id);
+
+  const ownerRole = await prisma.role.findUniqueOrThrow({
+    where: { companyId_name: { companyId: company.id, name: 'Начальник участка' } },
+  });
+
+  // Реальный логин владельца — не демо-заглушка: чтобы на новой машине
+  // (после клонирования репозитория и первого seed) сразу можно было
+  // войти под настоящим админом, без ручного создания аккаунта через
+  // API. ВНИМАНИЕ: пароль лежит в открытом виде в истории git — раз
+  // репозиторий когда-либо станет публичным/расшарится за пределы
+  // доверенного круга, этот пароль нужно сменить (страница «Команда»
+  // умеет менять пароль пользователю).
+  const OWNER_EMAIL = process.env.SEED_OWNER_EMAIL ?? 'Roman@gmail.com';
+  const OWNER_PASSWORD = process.env.SEED_OWNER_PASSWORD ?? 'Gold424374@@';
+  const ownerPasswordHash = await bcrypt.hash(OWNER_PASSWORD, 10);
   const owner = await prisma.user.upsert({
-    where: { email: 'owner@demo.kern' },
+    where: { email: OWNER_EMAIL },
     update: {},
     create: {
       companyId: company.id,
-      email: 'owner@demo.kern',
+      email: OWNER_EMAIL,
       passwordHash: ownerPasswordHash,
-      fullName: 'Демо Владелец',
+      fullName: 'Roman',
     },
   });
 
@@ -185,15 +194,21 @@ async function main() {
   }
 
   // eslint-disable-next-line no-console
-  console.log('Сид завершён. Демо-логин: owner@demo.kern / change-me-now (сменить перед реальным использованием).');
+  console.log(`Сид завершён. Логин владельца: ${OWNER_EMAIL} (пароль — см. SEED_OWNER_PASSWORD/значение по умолчанию в seed.ts).`);
 }
 
-main()
-  .catch((e) => {
-    // eslint-disable-next-line no-console
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// Guard — этот файл теперь также импортируется как модуль ради
+// seedRolesAndPermissions (см. prisma/sync-permissions.ts); без этой
+// проверки такой импорт заново запускал бы демо-сид (в т.ч. пересоздал
+// бы owner@demo.kern) при каждом обращении.
+if (require.main === module) {
+  main()
+    .catch((e) => {
+      // eslint-disable-next-line no-console
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

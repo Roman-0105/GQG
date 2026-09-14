@@ -4,6 +4,7 @@ import { describeApiError } from '../lib/apiError';
 import { PageHeader } from '../components/PageHeader';
 import { Badge, Button, Card, Checkbox, EmptyState, ErrorState, Field, Input, ListRow } from '../components/ui';
 import { IconPosition } from '../components/icons';
+import { CURRENCY_SYMBOL } from '../lib/currency';
 
 interface Position {
   id: string;
@@ -71,7 +72,7 @@ export function Positions() {
                 {p.hazardPay && <Badge tone="warn">вредность</Badge>}
               </div>
               <span className="text-sm text-ink-muted">
-                {Number(p.baseHourlyRate).toFixed(0)} ₽/ч · ×{Number(p.overtimeMultiplier)} сверхурочные
+                {Number(p.baseHourlyRate).toFixed(0)} {CURRENCY_SYMBOL}/ч · ×{Number(p.overtimeMultiplier)} сверхурочные
               </span>
             </ListRow>
           ))
@@ -85,7 +86,7 @@ export function Positions() {
             <Field label="Название">
               <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Бурильщик" />
             </Field>
-            <Field label="Ставка, ₽/ч">
+            <Field label={`Ставка, ${CURRENCY_SYMBOL}/ч`}>
               <Input type="number" min={0} value={rate} onChange={(e) => setRate(Number(e.target.value))} />
             </Field>
           </div>
