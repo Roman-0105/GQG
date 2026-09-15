@@ -102,8 +102,8 @@ export default function SiteDetail() {
                     <>
                       {' '}
                       —{' '}
-                      <Link to={`/tasks/drilling/${t.id}/reports/new`}>
-                        внести сводку
+                      <Link to={`/tasks/drilling/${t.id}/reports`}>
+                        сводки
                       </Link>
                     </>
                   )}
@@ -127,8 +127,8 @@ export default function SiteDetail() {
                     <>
                       {' '}
                       —{' '}
-                      <Link to={`/tasks/core-description/${t.id}/reports/new`}>
-                        внести сводку
+                      <Link to={`/tasks/core-description/${t.id}/reports`}>
+                        сводки
                       </Link>
                     </>
                   )}
