@@ -74,6 +74,7 @@ export interface CoreDescriptionTask {
   external_projected_depth: number | null
   external_angle: number | null
   external_azimuth: number | null
+  assigned_party_chief_id: string | null
   shift_enabled: boolean
   created_by: string
   created_at: string

@@ -97,8 +97,16 @@ export default function SiteDetail() {
             <ul>
               {drillingTasks.map((t) => (
                 <li key={t.id}>
-                  Скважина №{t.well_number} —{' '}
-                  {TASK_STATUS_LABELS[t.status]}
+                  Скважина №{t.well_number} — {TASK_STATUS_LABELS[t.status]}
+                  {profile?.role === 'party_chief' && (
+                    <>
+                      {' '}
+                      —{' '}
+                      <Link to={`/tasks/drilling/${t.id}/reports/new`}>
+                        внести сводку
+                      </Link>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
@@ -115,6 +123,15 @@ export default function SiteDetail() {
                     ? 'Своя скважина'
                     : `Скважина подрядчика №${t.external_well_number}`}
                   {t.shift_enabled ? '' : ' (без смен)'}
+                  {profile?.role === 'party_chief' && (
+                    <>
+                      {' '}
+                      —{' '}
+                      <Link to={`/tasks/core-description/${t.id}/reports/new`}>
+                        внести сводку
+                      </Link>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
