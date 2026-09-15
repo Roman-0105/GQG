@@ -1,15 +1,22 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { HashRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 
-// basename совпадает с base в vite.config.ts — обязательно для GitHub Pages,
-// сайт публикуется в подпапке /GQS/, а не в корне домена.
+// HashRouter, а не BrowserRouter: GitHub Pages — статический хостинг без
+// серверных rewrite-правил. При прямом переходе или обновлении страницы
+// на "чистом" пути (например /GQS/login) сервер честно ищет такой файл
+// и отдаёт 404 — GitHub Pages не умеет "любой путь -> index.html".
+// HashRouter кладёт весь маршрут после "#", это всегда один и тот же
+// файл (index.html) с точки зрения сервера, поэтому обновление страницы
+// и прямые ссылки работают предсказуемо. Это же поведение нам и нужно
+// для офлайн-режима (Этап 5) — там тоже важно не зависеть от серверной
+// маршрутизации.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter basename="/GQS/">
+    <HashRouter>
       <App />
-    </BrowserRouter>
+    </HashRouter>
   </StrictMode>,
 )
