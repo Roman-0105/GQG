@@ -168,6 +168,15 @@ li:last-child {
   box-sizing: border-box;
 }
 
+@media (max-width: 400px) {
+  .page {
+    padding: 14px;
+  }
+  .app-nav {
+    padding: 10px 14px;
+  }
+}
+
 /* ==========================================================================
    Формы
    ========================================================================== */
@@ -297,6 +306,77 @@ button.btn-danger {
 
 button.btn-danger:hover:not(:disabled) {
   background: #8a4436;
+}
+
+/* ==========================================================================
+   Динамические строки (интервалы диаметров, затраты) — grid вместо
+   фиксированных px-ширин, чтобы поля сжимались пропорционально на узких
+   экранах Android вместо горизонтального переполнения/обрезки.
+   ========================================================================== */
+.dynamic-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.dynamic-row input,
+.dynamic-row select {
+  min-width: 0;
+}
+
+.dynamic-row-costs {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.dynamic-row-costs select,
+.dynamic-row-costs input {
+  min-width: 0;
+}
+
+@media (max-width: 420px) {
+  .dynamic-row-costs {
+    grid-template-columns: 1fr 1fr auto;
+    grid-template-areas: 'cat cat cat' 'qty amt btn';
+  }
+  .dynamic-row-costs > select {
+    grid-area: cat;
+  }
+  .dynamic-row-costs > :nth-child(2) {
+    grid-area: qty;
+  }
+  .dynamic-row-costs > :nth-child(3) {
+    grid-area: amt;
+  }
+  .dynamic-row-costs > :nth-child(4) {
+    grid-area: btn;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 420px) {
+  .dynamic-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas: 'a b' 'c d';
+  }
+  .dynamic-row > :nth-child(1) {
+    grid-area: a;
+  }
+  .dynamic-row > :nth-child(2) {
+    grid-area: b;
+  }
+  .dynamic-row > :nth-child(3) {
+    grid-area: c;
+  }
+  .dynamic-row > :nth-child(4) {
+    grid-area: d;
+    justify-self: end;
+  }
 }
 
 /* ==========================================================================

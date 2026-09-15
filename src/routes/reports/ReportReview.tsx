@@ -170,7 +170,7 @@ export default function ReportReview() {
 
           {error && <p className="text-error">{error}</p>}
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             <button
               type="button"
               disabled={acting !== null}

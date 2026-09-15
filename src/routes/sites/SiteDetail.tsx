@@ -74,7 +74,7 @@ export default function SiteDetail() {
           </p>
 
           {isManagement(profile?.role) && (
-            <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
+            <div style={{ display: 'flex', gap: 8, margin: '12px 0', flexWrap: 'wrap' }}>
               <Link to={`/sites/${siteId}/tasks/drilling/new`}>
                 <button type="button">+ Задание: бурение</button>
               </Link>
