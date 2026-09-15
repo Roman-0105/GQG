@@ -53,7 +53,7 @@ function App() {
             element={<CoreDescriptionTaskForm />}
           />
           <Route
-            path="/tasks/:taskId/reports/new"
+            path="/tasks/:taskType/:taskId/reports/new"
             element={<DailyReportForm />}
           />
         </Routes>
