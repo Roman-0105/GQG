@@ -11,6 +11,7 @@ import DailyReportForm from './routes/reports/DailyReportForm'
 import TaskReportsList from './routes/reports/TaskReportsList'
 import PendingApprovals from './routes/reports/PendingApprovals'
 import ReportReview from './routes/reports/ReportReview'
+import SummaryReport from './routes/reports/SummaryReport'
 import UsersList from './routes/users/UsersList'
 
 // Каркас роутинга по экранам из ТЗ (раздел 5). Защита маршрутов по роли
@@ -39,6 +40,7 @@ function App() {
         <Link to="/sites">Участки</Link>
         <Link to="/users">Пользователи</Link>
         <Link to="/reports/pending">Согласование</Link>
+        <Link to="/reports/summary">Отчёты</Link>
         <Link to="/login">Вход</Link>
       </nav>
       <main style={{ padding: 12 }}>
@@ -70,6 +72,7 @@ function App() {
           />
           <Route path="/reports/pending" element={<PendingApprovals />} />
           <Route path="/reports/:reportId/review" element={<ReportReview />} />
+          <Route path="/reports/summary" element={<SummaryReport />} />
         </Routes>
       </main>
     </AuthProvider>
