@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient'
-import { exportToCsv } from '../../lib/csvExport'
+import { exportToXlsx } from '../../lib/xlsxExport'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
-import type { Report, Site } from '../../types/database'
+import type { CoreDescriptionTask, DrillingTask, Report, Site } from '../../types/database'
 
 interface EnrichedReport extends Report {
   siteName: string
   wellLabel: string
 }
+
+// Значение в <select> задания — закодированный тип+id, чтобы одним
+// полем выбирать и из бурения, и из описания керна (два разных FK
+// в reports, drilling_task_id / core_description_task_id).
+type TaskFilterValue = '' | `drilling:${string}` | `core:${string}`
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
@@ -21,14 +26,20 @@ function firstOfMonthIso() {
   return d.toISOString().slice(0, 10)
 }
 
-// Сводный отчёт — см. ТЗ раздел 4.2 (v0.1) + раздел 6 (v0.6, "экспорт —
-// пока просто таблица данных"). Считаем только по ОДОБРЕННЫМ сводкам —
-// черновики и то, что ещё на согласовании, в официальные цифры не входят.
+// Сводный отчёт — см. ТЗ раздел 4.2 (v0.1) + раздел 6 (v0.6, экспорт).
+// Считаем только по ОДОБРЕННЫМ сводкам — черновики и то, что ещё на
+// согласовании, в официальные цифры не входят.
 export default function SummaryReport() {
   const { session, profile, loading: authLoading } = useAuth()
 
   const [sites, setSites] = useState<Site[]>([])
   const [selectedSiteId, setSelectedSiteId] = useState('')
+
+  // Задания текущего выбранного участка — каскадный фильтр.
+  const [siteDrillingTasks, setSiteDrillingTasks] = useState<DrillingTask[]>([])
+  const [siteCoreTasks, setSiteCoreTasks] = useState<CoreDescriptionTask[]>([])
+  const [selectedTask, setSelectedTask] = useState<TaskFilterValue>('')
+
   const [dateFrom, setDateFrom] = useState(firstOfMonthIso())
   const [dateTo, setDateTo] = useState(todayIso())
 
@@ -48,11 +59,36 @@ export default function SummaryReport() {
       .then(({ data }) => data && setSites(data))
   }, [session])
 
+  // Смена участка — сбрасываем выбранное задание и подгружаем список
+  // заданий именно этого участка (бурение + описание керна).
+  useEffect(() => {
+    setSelectedTask('')
+    if (!session || !selectedSiteId) {
+      setSiteDrillingTasks([])
+      setSiteCoreTasks([])
+      return
+    }
+    Promise.all([
+      supabase
+        .from('drilling_tasks')
+        .select('*')
+        .eq('site_id', selectedSiteId)
+        .order('well_number'),
+      supabase
+        .from('core_description_tasks')
+        .select('*')
+        .eq('site_id', selectedSiteId),
+    ]).then(([drillingRes, coreRes]) => {
+      setSiteDrillingTasks(drillingRes.data ?? [])
+      setSiteCoreTasks(coreRes.data ?? [])
+    })
+  }, [session, selectedSiteId])
+
   useEffect(() => {
     if (!session || !isManagement(profile?.role)) return
     loadReport()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, profile, selectedSiteId, dateFrom, dateTo])
+  }, [session, profile, selectedSiteId, selectedTask, dateFrom, dateTo])
 
   async function loadReport() {
     setLoading(true)
@@ -66,6 +102,15 @@ export default function SummaryReport() {
       .lte('report_date', dateTo)
 
     if (selectedSiteId) query = query.eq('site_id', selectedSiteId)
+
+    if (selectedTask.startsWith('drilling:')) {
+      query = query.eq('drilling_task_id', selectedTask.slice('drilling:'.length))
+    } else if (selectedTask.startsWith('core:')) {
+      query = query.eq(
+        'core_description_task_id',
+        selectedTask.slice('core:'.length),
+      )
+    }
 
     const { data: list, error: fetchError } = await query.order('report_date')
 
@@ -193,8 +238,9 @@ export default function SummaryReport() {
   }, 0)
 
   function handleExport() {
-    exportToCsv(
-      `report_${dateFrom}_${dateTo}.csv`,
+    exportToXlsx(
+      `report_${dateFrom}_${dateTo}.xlsx`,
+      'Сводки',
       [
         'Дата',
         'Смена',
@@ -219,7 +265,7 @@ export default function SummaryReport() {
         r.photofixation_interval_from,
         r.photofixation_interval_to,
       ]),
-    )
+    ).catch(() => setError('Не удалось сформировать файл экспорта.'))
   }
 
   return (
@@ -242,6 +288,38 @@ export default function SummaryReport() {
                 {s.name}
               </option>
             ))}
+          </select>
+        </label>
+        <label>
+          Задание{' '}
+          <select
+            value={selectedTask}
+            onChange={(e) => setSelectedTask(e.target.value as TaskFilterValue)}
+            disabled={!selectedSiteId}
+          >
+            <option value="">
+              {selectedSiteId ? 'Все задания участка' : 'Сначала выберите участок'}
+            </option>
+            {siteDrillingTasks.length > 0 && (
+              <optgroup label="Бурение">
+                {siteDrillingTasks.map((t) => (
+                  <option key={t.id} value={`drilling:${t.id}`}>
+                    Скважина №{t.well_number}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {siteCoreTasks.length > 0 && (
+              <optgroup label="Описание керна">
+                {siteCoreTasks.map((t) => (
+                  <option key={t.id} value={`core:${t.id}`}>
+                    {t.drilling_task_id
+                      ? `Своя скв. (задание ${t.id.slice(0, 8)})`
+                      : `Подрядчик, скв. №${t.external_well_number}`}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
         <label>
@@ -292,7 +370,7 @@ export default function SummaryReport() {
 
           <p>
             <button type="button" onClick={handleExport} disabled={reports.length === 0}>
-              Экспорт CSV ({reports.length} строк)
+              Экспорт в Excel ({reports.length} строк)
             </button>
           </p>
 
