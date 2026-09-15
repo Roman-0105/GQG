@@ -7,6 +7,7 @@ import type { Profile } from '../types/database'
 interface AuthContextValue {
   session: Session | null
   profile: Profile | null
+  profileError: string | null
   loading: boolean
   signOut: () => Promise<void>
 }
@@ -16,6 +17,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [profileError, setProfileError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -37,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function loadProfile() {
       if (!session) {
         setProfile(null)
+        setProfileError(null)
         return
       }
       const { data, error } = await supabase
@@ -50,13 +53,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) {
         // Пользователь аутентифицирован, но для него ещё нет записи
         // в profiles (например, только что создан через Supabase Auth,
-        // но администратор ещё не завёл профиль с ролью — см. supabase/README.md).
+        // но администратор ещё не завёл профиль с ролью — см. supabase/README.md),
+        // либо запись есть, но её не отдаёт RLS (см. код ошибки/сообщение —
+        // выводим в интерфейс специально для диагностики bootstrap-сценария).
         // eslint-disable-next-line no-console
         console.error('Не удалось загрузить профиль:', error.message)
         setProfile(null)
+        setProfileError(error.message)
         return
       }
       setProfile(data as Profile)
+      setProfileError(null)
     }
 
     loadProfile()
@@ -70,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ session, profile, profileError, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   )
