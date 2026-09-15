@@ -18,11 +18,16 @@ npm run dev
 
 ## Переменные окружения
 
-См. `.env.example`. Значения берутся в Supabase: Project Settings → API.
+См. `.env.example`. Значения берутся в Supabase: **Settings → API Keys**.
+Используем **Publishable key** (`sb_publishable_...`) — актуальный (2026)
+клиентский ключ, пришедший на смену устаревающему `anon` key. **Secret/
+service_role ключи в этот проект никогда не добавляются** — они дают
+полный доступ к БД в обход RLS и предназначены только для backend,
+которого у нас нет (GitHub Pages — статический хостинг).
 
 Для автодеплоя те же значения нужно добавить как секреты репозитория:
 `Settings → Secrets and variables → Actions → New repository secret`
-— `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+— `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`.
 
 ## Деплой
 
