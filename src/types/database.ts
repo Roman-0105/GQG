@@ -102,6 +102,7 @@ export interface Report {
   approved_at: string | null
   edit_request_reason: string | null
   edit_unlocked: boolean
+  review_comment: string | null
   created_at: string
   updated_at: string
 }

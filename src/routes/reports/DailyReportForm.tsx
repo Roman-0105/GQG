@@ -252,7 +252,14 @@ export default function DailyReportForm() {
       const now = new Date().toISOString()
       const { error: submitError } = await supabase
         .from('reports')
-        .update({ approval_status: 'submitted', submitted_at: now })
+        .update({
+          approval_status: 'submitted',
+          submitted_at: now,
+          // Сброс следов прошлого отклонения при повторной отправке —
+          // иначе старый комментарий и разблокировка "зависли" бы навсегда.
+          edit_unlocked: false,
+          review_comment: null,
+        })
         .eq('id', report.id)
       if (submitError) {
         setError(

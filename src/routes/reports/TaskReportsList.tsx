@@ -72,12 +72,20 @@ export default function TaskReportsList() {
               {r.report_date}
               {r.shift_number ? `, смена ${r.shift_number}` : ''} —{' '}
               {APPROVAL_LABELS[r.approval_status]}
+              {r.approval_status === 'rejected' && r.review_comment && (
+                <span style={{ color: '#c0392b' }}>
+                  {' '}
+                  (причина: {r.review_comment})
+                </span>
+              )}
               {(r.approval_status === 'draft' || r.edit_unlocked) && (
                 <>
                   {' '}
                   —{' '}
                   <Link to={`/tasks/${taskType}/${taskId}/reports/${r.id}/edit`}>
-                    открыть
+                    {r.approval_status === 'rejected'
+                      ? 'исправить и отправить заново'
+                      : 'открыть'}
                   </Link>
                 </>
               )}
