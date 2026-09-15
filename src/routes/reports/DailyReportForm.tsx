@@ -170,8 +170,11 @@ export default function DailyReportForm() {
       return
     }
 
-    const now = new Date().toISOString()
-
+    // Затраты пишутся только пока сводка ЧЕРНОВИК (так требует RLS —
+    // это намеренно, чтобы нельзя было незаметно поменять затраты в уже
+    // отправленной сводке). Поэтому даже при "Отправить на согласование"
+    // сначала сохраняем как draft, пишем затраты, и лишь ПОСЛЕ этого
+    // отдельным запросом переключаем approval_status на submitted.
     const fields = {
       drilling_task_id: taskType === 'drilling' ? taskId : null,
       core_description_task_id:
@@ -193,8 +196,8 @@ export default function DailyReportForm() {
         taskType === 'core-description' && photoTo ? Number(photoFrom) : null,
       photofixation_interval_to:
         taskType === 'core-description' && photoTo ? Number(photoTo) : null,
-      approval_status: mode === 'submit' ? 'submitted' : 'draft',
-      submitted_at: mode === 'submit' ? now : null,
+      approval_status: 'draft' as const,
+      submitted_at: null,
     }
 
     const { data: report, error: saveError } = isEditMode
@@ -239,6 +242,21 @@ export default function DailyReportForm() {
       if (costsError) {
         setError(
           `Сводка сохранена, но не удалось сохранить затраты: ${costsError.message}`,
+        )
+        setSubmitting(null)
+        return
+      }
+    }
+
+    if (mode === 'submit') {
+      const now = new Date().toISOString()
+      const { error: submitError } = await supabase
+        .from('reports')
+        .update({ approval_status: 'submitted', submitted_at: now })
+        .eq('id', report.id)
+      if (submitError) {
+        setError(
+          `Сводка и затраты сохранены как черновик, но не удалось отправить на согласование: ${submitError.message}`,
         )
         setSubmitting(null)
         return
