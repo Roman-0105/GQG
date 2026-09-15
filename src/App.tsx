@@ -8,6 +8,7 @@ import SiteDetail from './routes/sites/SiteDetail'
 import DrillingTaskForm from './routes/tasks/DrillingTaskForm'
 import CoreDescriptionTaskForm from './routes/tasks/CoreDescriptionTaskForm'
 import DailyReportForm from './routes/reports/DailyReportForm'
+import UsersList from './routes/users/UsersList'
 
 // Каркас роутинга по экранам из ТЗ (раздел 5). Защита маршрутов по роли
 // (AuthGuard/RequireRole) добавится позже; пока каждый экран сам проверяет
@@ -33,6 +34,7 @@ function App() {
       <nav style={{ display: 'flex', gap: 12, padding: 12 }}>
         <Link to="/">Дашборд</Link>
         <Link to="/sites">Участки</Link>
+        <Link to="/users">Пользователи</Link>
         <Link to="/login">Вход</Link>
       </nav>
       <main style={{ padding: 12 }}>
@@ -41,6 +43,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/sites" element={<SitesList />} />
           <Route path="/sites/:siteId" element={<SiteDetail />} />
+          <Route path="/users" element={<UsersList />} />
           <Route
             path="/sites/:siteId/tasks/drilling/new"
             element={<DrillingTaskForm />}
