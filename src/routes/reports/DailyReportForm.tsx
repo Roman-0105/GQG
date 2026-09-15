@@ -391,7 +391,7 @@ export default function DailyReportForm() {
           {error && <p className="text-error">{error}</p>}
           {successMsg && <p className="text-success">{successMsg}</p>}
 
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               type="button"
               className="btn-outline"

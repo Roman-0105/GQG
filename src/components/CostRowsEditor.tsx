@@ -37,13 +37,12 @@ export default function CostRowsEditor({ rows, categories, onChange }: Props) {
     <div>
       <label style={{ display: 'block', marginBottom: 4 }}>Затраты</label>
       {rows.map((row, i) => (
-        <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+        <div key={i} className="dynamic-row-costs">
           <select
             value={row.cost_category_id}
             onChange={(e) =>
               updateRow(i, { cost_category_id: e.target.value })
             }
-            style={{ flex: 1 }}
           >
             <option value="">— категория —</option>
             {categories.map((c) => (
@@ -59,7 +58,6 @@ export default function CostRowsEditor({ rows, categories, onChange }: Props) {
             placeholder="кол-во"
             value={row.quantity}
             onChange={(e) => updateRow(i, { quantity: e.target.value })}
-            style={{ width: 80 }}
           />
           <input
             type="number"
@@ -67,7 +65,6 @@ export default function CostRowsEditor({ rows, categories, onChange }: Props) {
             placeholder="сумма, ₽"
             value={row.amount}
             onChange={(e) => updateRow(i, { amount: e.target.value })}
-            style={{ width: 90 }}
           />
           <button
             type="button"

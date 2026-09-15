@@ -65,7 +65,7 @@ export default function SitesList() {
       {isManagement(profile?.role) && (
         <form
           onSubmit={handleCreate}
-          style={{ display: 'flex', gap: 8, margin: '12px 0' }}
+          style={{ display: 'flex', gap: 8, margin: '12px 0', flexWrap: 'wrap' }}
         >
           <input
             type="text"
