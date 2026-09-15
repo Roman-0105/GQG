@@ -17,12 +17,16 @@ function todayIso() {
 
 // Посменная сводка — см. ТЗ v0.7, раздел 3-4. Суточная сводка отдельно
 // НЕ заполняется, считается на фронтенде агрегацией посменных (позже,
-// на экране просмотра — этот PR закрывает только ввод).
+// на экране просмотра — этот PR закрывает только ввод/правку).
+// reportId в URL — режим редактирования (только для черновиков/
+// разблокированных сводок, см. RLS reports_update_own_when_editable).
 export default function DailyReportForm() {
-  const { taskType, taskId } = useParams<{
+  const { taskType, taskId, reportId } = useParams<{
     taskType: TaskType
     taskId: string
+    reportId?: string
   }>()
+  const isEditMode = Boolean(reportId)
   const { session, profile, loading: authLoading } = useAuth()
   const navigate = useNavigate()
 
@@ -72,8 +76,58 @@ export default function DailyReportForm() {
           .eq('id', taskId)
           .single()
         setCoreTask(data)
+      }
 
-        // Автоподстановка "от" — последний "до" по этому заданию (см. ТЗ).
+      if (reportId) {
+        // Режим редактирования — подгружаем существующую сводку и её затраты.
+        const [reportRes, costsRes] = await Promise.all([
+          supabase.from('reports').select('*').eq('id', reportId).single(),
+          supabase
+            .from('report_costs')
+            .select('*')
+            .eq('report_id', reportId),
+        ])
+
+        if (reportRes.data) {
+          const r = reportRes.data
+          setReportDate(r.report_date)
+          setShiftNumber(r.shift_number ? (String(r.shift_number) as '1' | '2') : '')
+          setHoursWorked(r.hours_worked != null ? String(r.hours_worked) : '')
+          setDrillingMeters(
+            r.drilling_meters != null ? String(r.drilling_meters) : '',
+          )
+          setCoreFrom(
+            r.core_description_interval_from != null
+              ? String(r.core_description_interval_from)
+              : '0',
+          )
+          setCoreTo(
+            r.core_description_interval_to != null
+              ? String(r.core_description_interval_to)
+              : '',
+          )
+          setPhotoFrom(
+            r.photofixation_interval_from != null
+              ? String(r.photofixation_interval_from)
+              : '0',
+          )
+          setPhotoTo(
+            r.photofixation_interval_to != null
+              ? String(r.photofixation_interval_to)
+              : '',
+          )
+        }
+        if (costsRes.data && costsRes.data.length > 0) {
+          setCostRows(
+            costsRes.data.map((c) => ({
+              cost_category_id: c.cost_category_id,
+              quantity: c.quantity != null ? String(c.quantity) : '',
+              amount: c.amount != null ? String(c.amount) : '',
+            })),
+          )
+        }
+      } else if (taskType === 'core-description') {
+        // Новая сводка — автоподстановка "от" из последнего "до" по заданию.
         const { data: lastReport } = await supabase
           .from('reports')
           .select('core_description_interval_to, photofixation_interval_to')
@@ -92,7 +146,7 @@ export default function DailyReportForm() {
     }
 
     load()
-  }, [session, taskId, taskType])
+  }, [session, taskId, taskType, reportId])
 
   if (authLoading) return <p>Загрузка…</p>
   if (!session) return <Navigate to="/login" replace />
@@ -101,10 +155,7 @@ export default function DailyReportForm() {
     return <p>Сводки вносит только начальник буровой партии.</p>
   }
 
-  async function handleSubmit(
-    e: FormEvent,
-    mode: 'draft' | 'submit',
-  ) {
+  async function handleSubmit(e: FormEvent, mode: 'draft' | 'submit') {
     e.preventDefault()
     if (!profile || !taskId) return
     setSubmitting(mode)
@@ -121,43 +172,58 @@ export default function DailyReportForm() {
 
     const now = new Date().toISOString()
 
-    const { data: report, error: insertError } = await supabase
-      .from('reports')
-      .insert({
-        drilling_task_id: taskType === 'drilling' ? taskId : null,
-        core_description_task_id:
-          taskType === 'core-description' ? taskId : null,
-        site_id: siteId,
-        author_id: profile.id,
-        report_date: reportDate,
-        shift_number: shiftsApply && shiftNumber ? Number(shiftNumber) : null,
-        hours_worked: hoursWorked ? Number(hoursWorked) : null,
-        drilling_meters:
-          taskType === 'drilling' && drillingMeters
-            ? Number(drillingMeters)
-            : null,
-        core_description_interval_from:
-          taskType === 'core-description' && coreTo ? Number(coreFrom) : null,
-        core_description_interval_to:
-          taskType === 'core-description' && coreTo ? Number(coreTo) : null,
-        photofixation_interval_from:
-          taskType === 'core-description' && photoTo
-            ? Number(photoFrom)
-            : null,
-        photofixation_interval_to:
-          taskType === 'core-description' && photoTo
-            ? Number(photoTo)
-            : null,
-        approval_status: mode === 'submit' ? 'submitted' : 'draft',
-        submitted_at: mode === 'submit' ? now : null,
-      })
-      .select()
-      .single()
+    const fields = {
+      drilling_task_id: taskType === 'drilling' ? taskId : null,
+      core_description_task_id:
+        taskType === 'core-description' ? taskId : null,
+      site_id: siteId,
+      author_id: profile.id,
+      report_date: reportDate,
+      shift_number: shiftsApply && shiftNumber ? Number(shiftNumber) : null,
+      hours_worked: hoursWorked ? Number(hoursWorked) : null,
+      drilling_meters:
+        taskType === 'drilling' && drillingMeters
+          ? Number(drillingMeters)
+          : null,
+      core_description_interval_from:
+        taskType === 'core-description' && coreTo ? Number(coreFrom) : null,
+      core_description_interval_to:
+        taskType === 'core-description' && coreTo ? Number(coreTo) : null,
+      photofixation_interval_from:
+        taskType === 'core-description' && photoTo ? Number(photoFrom) : null,
+      photofixation_interval_to:
+        taskType === 'core-description' && photoTo ? Number(photoTo) : null,
+      approval_status: mode === 'submit' ? 'submitted' : 'draft',
+      submitted_at: mode === 'submit' ? now : null,
+    }
 
-    if (insertError || !report) {
-      setError(insertError?.message ?? 'Не удалось сохранить сводку')
+    const { data: report, error: saveError } = isEditMode
+      ? await supabase
+          .from('reports')
+          .update(fields)
+          .eq('id', reportId)
+          .select()
+          .single()
+      : await supabase.from('reports').insert(fields).select().single()
+
+    if (saveError || !report) {
+      setError(saveError?.message ?? 'Не удалось сохранить сводку')
       setSubmitting(null)
       return
+    }
+
+    // Затраты: при редактировании проще всего снести старые строки
+    // и записать текущее состояние формы заново, чем сверять построчно.
+    if (isEditMode) {
+      const { error: deleteError } = await supabase
+        .from('report_costs')
+        .delete()
+        .eq('report_id', report.id)
+      if (deleteError) {
+        setError(`Сводка сохранена, но не удалось обновить затраты: ${deleteError.message}`)
+        setSubmitting(null)
+        return
+      }
     }
 
     const validCosts = costRows.filter((c) => c.cost_category_id)
@@ -183,7 +249,7 @@ export default function DailyReportForm() {
     if (mode === 'submit') {
       setSuccessMsg('Сводка отправлена на согласование.')
     } else {
-      navigate(`/sites/${siteId}`)
+      navigate(`/tasks/${taskType}/${taskId}/reports`)
       return
     }
   }
@@ -191,7 +257,7 @@ export default function DailyReportForm() {
   return (
     <div style={{ maxWidth: 420 }}>
       <h1>
-        Сводка за смену —{' '}
+        {isEditMode ? 'Правка сводки' : 'Сводка за смену'} —{' '}
         {taskType === 'drilling'
           ? `скважина №${drillingTask?.well_number ?? '…'}`
           : 'описание керна'}

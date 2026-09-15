@@ -8,6 +8,7 @@ import SiteDetail from './routes/sites/SiteDetail'
 import DrillingTaskForm from './routes/tasks/DrillingTaskForm'
 import CoreDescriptionTaskForm from './routes/tasks/CoreDescriptionTaskForm'
 import DailyReportForm from './routes/reports/DailyReportForm'
+import TaskReportsList from './routes/reports/TaskReportsList'
 import UsersList from './routes/users/UsersList'
 
 // Каркас роутинга по экранам из ТЗ (раздел 5). Защита маршрутов по роли
@@ -53,7 +54,15 @@ function App() {
             element={<CoreDescriptionTaskForm />}
           />
           <Route
+            path="/tasks/:taskType/:taskId/reports"
+            element={<TaskReportsList />}
+          />
+          <Route
             path="/tasks/:taskType/:taskId/reports/new"
+            element={<DailyReportForm />}
+          />
+          <Route
+            path="/tasks/:taskType/:taskId/reports/:reportId/edit"
             element={<DailyReportForm />}
           />
         </Routes>
