@@ -271,7 +271,7 @@ export default function SummaryReport() {
   return (
     <div>
       <h1>Сводный отчёт</h1>
-      <p style={{ opacity: 0.7 }}>
+      <p className="text-muted">
         Учитываются только одобренные сводки (approval_status = approved).
       </p>
 
@@ -340,7 +340,7 @@ export default function SummaryReport() {
         </label>
       </div>
 
-      {error && <p style={{ color: '#c0392b' }}>{error}</p>}
+      {error && <p className="text-error">{error}</p>}
 
       {loading ? (
         <p>Загрузка…</p>

@@ -168,7 +168,7 @@ export default function ReportReview() {
             />
           </label>
 
-          {error && <p style={{ color: '#c0392b' }}>{error}</p>}
+          {error && <p className="text-error">{error}</p>}
 
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button
@@ -180,6 +180,7 @@ export default function ReportReview() {
             </button>
             <button
               type="button"
+              className="btn-danger"
               disabled={acting !== null}
               onClick={() => handleDecision('reject')}
             >

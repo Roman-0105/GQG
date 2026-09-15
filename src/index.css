@@ -1,111 +1,353 @@
+@import '@fontsource/manrope/400.css';
+@import '@fontsource/manrope/500.css';
+@import '@fontsource/manrope/600.css';
+@import '@fontsource/manrope/700.css';
+
+/* ==========================================================================
+   Дизайн-токены
+   Палитра — намеренно не "тёплый AI-крем" (#F4F1EA) и не типовой SaaS-синий:
+   тёплый каменно-песочный фон + приглушённый мшисто-зелёный акцент
+   (ассоциация с керном/породой — предметная область бурения/геологии),
+   глина как редкий второстепенный акцент. Один шрифт (Manrope) на всё,
+   вес различает заголовки и текст. Один радиус на семейство компонентов,
+   не "один border-radius на всё подряд".
+   ========================================================================== */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --color-bg: #f5f2ec;
+  --color-surface: #ffffff;
+  --color-surface-muted: #faf8f4;
+  --color-border: #e3ddd0;
+  --color-border-strong: #cfc7b6;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --color-text: #2b2a26;
+  --color-text-muted: #6f6a5e;
+  --color-text-faint: #9a947f;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  --color-primary: #3f6259;
+  --color-primary-hover: #34504a;
+  --color-primary-soft: #e4ebe6;
+
+  --color-accent: #a97a52;
+  --color-accent-soft: #f1e4d6;
+
+  --color-success: #4f7d5a;
+  --color-success-soft: #e6efe4;
+  --color-danger: #a8503f;
+  --color-danger-soft: #f4e3de;
+  --color-warning: #a67a34;
+  --color-warning-soft: #f3e8d3;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --shadow-sm: 0 1px 2px rgba(43, 42, 38, 0.06);
+  --shadow-md: 0 6px 20px rgba(43, 42, 38, 0.08);
+
+  --font-body: 'Manrope', system-ui, sans-serif;
+
+  color-scheme: light;
+  color: var(--color-text);
+  background: var(--color-bg);
+  font: 16px/1.5 var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+* {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  min-height: 100svh;
 }
 
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   Типографика
+   ========================================================================== */
 h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+h2,
+h3 {
+  font-family: var(--font-body);
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.25;
+  margin: 0 0 12px;
 }
 
 h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+  font-size: 28px;
+  letter-spacing: -0.3px;
 }
+
 h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
+  font-size: 19px;
+  margin-top: 28px;
 }
+
+h3 {
+  font-size: 16px;
+}
+
 p {
+  margin: 0 0 8px;
+  color: var(--color-text);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+ul {
+  padding-left: 0;
+  list-style: none;
   margin: 0;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 15px;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+li:last-child {
+  border-bottom: none;
+}
+
+/* ==========================================================================
+   Layout
+   ========================================================================== */
+.app-nav {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 14px 20px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  overflow-x: auto;
+}
+
+.app-nav a {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.app-nav a:hover {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.page {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   Формы
+   ========================================================================== */
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  /* 16px не меньше — иначе iOS Safari зумит страницу при фокусе на поле */
+  font-size: 16px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+input[readonly] {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  width: auto;
+  margin-right: 6px;
+  accent-color: var(--color-primary);
+}
+
+fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin: 0 0 4px;
+}
+
+legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 0 6px;
+}
+
+form {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ==========================================================================
+   Кнопки
+   ========================================================================== */
+button {
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  color: #fff;
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.05s ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  background: var(--color-border-strong);
+  color: var(--color-text-faint);
+  cursor: not-allowed;
+}
+
+/* Кнопки-иконки (✕ у динамических строк) — второстепенное действие,
+   не должно визуально спорить с основным CTA формы. */
+button.icon-btn {
+  background: transparent;
+  color: var(--color-text-faint);
+  border: 1px solid var(--color-border);
+  padding: 8px 10px;
+}
+
+button.icon-btn:hover:not(:disabled) {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+button.btn-outline {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+}
+
+button.btn-outline:hover:not(:disabled) {
+  background: var(--color-primary-soft);
+}
+
+button.btn-danger {
+  background: var(--color-danger);
+}
+
+button.btn-danger:hover:not(:disabled) {
+  background: #8a4436;
+}
+
+/* ==========================================================================
+   Утилиты
+   ========================================================================== */
+.text-error {
+  color: var(--color-danger);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+/* ==========================================================================
+   Статусные "бейджи" — согласование, статус задания
+   ========================================================================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badge-neutral {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.badge-primary {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.badge-success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.badge-danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.badge-warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
 }

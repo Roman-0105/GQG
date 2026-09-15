@@ -64,12 +64,12 @@ export default function Login() {
             style={{ display: 'block', width: '100%' }}
           />
         </label>
-        {error && <p style={{ color: '#c0392b' }}>{error}</p>}
+        {error && <p className="text-error">{error}</p>}
         <button type="submit" disabled={loading}>
           {loading ? 'Входим…' : 'Войти'}
         </button>
       </form>
-      <p style={{ fontSize: 13, opacity: 0.7, marginTop: 16 }}>
+      <p className="text-muted" style={{ fontSize: 13, marginTop: 16 }}>
         Учётные записи создаёт администратор (гендир/техдир) — открытой
         регистрации нет. Если у вас ещё нет доступа — обратитесь к
         руководителю.

@@ -109,7 +109,7 @@ export default function PendingApprovals() {
   return (
     <div>
       <h1>Сводки на согласовании</h1>
-      {error && <p style={{ color: '#c0392b' }}>{error}</p>}
+      {error && <p className="text-error">{error}</p>}
       {loading ? (
         <p>Загрузка…</p>
       ) : reports.length === 0 ? (

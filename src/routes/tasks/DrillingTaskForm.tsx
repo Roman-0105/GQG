@@ -259,7 +259,7 @@ export default function DrillingTaskForm() {
 
         <DiameterIntervalsEditor rows={diameters} onChange={setDiameters} />
 
-        {error && <p style={{ color: '#c0392b' }}>{error}</p>}
+        {error && <p className="text-error">{error}</p>}
 
         <button type="submit" disabled={submitting}>
           {submitting ? 'Создаём…' : 'Создать задание'}
