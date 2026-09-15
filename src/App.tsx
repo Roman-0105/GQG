@@ -1,5 +1,6 @@
 import { Routes, Route, Link } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { isSupabaseConfigured } from './lib/supabaseClient'
 import Login from './routes/Login'
 import Dashboard from './routes/Dashboard'
 import SitesList from './routes/sites/SitesList'
@@ -13,6 +14,21 @@ import DailyReportForm from './routes/reports/DailyReportForm'
 function App() {
   return (
     <AuthProvider>
+      {!isSupabaseConfigured && (
+        <div
+          style={{
+            background: '#7a1f1f',
+            color: '#fff',
+            padding: '10px 16px',
+            fontSize: 14,
+          }}
+        >
+          ⚠️ Supabase не настроен: не заданы VITE_SUPABASE_URL /
+          VITE_SUPABASE_PUBLISHABLE_KEY. Приложение работает без подключения
+          к базе. Проверьте .env (локально) или секреты репозитория
+          (GitHub Pages).
+        </div>
+      )}
       <nav style={{ display: 'flex', gap: 12, padding: 12 }}>
         <Link to="/">Дашборд</Link>
         <Link to="/sites">Участки</Link>

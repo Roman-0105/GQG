@@ -27,13 +27,22 @@ jobs:
 
       - run: npm ci
 
-      # ВАЖНО: значения секретов должны быть добавлены в
+      # Секреты должны быть добавлены в
       # Settings -> Secrets and variables -> Actions репозитория:
-      #   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+      #   VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY
+      # Явная проверка ниже — чтобы сборка падала с понятной ошибкой,
+      # а не тихо деплоила рабочий на вид, но нефункциональный сайт.
+      - name: Check required secrets are set
+        run: |
+          if [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] || [ -z "${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}" ]; then
+            echo "::error::Не заданы секреты VITE_SUPABASE_URL и/или VITE_SUPABASE_PUBLISHABLE_KEY (Settings -> Secrets and variables -> Actions)."
+            exit 1
+          fi
+
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
