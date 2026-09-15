@@ -23,9 +23,9 @@ function App() {
       {!isSupabaseConfigured && (
         <div
           style={{
-            background: '#7a1f1f',
+            background: 'var(--color-danger)',
             color: '#fff',
-            padding: '10px 16px',
+            padding: '10px 20px',
             fontSize: 14,
           }}
         >
@@ -35,7 +35,7 @@ function App() {
           Проверьте .env (локально) или секреты репозитория (GitHub Pages).
         </div>
       )}
-      <nav style={{ display: 'flex', gap: 12, padding: 12 }}>
+      <nav className="app-nav">
         <Link to="/">Дашборд</Link>
         <Link to="/sites">Участки</Link>
         <Link to="/users">Пользователи</Link>
@@ -43,7 +43,7 @@ function App() {
         <Link to="/reports/summary">Отчёты</Link>
         <Link to="/login">Вход</Link>
       </nav>
-      <main style={{ padding: 12 }}>
+      <main className="page">
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Dashboard />} />

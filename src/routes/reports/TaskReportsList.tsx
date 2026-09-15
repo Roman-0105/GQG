@@ -2,16 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
+import { ApprovalBadge } from '../../components/StatusBadge'
 import type { Report } from '../../types/database'
 
 type TaskType = 'drilling' | 'core-description'
-
-const APPROVAL_LABELS: Record<Report['approval_status'], string> = {
-  draft: 'Черновик',
-  submitted: 'На согласовании',
-  approved: 'Одобрено',
-  rejected: 'Отклонено',
-}
 
 export default function TaskReportsList() {
   const { taskType, taskId } = useParams<{
@@ -59,7 +53,7 @@ export default function TaskReportsList() {
       </p>
 
       <h1>Сводки по заданию</h1>
-      {error && <p style={{ color: '#c0392b' }}>{error}</p>}
+      {error && <p className="text-error">{error}</p>}
 
       {loading ? (
         <p>Загрузка…</p>
@@ -71,12 +65,9 @@ export default function TaskReportsList() {
             <li key={r.id}>
               {r.report_date}
               {r.shift_number ? `, смена ${r.shift_number}` : ''} —{' '}
-              {APPROVAL_LABELS[r.approval_status]}
+              <ApprovalBadge status={r.approval_status} />
               {r.approval_status === 'rejected' && r.review_comment && (
-                <span style={{ color: '#c0392b' }}>
-                  {' '}
-                  (причина: {r.review_comment})
-                </span>
+                <span className="text-error"> (причина: {r.review_comment})</span>
               )}
               {(r.approval_status === 'draft' || r.edit_unlocked) && (
                 <>

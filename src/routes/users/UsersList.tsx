@@ -141,8 +141,8 @@ export default function UsersList() {
           </select>
         </label>
 
-        {formError && <p style={{ color: '#c0392b' }}>{formError}</p>}
-        {successMsg && <p style={{ color: '#2e7d32' }}>{successMsg}</p>}
+        {formError && <p className="text-error">{formError}</p>}
+        {successMsg && <p className="text-success">{successMsg}</p>}
 
         <button type="submit" disabled={submitting}>
           {submitting ? 'Создаём…' : 'Создать пользователя'}
@@ -150,7 +150,7 @@ export default function UsersList() {
       </form>
 
       <h2>Список пользователей</h2>
-      {listError && <p style={{ color: '#c0392b' }}>{listError}</p>}
+      {listError && <p className="text-error">{listError}</p>}
       {loadingUsers ? (
         <p>Загрузка…</p>
       ) : (

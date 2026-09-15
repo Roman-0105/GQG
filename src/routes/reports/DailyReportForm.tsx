@@ -348,7 +348,7 @@ export default function DailyReportForm() {
                   value={coreFrom}
                   readOnly
                   title="Подставляется автоматически из предыдущей сводки"
-                  style={{ width: 80, opacity: 0.7 }}
+                  style={{ width: 80 }}
                 />
                 <input
                   type="number"
@@ -368,7 +368,7 @@ export default function DailyReportForm() {
                   value={photoFrom}
                   readOnly
                   title="Подставляется автоматически из предыдущей сводки"
-                  style={{ width: 80, opacity: 0.7 }}
+                  style={{ width: 80 }}
                 />
                 <input
                   type="number"
@@ -388,12 +388,13 @@ export default function DailyReportForm() {
             onChange={setCostRows}
           />
 
-          {error && <p style={{ color: '#c0392b' }}>{error}</p>}
-          {successMsg && <p style={{ color: '#2e7d32' }}>{successMsg}</p>}
+          {error && <p className="text-error">{error}</p>}
+          {successMsg && <p className="text-success">{successMsg}</p>}
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               type="button"
+              className="btn-outline"
               disabled={submitting !== null}
               onClick={(e) => handleSubmit(e, 'draft')}
             >

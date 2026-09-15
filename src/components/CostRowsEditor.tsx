@@ -69,12 +69,16 @@ export default function CostRowsEditor({ rows, categories, onChange }: Props) {
             onChange={(e) => updateRow(i, { amount: e.target.value })}
             style={{ width: 90 }}
           />
-          <button type="button" onClick={() => removeRow(i)}>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => removeRow(i)}
+          >
             ✕
           </button>
         </div>
       ))}
-      <button type="button" onClick={addRow}>
+      <button type="button" className="btn-outline" onClick={addRow}>
         + статья затрат
       </button>
     </div>

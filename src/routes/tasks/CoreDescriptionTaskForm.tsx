@@ -223,7 +223,7 @@ export default function CoreDescriptionTaskForm() {
               ))}
             </select>
             {ownDrillingTasks.length === 0 && (
-              <p style={{ fontSize: 13, opacity: 0.7 }}>
+              <p className="text-muted" style={{ fontSize: 13 }}>
                 На этом участке пока нет заданий на бурение — сначала создайте
                 их, либо выберите "скважина подрядчика".
               </p>
@@ -360,7 +360,7 @@ export default function CoreDescriptionTaskForm() {
           настраивается, см. ТЗ)
         </label>
 
-        {error && <p style={{ color: '#c0392b' }}>{error}</p>}
+        {error && <p className="text-error">{error}</p>}
 
         <button type="submit" disabled={submitting}>
           {submitting ? 'Создаём…' : 'Создать задание'}

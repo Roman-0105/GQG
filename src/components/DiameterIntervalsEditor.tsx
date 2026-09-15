@@ -58,12 +58,16 @@ export default function DiameterIntervalsEditor({ rows, onChange }: Props) {
             onChange={(e) => updateRow(i, { diameter: e.target.value })}
             style={{ width: 110 }}
           />
-          <button type="button" onClick={() => removeRow(i)}>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => removeRow(i)}
+          >
             ✕
           </button>
         </div>
       ))}
-      <button type="button" onClick={addRow}>
+      <button type="button" className="btn-outline" onClick={addRow}>
         + интервал
       </button>
     </div>

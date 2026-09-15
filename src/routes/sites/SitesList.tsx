@@ -80,7 +80,7 @@ export default function SitesList() {
         </form>
       )}
 
-      {error && <p style={{ color: '#c0392b' }}>{error}</p>}
+      {error && <p className="text-error">{error}</p>}
 
       {loading ? (
         <p>Загрузка списка…</p>

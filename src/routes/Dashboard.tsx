@@ -22,11 +22,15 @@ export default function Dashboard() {
         </p>
         <div
           style={{
-            background: '#222',
-            padding: 10,
+            background: 'var(--color-surface-muted)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            padding: 12,
             fontSize: 13,
             fontFamily: 'monospace',
+            color: 'var(--color-text-muted)',
             marginTop: 10,
+            marginBottom: 16,
             wordBreak: 'break-all',
           }}
         >
@@ -34,7 +38,9 @@ export default function Dashboard() {
           <p>auth.uid() (ваш session.user.id): {session.user.id}</p>
           <p>Ошибка запроса: {profileError ?? '—'}</p>
         </div>
-        <button onClick={signOut}>Выйти</button>
+        <button className="btn-outline" onClick={signOut}>
+          Выйти
+        </button>
       </div>
     )
   }
@@ -43,9 +49,11 @@ export default function Dashboard() {
     <div>
       <h1>Главный дашборд</h1>
       <p>
-        {profile.full_name} — {ROLE_LABELS[profile.role]}
+        {profile.full_name} — <span className="text-muted">{ROLE_LABELS[profile.role]}</span>
       </p>
-      <button onClick={signOut}>Выйти</button>
+      <button className="btn-outline" onClick={signOut}>
+        Выйти
+      </button>
     </div>
   )
 }
