@@ -13,24 +13,45 @@ const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as
   | string
   | undefined
 
-// createClient() из @supabase/supabase-js синхронно бросает исключение
-// при пустом URL/ключе — если не отловить это здесь, всё React-приложение
-// падает при загрузке модуля, ещё до первого рендера, и человек видит
-// просто пустой экран без единой подсказки, что пошло не так.
-export const isSupabaseConfigured = Boolean(
-  supabaseUrl && supabasePublishableKey,
-)
+// Значение может не только отсутствовать, но и быть НЕВАЛИДНЫМ (например,
+// в секрет случайно попал не URL, а ключ, или ссылка без "https://").
+// createClient() в обоих случаях синхронно бросает исключение при импорте
+// модуля — до первого рендера React, из-за чего человек видит просто
+// пустой экран без единой подсказки. Проверяем оба случая сами.
+function isValidHttpUrl(value: string | undefined): value is string {
+  if (!value) return false
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+const hasValidUrl = isValidHttpUrl(supabaseUrl)
+const hasKey = Boolean(supabasePublishableKey)
+
+export const isSupabaseConfigured = hasValidUrl && hasKey
 
 if (!isSupabaseConfigured) {
+  const reasons: string[] = []
+  if (!supabaseUrl) reasons.push('VITE_SUPABASE_URL не задан')
+  else if (!hasValidUrl)
+    reasons.push(
+      `VITE_SUPABASE_URL задан, но не похож на корректный URL: "${supabaseUrl}"`,
+    )
+  if (!hasKey) reasons.push('VITE_SUPABASE_PUBLISHABLE_KEY не задан')
+
   // eslint-disable-next-line no-console
   console.error(
-    'Не заданы VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY. ' +
-      'Локально: скопируйте .env.example в .env и заполните значениями из Settings > API Keys вашего проекта Supabase. ' +
-      'На проде (GitHub Pages): проверьте секреты репозитория с точно такими именами в Settings > Secrets and variables > Actions.',
+    'Supabase не настроен: ' +
+      reasons.join('; ') +
+      '. Локально: скопируйте .env.example в .env и заполните значениями из Settings > API Keys вашего проекта Supabase (URL выглядит как https://xxxxx.supabase.co). ' +
+      'На проде (GitHub Pages): проверьте секреты репозитория в Settings > Secrets and variables > Actions.',
   )
 }
 
 export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabasePublishableKey || 'placeholder-key',
+  hasValidUrl ? supabaseUrl : 'https://placeholder.supabase.co',
+  hasKey ? (supabasePublishableKey as string) : 'placeholder-key',
 )

@@ -23,10 +23,10 @@ function App() {
             fontSize: 14,
           }}
         >
-          ⚠️ Supabase не настроен: не заданы VITE_SUPABASE_URL /
-          VITE_SUPABASE_PUBLISHABLE_KEY. Приложение работает без подключения
-          к базе. Проверьте .env (локально) или секреты репозитория
-          (GitHub Pages).
+          ⚠️ Supabase не настроен: не заданы или некорректны
+          VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY (подробности —
+          в консоли браузера). Приложение работает без подключения к базе.
+          Проверьте .env (локально) или секреты репозитория (GitHub Pages).
         </div>
       )}
       <nav style={{ display: 'flex', gap: 12, padding: 12 }}>
