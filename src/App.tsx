@@ -5,12 +5,13 @@ import Login from './routes/Login'
 import Dashboard from './routes/Dashboard'
 import SitesList from './routes/sites/SitesList'
 import SiteDetail from './routes/sites/SiteDetail'
-import CreateTask from './routes/tasks/CreateTask'
+import DrillingTaskForm from './routes/tasks/DrillingTaskForm'
+import CoreDescriptionTaskForm from './routes/tasks/CoreDescriptionTaskForm'
 import DailyReportForm from './routes/reports/DailyReportForm'
 
 // Каркас роутинга по экранам из ТЗ (раздел 5). Защита маршрутов по роли
-// (AuthGuard/RequireRole) добавится на Этапе 2, когда появится схема БД
-// и таблица profiles с ролями пользователей.
+// (AuthGuard/RequireRole) добавится позже; пока каждый экран сам проверяет
+// profile.role и RLS всё равно не даст сделать лишнее на уровне БД.
 function App() {
   return (
     <AuthProvider>
@@ -40,7 +41,14 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/sites" element={<SitesList />} />
           <Route path="/sites/:siteId" element={<SiteDetail />} />
-          <Route path="/sites/:siteId/tasks/new" element={<CreateTask />} />
+          <Route
+            path="/sites/:siteId/tasks/drilling/new"
+            element={<DrillingTaskForm />}
+          />
+          <Route
+            path="/sites/:siteId/tasks/core-description/new"
+            element={<CoreDescriptionTaskForm />}
+          />
           <Route
             path="/tasks/:taskId/reports/new"
             element={<DailyReportForm />}
