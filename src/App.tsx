@@ -15,6 +15,7 @@ import DailyReportForm from './routes/reports/DailyReportForm'
 import TaskReportsList from './routes/reports/TaskReportsList'
 import ReportDetail from './routes/reports/ReportDetail'
 import PendingApprovals from './routes/reports/PendingApprovals'
+import MyReports from './routes/reports/MyReports'
 import ReportReview from './routes/reports/ReportReview'
 import SummaryReport from './routes/reports/SummaryReport'
 import TaskDashboard from './routes/tasks/TaskDashboard'
@@ -108,6 +109,7 @@ function App() {
             path="/tasks/:taskType/:taskId/reports/:reportId/edit"
             element={<DailyReportForm />}
           />
+          <Route path="/reports/mine" element={<MyReports />} />
           <Route path="/reports/pending" element={<PendingApprovals />} />
           <Route path="/reports/:reportId/review" element={<ReportReview />} />
           <Route path="/reports/summary" element={<SummaryReport />} />

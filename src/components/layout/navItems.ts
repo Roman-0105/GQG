@@ -4,6 +4,7 @@ import {
   Users,
   ClipboardCheck,
   FileBarChart,
+  FileClock,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { UserRole } from '../../types/roles'
@@ -23,6 +24,12 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Дашборд', icon: LayoutDashboard, show: () => true },
   { to: '/sites', label: 'Участки', icon: Mountain, show: () => true },
+  {
+    to: '/reports/mine',
+    label: 'Мои сводки',
+    icon: FileClock,
+    show: (role) => role === 'party_chief',
+  },
   {
     to: '/reports/pending',
     label: 'Согласование',

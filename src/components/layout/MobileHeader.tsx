@@ -16,8 +16,8 @@ export default function MobileHeader() {
   if (!session || !profile) {
     return (
       <header className="mobile-header">
-        <Link to="/" className="topnav-brand" style={{ marginRight: 0 }}>
-          <span className="topnav-brand-mark">
+        <Link to="/" className="brand" style={{ marginRight: 0 }}>
+          <span className="brand-mark">
             <Mountain size={15} strokeWidth={2.5} />
           </span>
           GQS

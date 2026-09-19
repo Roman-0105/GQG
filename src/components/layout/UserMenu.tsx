@@ -9,10 +9,19 @@ function initials(fullName: string) {
   return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')
 }
 
-// Один компонент для аватара-меню и на десктопе (в топнаве), и в мобильной
+interface UserMenuProps {
+  // Сайдбар открывается снизу вверх (триггер у нижнего края экрана) — вниз
+  // панель просто не влезла бы. Мобильная шапка — как раньше, вниз.
+  placement?: 'down' | 'up'
+  // В свёрнутом сайдбаре показываем только аватар; в развёрнутом — ещё и
+  // имя/роль рядом, чтобы место не пустовало.
+  showLabel?: boolean
+}
+
+// Один компонент для аватара-меню и на десктопе (в сайдбаре), и в мобильной
 // шапке — набор действий один и тот же (профиль/выход), нет смысла
 // дублировать разметку под два экрана.
-export default function UserMenu() {
+export default function UserMenu({ placement = 'down', showLabel = false }: UserMenuProps) {
   const { profile, signOut } = useAuth()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -36,24 +45,35 @@ export default function UserMenu() {
   if (!profile) return null
 
   return (
-    <div style={{ position: 'relative' }} ref={ref}>
+    <div style={{ position: 'relative', width: showLabel ? '100%' : undefined }} ref={ref}>
       <button
         type="button"
         className="user-menu-trigger"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
+        style={showLabel ? { width: '100%' } : undefined}
       >
         <span className="user-avatar">{initials(profile.full_name).toUpperCase()}</span>
+        {showLabel && (
+          <span style={{ minWidth: 0, textAlign: 'left' }}>
+            <span style={{ display: 'block', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {profile.full_name}
+            </span>
+            <span className="text-muted" style={{ display: 'block', fontSize: 11.5 }}>
+              {ROLE_LABELS[profile.role]}
+            </span>
+          </span>
+        )}
       </button>
       <AnimatePresence>
         {open && (
           <motion.div
-            className="user-menu-panel"
+            className={`user-menu-panel${placement === 'up' ? ' user-menu-panel-up' : ''}`}
             role="menu"
-            initial={{ opacity: 0, scale: 0.96, y: -6 }}
+            initial={{ opacity: 0, scale: 0.96, y: placement === 'up' ? 6 : -6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: -6 }}
+            exit={{ opacity: 0, scale: 0.96, y: placement === 'up' ? 6 : -6 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="user-menu-header">

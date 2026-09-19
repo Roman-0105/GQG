@@ -1,21 +1,22 @@
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useLocation } from 'react-router-dom'
-import TopNav from './TopNav'
+import Sidebar from './Sidebar'
 import MobileHeader from './MobileHeader'
 import BottomTabBar from './BottomTabBar'
 
-// Единая оболочка: ПК получает верхнюю навигацию, телефон — компактную
-// шапку + нижний таб-бар (переключаются медиа-запросом в index.css, а не
-// JS-детектом ширины — меньше мигания при ресайзе/повороте экрана).
-// Смена страницы — лёгкий кросс-фейд с подъёмом, единственный "большой"
-// момент анимации, вместо разрозненных дёрганий по всему интерфейсу.
+// Единая оболочка: ПК получает левый тулбар (сворачиваемый в иконки,
+// см. Sidebar.tsx), телефон — компактную шапку + нижний таб-бар
+// (переключаются медиа-запросом в index.css, а не JS-детектом ширины —
+// меньше мигания при ресайзе/повороте экрана). Смена страницы — лёгкий
+// кросс-фейд с подъёмом, единственный "большой" момент анимации, вместо
+// разрозненных дёрганий по всему интерфейсу.
 export default function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation()
 
   return (
     <div className="app-shell">
-      <TopNav />
+      <Sidebar />
       <MobileHeader />
       <main className="page">
         <AnimatePresence mode="wait">

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ChevronLeft, Layers, Plus, ChevronRight, Lock, Unlock, Scissors, FlaskConical, Pencil } from 'lucide-react'
+import { ChevronLeft, Layers, Plus, ChevronRight, Lock, Unlock, Scissors, FlaskConical, Pencil, FileText } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
@@ -59,6 +60,23 @@ function attentionCounts(taskId: string, taskField: TaskFkField, reports: Report
     rejected: rows.filter((r) => r.approval_status === 'rejected').length,
   }
 }
+
+// Керн/распиловка/опробование, прицепленные к конкретной скважине —
+// рендерятся вложенными строками внутри её карточки (см. отзыв 19.09.2026),
+// а не отдельными карточками верхнего уровня. Разные виды несут разные
+// метрики, отсюда объединение через union по наличию поля.
+interface AttachedRowBase {
+  key: string
+  taskType: 'core-description' | 'core-sawing' | 'sampling'
+  taskId: string
+  icon: LucideIcon
+  label: string
+  attention: { submitted: number; rejected: number }
+}
+type AttachedRow =
+  | (AttachedRowBase & { progress: { core: number; photo: number }; plan: number | null })
+  | (AttachedRowBase & { sawn: number; plan: number | null })
+  | (AttachedRowBase & { samples: { taken: number; submitted: number } })
 
 function AttentionBadges({ submitted, rejected }: { submitted: number; rejected: number }) {
   if (submitted === 0 && rejected === 0) return null
@@ -173,6 +191,12 @@ export default function SiteDetail() {
     rejected: reports.filter((r) => r.approval_status === 'rejected').length,
   }
 
+  // Задания на скважину подрядчика (без drilling_task_id) не к чему
+  // прицепить — остаются отдельными списками, как раньше. "Свои" уходят
+  // вложенными в карточку соответствующей скважины бурения (см. выше).
+  const externalCoreTasks = coreTasks.filter((t) => !t.drilling_task_id)
+  const externalSamplingTasks = samplingTasks.filter((t) => !t.drilling_task_id)
+
   return (
     <div>
       <Link
@@ -244,6 +268,49 @@ export default function SiteDetail() {
             <div style={{ display: 'grid', gap: 10 }}>
               {drillingTasks.map((t, i) => {
                 const attention = attentionCounts(t.id, 'drilling_task_id', reports)
+                // Керн/распиловка/опробование, прицепленные ИМЕННО к этой
+                // скважине (drilling_task_id совпадает) — показываем
+                // вложенными в карточку скважины, а не отдельным списком
+                // (см. отзыв 19.09.2026: одна физическая скважина — одна
+                // карточка). Задания на скважине подрядчика (без
+                // drilling_task_id) остаются отдельными списками ниже.
+                const attachedRows: AttachedRow[] = [
+                  ...coreTasks
+                    .filter((c) => c.drilling_task_id === t.id)
+                    .map((c) => ({
+                      key: `core-description:${c.id}`,
+                      taskType: 'core-description' as const,
+                      taskId: c.id,
+                      icon: Layers,
+                      label: c.documentation_type === 'geological' ? 'Описание керна · геологическая' : 'Описание керна · геотехническая',
+                      attention: attentionCounts(c.id, 'core_description_task_id', reports),
+                      progress: coreProgress(c.id, reports),
+                      plan: t.projected_depth,
+                    })),
+                  ...sawingTasks
+                    .filter((s) => s.drilling_task_id === t.id)
+                    .map((s) => ({
+                      key: `core-sawing:${s.id}`,
+                      taskType: 'core-sawing' as const,
+                      taskId: s.id,
+                      icon: Scissors,
+                      label: 'Распиловка керна',
+                      attention: attentionCounts(s.id, 'core_sawing_task_id', reports),
+                      sawn: sawingProgress(s.id, reports),
+                      plan: t.projected_depth,
+                    })),
+                  ...samplingTasks
+                    .filter((s) => s.drilling_task_id === t.id)
+                    .map((s) => ({
+                      key: `sampling:${s.id}`,
+                      taskType: 'sampling' as const,
+                      taskId: s.id,
+                      icon: FlaskConical,
+                      label: 'Опробование',
+                      attention: attentionCounts(s.id, 'sampling_task_id', reports),
+                      samples: samplingProgress(s.id, reports),
+                    })),
+                ]
                 return (
                   <motion.div
                     key={t.id}
@@ -263,9 +330,9 @@ export default function SiteDetail() {
                       </Link>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         {profile?.role === 'party_chief' && (
-                          <Link to={`/tasks/drilling/${t.id}/reports/new`}>
+                          <Link to={`/tasks/drilling/${t.id}/reports`}>
                             <button type="button" style={{ fontSize: 12.5, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <Plus size={13} /> Сводка
+                              <FileText size={13} /> Сводка
                             </button>
                           </Link>
                         )}
@@ -289,191 +356,169 @@ export default function SiteDetail() {
                         />
                       </div>
                     )}
+
+                    {attachedRows.length > 0 && (
+                      <div className="attached-row-list">
+                        {attachedRows.map((row) => (
+                          <div key={row.key} className="attached-row">
+                            <div className="attached-row-header">
+                              <row.icon size={14} className="text-muted" />
+                              <span>{row.label}</span>
+                              <AttentionBadges submitted={row.attention.submitted} rejected={row.attention.rejected} />
+                              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                {profile?.role === 'party_chief' && (
+                                  <Link to={`/tasks/${row.taskType}/${row.taskId}/reports`}>
+                                    <button type="button" style={{ fontSize: 12, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <FileText size={11} /> Сводка
+                                    </button>
+                                  </Link>
+                                )}
+                                <Link to={`/tasks/${row.taskType}/${row.taskId}/dashboard`} style={{ display: 'flex' }}>
+                                  <ChevronRight size={15} className="text-faint" />
+                                </Link>
+                              </div>
+                            </div>
+                            {'progress' in row && (
+                              <div style={{ marginTop: 6 }}>
+                                <ProgressBar label="Керн описан" approved={row.progress.core} plan={row.plan} />
+                                <ProgressBar label="Фотофиксация" approved={row.progress.photo} plan={row.plan} />
+                              </div>
+                            )}
+                            {'sawn' in row && (
+                              <div style={{ marginTop: 6 }}>
+                                <ProgressBar label="Распилено" approved={row.sawn} plan={row.plan} />
+                              </div>
+                            )}
+                            {'samples' in row && (
+                              <p className="text-muted" style={{ fontSize: 13, margin: '6px 0 0' }}>
+                                Проб отобрано: <span className="num text-success">{row.samples.taken}</span>
+                                {' · '}
+                                сдано в лабораторию: <span className="num text-success">{row.samples.submitted}</span>
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </motion.div>
                 )
               })}
             </div>
           )}
 
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Layers size={18} className="text-muted" /> Описание керна
-          </h2>
-          {coreTasks.length === 0 ? (
-            <p className="text-muted">Пока нет заданий на описание керна.</p>
-          ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
-              {coreTasks.map((t, i) => {
-                const attention = attentionCounts(t.id, 'core_description_task_id', reports)
-                const progress = coreProgress(t.id, reports)
-                const plan = t.drilling_task_id
-                  ? (drillingTasks.find((d) => d.id === t.drilling_task_id)?.projected_depth ?? null)
-                  : t.external_projected_depth
-                return (
-                  <motion.div
-                    key={t.id}
-                    className="card"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.28, delay: Math.min(i, 8) * 0.03, ease: [0.16, 1, 0.3, 1] }}
-                    style={{ padding: 14 }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                      <Link
-                        to={`/tasks/core-description/${t.id}/dashboard`}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15.5, flexWrap: 'wrap' }}
-                      >
-                        {t.drilling_task_id
-                          ? 'Своя скважина'
-                          : `Скважина подрядчика №${t.external_well_number}`}
-                        <span className="badge badge-neutral">
-                          {t.documentation_type === 'geological' ? 'геологическая' : 'геотехническая'}
-                        </span>
-                        {!t.shift_enabled && <span className="badge badge-neutral">без смен</span>}
-                      </Link>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        {profile?.role === 'party_chief' && (
-                          <Link to={`/tasks/core-description/${t.id}/reports/new`}>
-                            <button type="button" style={{ fontSize: 12.5, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <Plus size={13} /> Сводка
-                            </button>
-                          </Link>
-                        )}
-                        {isManagement(profile?.role) && (
-                          <Link to={`/sites/${siteId}/tasks/core-description/${t.id}/edit`} title="Редактировать задание">
-                            <Pencil size={16} className="text-faint" />
-                          </Link>
-                        )}
-                        <Link to={`/tasks/core-description/${t.id}/dashboard`} style={{ display: 'flex' }}>
-                          <ChevronRight size={17} className="text-faint" />
+          {externalCoreTasks.length > 0 && (
+            <>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Layers size={18} className="text-muted" /> Описание керна (скважина подрядчика)
+              </h2>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {externalCoreTasks.map((t, i) => {
+                  const attention = attentionCounts(t.id, 'core_description_task_id', reports)
+                  const progress = coreProgress(t.id, reports)
+                  return (
+                    <motion.div
+                      key={t.id}
+                      className="card"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.28, delay: Math.min(i, 8) * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                      style={{ padding: 14 }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                        <Link
+                          to={`/tasks/core-description/${t.id}/dashboard`}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15.5, flexWrap: 'wrap' }}
+                        >
+                          {`Скважина подрядчика №${t.external_well_number}`}
+                          <span className="badge badge-neutral">
+                            {t.documentation_type === 'geological' ? 'геологическая' : 'геотехническая'}
+                          </span>
+                          {!t.shift_enabled && <span className="badge badge-neutral">без смен</span>}
                         </Link>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          {profile?.role === 'party_chief' && (
+                            <Link to={`/tasks/core-description/${t.id}/reports`}>
+                              <button type="button" style={{ fontSize: 12.5, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <FileText size={13} /> Сводка
+                              </button>
+                            </Link>
+                          )}
+                          {isManagement(profile?.role) && (
+                            <Link to={`/sites/${siteId}/tasks/core-description/${t.id}/edit`} title="Редактировать задание">
+                              <Pencil size={16} className="text-faint" />
+                            </Link>
+                          )}
+                          <Link to={`/tasks/core-description/${t.id}/dashboard`} style={{ display: 'flex' }}>
+                            <ChevronRight size={17} className="text-faint" />
+                          </Link>
+                        </div>
                       </div>
-                    </div>
-                    <AttentionBadges submitted={attention.submitted} rejected={attention.rejected} />
-                    <div style={{ marginTop: 8 }}>
-                      <ProgressBar label="Керн описан" approved={progress.core} plan={plan} />
-                      <ProgressBar label="Фотофиксация" approved={progress.photo} plan={plan} />
-                    </div>
-                  </motion.div>
-                )
-              })}
-            </div>
+                      <AttentionBadges submitted={attention.submitted} rejected={attention.rejected} />
+                      <div style={{ marginTop: 8 }}>
+                        <ProgressBar label="Керн описан" approved={progress.core} plan={t.external_projected_depth} />
+                        <ProgressBar label="Фотофиксация" approved={progress.photo} plan={t.external_projected_depth} />
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            </>
           )}
 
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Scissors size={18} className="text-muted" /> Распиловка керна
-          </h2>
-          {sawingTasks.length === 0 ? (
-            <p className="text-muted">Пока нет заданий на распиловку.</p>
-          ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
-              {sawingTasks.map((t, i) => {
-                const attention = attentionCounts(t.id, 'core_sawing_task_id', reports)
-                const linkedWell = drillingTasks.find((d) => d.id === t.drilling_task_id)
-                return (
-                  <motion.div
-                    key={t.id}
-                    className="card"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.28, delay: Math.min(i, 8) * 0.03, ease: [0.16, 1, 0.3, 1] }}
-                    style={{ padding: 14 }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                      <Link
-                        to={`/tasks/core-sawing/${t.id}/dashboard`}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15.5 }}
-                      >
-                        Скважина №{linkedWell?.well_number ?? '…'}
-                      </Link>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        {profile?.role === 'party_chief' && (
-                          <Link to={`/tasks/core-sawing/${t.id}/reports/new`}>
-                            <button type="button" style={{ fontSize: 12.5, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <Plus size={13} /> Сводка
-                            </button>
-                          </Link>
-                        )}
-                        {isManagement(profile?.role) && (
-                          <Link to={`/sites/${siteId}/tasks/core-sawing/${t.id}/edit`} title="Редактировать задание">
-                            <Pencil size={16} className="text-faint" />
-                          </Link>
-                        )}
-                        <Link to={`/tasks/core-sawing/${t.id}/dashboard`} style={{ display: 'flex' }}>
-                          <ChevronRight size={17} className="text-faint" />
+          {externalSamplingTasks.length > 0 && (
+            <>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FlaskConical size={18} className="text-muted" /> Опробование (скважина подрядчика)
+              </h2>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {externalSamplingTasks.map((t, i) => {
+                  const attention = attentionCounts(t.id, 'sampling_task_id', reports)
+                  const progress = samplingProgress(t.id, reports)
+                  return (
+                    <motion.div
+                      key={t.id}
+                      className="card"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.28, delay: Math.min(i, 8) * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                      style={{ padding: 14 }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                        <Link
+                          to={`/tasks/sampling/${t.id}/dashboard`}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15.5 }}
+                        >
+                          {`Скважина подрядчика №${t.external_well_number}`}
                         </Link>
-                      </div>
-                    </div>
-                    <AttentionBadges submitted={attention.submitted} rejected={attention.rejected} />
-                    <div style={{ marginTop: 8 }}>
-                      <ProgressBar
-                        label="Распилено"
-                        approved={sawingProgress(t.id, reports)}
-                        plan={linkedWell?.projected_depth ?? null}
-                      />
-                    </div>
-                  </motion.div>
-                )
-              })}
-            </div>
-          )}
-
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FlaskConical size={18} className="text-muted" /> Опробование
-          </h2>
-          {samplingTasks.length === 0 ? (
-            <p className="text-muted">Пока нет заданий на опробование.</p>
-          ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
-              {samplingTasks.map((t, i) => {
-                const attention = attentionCounts(t.id, 'sampling_task_id', reports)
-                const progress = samplingProgress(t.id, reports)
-                const linkedWell = drillingTasks.find((d) => d.id === t.drilling_task_id)
-                return (
-                  <motion.div
-                    key={t.id}
-                    className="card"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.28, delay: Math.min(i, 8) * 0.03, ease: [0.16, 1, 0.3, 1] }}
-                    style={{ padding: 14 }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                      <Link
-                        to={`/tasks/sampling/${t.id}/dashboard`}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15.5 }}
-                      >
-                        {t.drilling_task_id
-                          ? `Своя скважина №${linkedWell?.well_number ?? '…'}`
-                          : `Скважина подрядчика №${t.external_well_number}`}
-                      </Link>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        {profile?.role === 'party_chief' && (
-                          <Link to={`/tasks/sampling/${t.id}/reports/new`}>
-                            <button type="button" style={{ fontSize: 12.5, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <Plus size={13} /> Сводка
-                            </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          {profile?.role === 'party_chief' && (
+                            <Link to={`/tasks/sampling/${t.id}/reports`}>
+                              <button type="button" style={{ fontSize: 12.5, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <FileText size={13} /> Сводка
+                              </button>
+                            </Link>
+                          )}
+                          {isManagement(profile?.role) && (
+                            <Link to={`/sites/${siteId}/tasks/sampling/${t.id}/edit`} title="Редактировать задание">
+                              <Pencil size={16} className="text-faint" />
+                            </Link>
+                          )}
+                          <Link to={`/tasks/sampling/${t.id}/dashboard`} style={{ display: 'flex' }}>
+                            <ChevronRight size={17} className="text-faint" />
                           </Link>
-                        )}
-                        {isManagement(profile?.role) && (
-                          <Link to={`/sites/${siteId}/tasks/sampling/${t.id}/edit`} title="Редактировать задание">
-                            <Pencil size={16} className="text-faint" />
-                          </Link>
-                        )}
-                        <Link to={`/tasks/sampling/${t.id}/dashboard`} style={{ display: 'flex' }}>
-                          <ChevronRight size={17} className="text-faint" />
-                        </Link>
+                        </div>
                       </div>
-                    </div>
-                    <AttentionBadges submitted={attention.submitted} rejected={attention.rejected} />
-                    <p className="text-muted" style={{ fontSize: 13.5, margin: '8px 0 0' }}>
-                      Проб отобрано: <span className="num text-success">{progress.taken}</span>
-                      {' · '}
-                      сдано в лабораторию: <span className="num text-success">{progress.submitted}</span>
-                    </p>
-                  </motion.div>
-                )
-              })}
-            </div>
+                      <AttentionBadges submitted={attention.submitted} rejected={attention.rejected} />
+                      <p className="text-muted" style={{ fontSize: 13.5, margin: '8px 0 0' }}>
+                        Проб отобрано: <span className="num text-success">{progress.taken}</span>
+                        {' · '}
+                        сдано в лабораторию: <span className="num text-success">{progress.submitted}</span>
+                      </p>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            </>
           )}
         </>
       )}

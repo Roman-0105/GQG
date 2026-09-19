@@ -22,6 +22,32 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10)
 }
 
+type AttachedTaskColumn = 'core_description_task_id' | 'core_sawing_task_id' | 'sampling_task_id'
+
+interface SiblingIds {
+  geo: string | null
+  geotech: string | null
+  sawing: string | null
+  sampling: string | null
+}
+
+const EMPTY_SIBLINGS: SiblingIds = { geo: null, geotech: null, sawing: null, sampling: null }
+
+// Строка-сиблинг может быть уже одобрена/на согласовании техдиром отдельно
+// от сводки по бурению (согласование раздельное, см. комментарий ниже) —
+// в этом случае RLS (reports_update_own_when_editable) её больше не даёт
+// трогать. "Заблокированный" тип доп. работы показываем только для чтения
+// и не пытаемся ни обновить, ни тем более вставить вторую строку рядом
+// (это задвоило бы метраж/пробы после одобрения обеих строк).
+interface SiblingLocked {
+  geo: boolean
+  geotech: boolean
+  sawing: boolean
+  sampling: boolean
+}
+
+const NOTHING_LOCKED: SiblingLocked = { geo: false, geotech: false, sawing: false, sampling: false }
+
 // Посменная сводка — см. ТЗ v0.7, раздел 3-4. Суточная сводка отдельно
 // НЕ заполняется, считается на фронтенде агрегацией посменных (позже,
 // на экране просмотра — этот PR закрывает только ввод/правку).
@@ -33,6 +59,15 @@ function todayIso() {
 // и CLAUDE.md. У распиловки смены называются "День"/"Ночь", а не "1-я"/
 // "2-я" — те же shift_number 1/2, просто другая подпись. У опробования
 // смен нет вообще (одна запись в день).
+//
+// 19.09.2026 — керн/распиловка/опробование можно прицепить прямо к
+// заданию на бурение (DrillingTaskForm, "Дополнительные работы на этой
+// скважине"). Когда таких прицепленных задач у скважины taskType='drilling'
+// есть — эта форма показывает для них дополнительные поля и при сохранении
+// пишет ОТДЕЛЬНЫЕ строки reports (по одной на каждую прицепленную задачу,
+// см. saveAttachedReport) с ТЕМИ ЖЕ датой/сменой/часами/комментарием, что
+// и у самой сводки по бурению. Согласование при этом остаётся раздельным
+// по каждой строке (см. обсуждение 19.09.2026) — просто ввод объединён.
 export default function DailyReportForm() {
   const { taskType, taskId, reportId } = useParams<{
     taskType: TaskType
@@ -53,6 +88,18 @@ export default function DailyReportForm() {
   const [linkedDrillingTask, setLinkedDrillingTask] = useState<DrillingTask | null>(null)
   const [loadingTask, setLoadingTask] = useState(true)
 
+  // Работы, прицепленные к ЭТОМУ заданию на бурение (taskType==='drilling'
+  // только) — см. комментарий выше.
+  const [attachedGeoCore, setAttachedGeoCore] = useState<CoreDescriptionTask | null>(null)
+  const [attachedGeotechCore, setAttachedGeotechCore] = useState<CoreDescriptionTask | null>(null)
+  const [attachedSawing, setAttachedSawing] = useState<CoreSawingTask | null>(null)
+  const [attachedSampling, setAttachedSampling] = useState<SamplingTask | null>(null)
+  // id уже существующих строк reports по этим прицепленным задачам за ту
+  // же дату/смену, что и текущая сводка — если найдены, submit их
+  // ОБНОВЛЯЕТ, а не создаёт дубликат.
+  const [siblingIds, setSiblingIds] = useState<SiblingIds>(EMPTY_SIBLINGS)
+  const [siblingLocked, setSiblingLocked] = useState<SiblingLocked>(NOTHING_LOCKED)
+
   const [categories, setCategories] = useState<CostCategory[]>([])
   const [costRows, setCostRows] = useState<CostRow[]>([emptyCostRow()])
 
@@ -71,6 +118,18 @@ export default function DailyReportForm() {
   const [sawnMeters, setSawnMeters] = useState('')
   const [samplesTaken, setSamplesTaken] = useState('')
   const [samplesSubmitted, setSamplesSubmitted] = useState('')
+
+  // Поля прицепленных геологической/геотехнической документации — отдельно
+  // от coreFrom/coreTo/photoFrom/photoTo, т.к. на одной скважине могут быть
+  // обе одновременно (см. миграцию 0007: это два разных задания).
+  const [geoCoreFrom, setGeoCoreFrom] = useState('0')
+  const [geoCoreTo, setGeoCoreTo] = useState('')
+  const [geoPhotoFrom, setGeoPhotoFrom] = useState('0')
+  const [geoPhotoTo, setGeoPhotoTo] = useState('')
+  const [geotechCoreFrom, setGeotechCoreFrom] = useState('0')
+  const [geotechCoreTo, setGeotechCoreTo] = useState('')
+  const [geotechPhotoFrom, setGeotechPhotoFrom] = useState('0')
+  const [geotechPhotoTo, setGeotechPhotoTo] = useState('')
 
   const [submitting, setSubmitting] = useState<'draft' | 'submit' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -100,11 +159,88 @@ export default function DailyReportForm() {
   useEffect(() => {
     if (!session || !taskId || !taskType) return
 
+    async function findSiblingReport(column: AttachedTaskColumn, id: string, date: string, shift: number | null) {
+      const query = supabase.from('reports').select('*').eq(column, id).eq('report_date', date)
+      const { data } = await (shift == null ? query.is('shift_number', null) : query.eq('shift_number', shift)).maybeSingle()
+      return data
+    }
+
+    // Подхватывает уже существующие строки reports по прицепленным работам
+    // за ту же дату(+смену), что и текущая сводка по бурению — и заполняет
+    // их поля, чтобы submit ОБНОВИЛ эти строки, а не создал дубликаты.
+    // draft/edit_unlocked — то же условие, что и в RLS reports_update_own_
+    // when_editable. Если сиблинг уже approved/submitted (согласуется
+    // отдельно от бурения, см. шапку файла), его нельзя ни обновить (упадёт
+    // с PGRST116, 0 строк), ни тем более вставить рядом вторую — задвоит
+    // метраж/пробы, если обе строки потом одобрят.
+    function isRowEditable(row: { approval_status: string; edit_unlocked: boolean }) {
+      return row.approval_status === 'draft' || row.edit_unlocked
+    }
+
+    async function loadAttachedSiblings(
+      date: string,
+      shift: number | null,
+      geo: CoreDescriptionTask | null,
+      geotech: CoreDescriptionTask | null,
+      saw: CoreSawingTask | null,
+      sample: SamplingTask | null,
+    ) {
+      const ids: SiblingIds = { ...EMPTY_SIBLINGS }
+      const locked: SiblingLocked = { ...NOTHING_LOCKED }
+
+      if (geo) {
+        const row = await findSiblingReport('core_description_task_id', geo.id, date, shift)
+        if (row) {
+          setGeoCoreFrom(row.core_description_interval_from != null ? String(row.core_description_interval_from) : '0')
+          setGeoCoreTo(row.core_description_interval_to != null ? String(row.core_description_interval_to) : '')
+          setGeoPhotoFrom(row.photofixation_interval_from != null ? String(row.photofixation_interval_from) : '0')
+          setGeoPhotoTo(row.photofixation_interval_to != null ? String(row.photofixation_interval_to) : '')
+          if (isRowEditable(row)) ids.geo = row.id
+          else locked.geo = true
+        }
+      }
+      if (geotech) {
+        const row = await findSiblingReport('core_description_task_id', geotech.id, date, shift)
+        if (row) {
+          setGeotechCoreFrom(row.core_description_interval_from != null ? String(row.core_description_interval_from) : '0')
+          setGeotechCoreTo(row.core_description_interval_to != null ? String(row.core_description_interval_to) : '')
+          setGeotechPhotoFrom(row.photofixation_interval_from != null ? String(row.photofixation_interval_from) : '0')
+          setGeotechPhotoTo(row.photofixation_interval_to != null ? String(row.photofixation_interval_to) : '')
+          if (isRowEditable(row)) ids.geotech = row.id
+          else locked.geotech = true
+        }
+      }
+      if (saw) {
+        const row = await findSiblingReport('core_sawing_task_id', saw.id, date, shift)
+        if (row) {
+          setSawnMeters(row.sawn_meters != null ? String(row.sawn_meters) : '')
+          if (isRowEditable(row)) ids.sawing = row.id
+          else locked.sawing = true
+        }
+      }
+      if (sample) {
+        const row = await findSiblingReport('sampling_task_id', sample.id, date, null)
+        if (row) {
+          setSamplesTaken(row.samples_taken != null ? String(row.samples_taken) : '')
+          setSamplesSubmitted(row.samples_submitted != null ? String(row.samples_submitted) : '')
+          if (isRowEditable(row)) ids.sampling = row.id
+          else locked.sampling = true
+        }
+      }
+      setSiblingIds(ids)
+      setSiblingLocked(locked)
+    }
+
     async function load() {
       setLoadingTask(true)
 
       const catRes = await supabase.from('cost_categories').select('*').order('name')
       if (catRes.data) setCategories(catRes.data)
+
+      let geo: CoreDescriptionTask | null = null
+      let geotech: CoreDescriptionTask | null = null
+      let saw: CoreSawingTask | null = null
+      let sample: SamplingTask | null = null
 
       if (taskType === 'drilling') {
         const { data } = await supabase
@@ -122,6 +258,20 @@ export default function DailyReportForm() {
         setPriorApprovedMeters(
           (approvedRows ?? []).reduce((s, r) => s + (r.drilling_meters ?? 0), 0),
         )
+
+        const [coreRes, sawingRes, samplingRes] = await Promise.all([
+          supabase.from('core_description_tasks').select('*').eq('drilling_task_id', taskId),
+          supabase.from('core_sawing_tasks').select('*').eq('drilling_task_id', taskId).maybeSingle(),
+          supabase.from('sampling_tasks').select('*').eq('drilling_task_id', taskId).maybeSingle(),
+        ])
+        geo = coreRes.data?.find((t) => t.documentation_type === 'geological') ?? null
+        geotech = coreRes.data?.find((t) => t.documentation_type === 'geotechnical') ?? null
+        saw = sawingRes.data ?? null
+        sample = samplingRes.data ?? null
+        setAttachedGeoCore(geo)
+        setAttachedGeotechCore(geotech)
+        setAttachedSawing(saw)
+        setAttachedSampling(sample)
       } else if (taskType === 'core-description') {
         const { data } = await supabase
           .from('core_description_tasks')
@@ -171,8 +321,13 @@ export default function DailyReportForm() {
             .eq('report_id', reportId),
         ])
 
+        let loadedDate = reportDate
+        let loadedShift: number | null = null
+
         if (reportRes.data) {
           const r = reportRes.data
+          loadedDate = r.report_date
+          loadedShift = r.shift_number
           setReportDate(r.report_date)
           setShiftNumber(r.shift_number ? (String(r.shift_number) as '1' | '2') : '')
           setHoursWorked(r.hours_worked != null ? String(r.hours_worked) : '')
@@ -214,6 +369,10 @@ export default function DailyReportForm() {
             })),
           )
         }
+
+        if (taskType === 'drilling' && reportRes.data) {
+          await loadAttachedSiblings(loadedDate, loadedShift, geo, geotech, saw, sample)
+        }
       } else if (taskType === 'core-description') {
         // Новая сводка — автоподстановка "от" из последнего "до" по заданию.
         const { data: lastReport } = await supabase
@@ -228,12 +387,36 @@ export default function DailyReportForm() {
           setCoreFrom(String(lastReport.core_description_interval_to ?? 0))
           setPhotoFrom(String(lastReport.photofixation_interval_to ?? 0))
         }
+      } else if (taskType === 'drilling') {
+        // Новая сводка по бурению — автоподстановка "от" для прицепленных
+        // задач керна (тот же приём, что и для самостоятельного описания
+        // керна выше), плюс подхват уже поданных сиблингов на сегодня/эту
+        // смену, если они как-то уже существуют.
+        async function autofillCore(task: CoreDescriptionTask, setFrom: (v: string) => void, setPhotoFromFn: (v: string) => void) {
+          const { data: lastReport } = await supabase
+            .from('reports')
+            .select('core_description_interval_to, photofixation_interval_to')
+            .eq('core_description_task_id', task.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (lastReport) {
+            setFrom(String(lastReport.core_description_interval_to ?? 0))
+            setPhotoFromFn(String(lastReport.photofixation_interval_to ?? 0))
+          }
+        }
+        if (geo) await autofillCore(geo, setGeoCoreFrom, setGeoPhotoFrom)
+        if (geotech) await autofillCore(geotech, setGeotechCoreFrom, setGeotechPhotoFrom)
+
+        const shift = shiftNumber ? Number(shiftNumber) : null
+        await loadAttachedSiblings(reportDate, shift, geo, geotech, saw, sample)
       }
 
       setLoadingTask(false)
     }
 
     load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, taskId, taskType, reportId])
 
   if (authLoading) return <p>Загрузка…</p>
@@ -260,6 +443,14 @@ export default function DailyReportForm() {
             : `скважина подрядчика №${samplingTask?.external_well_number ?? '…'}`
           : 'описание керна'
 
+  // Опробование можно показать в объединённой форме, только если ЭТОТ
+  // пользователь — тот же ответственный, что назначен на задание (иначе
+  // RLS не даст записать строку от его имени, см. reports_insert_own).
+  // Если ответственный за опробование — другая бригада, они вносят его
+  // сводки по-старому, через самостоятельное задание "Опробование".
+  const canFillAttachedSampling =
+    attachedSampling != null && attachedSampling.assigned_party_chief_id === profile?.id
+
   async function handleSubmit(e: FormEvent, mode: 'draft' | 'submit') {
     e.preventDefault()
     if (!profile || !taskId || !taskType) return
@@ -274,6 +465,36 @@ export default function DailyReportForm() {
     } finally {
       submittingRef.current = false
     }
+  }
+
+  async function saveAttachedReport(
+    column: AttachedTaskColumn,
+    attachedTaskId: string,
+    siblingId: string | null,
+    siteId: string,
+    shift: number | null,
+    metricFields: Record<string, number | null>,
+  ) {
+    if (!profile) throw new Error('Нет профиля')
+    const base = {
+      drilling_task_id: null as string | null,
+      core_description_task_id: null as string | null,
+      core_sawing_task_id: null as string | null,
+      sampling_task_id: null as string | null,
+      [column]: attachedTaskId,
+      site_id: siteId,
+      author_id: profile.id,
+      report_date: reportDate,
+      shift_number: shift,
+      hours_worked: hoursWorked ? Number(hoursWorked) : null,
+      shift_notes: shiftNotes.trim() || null,
+      approval_status: 'draft' as const,
+      submitted_at: null,
+      ...metricFields,
+    }
+    return siblingId
+      ? await supabase.from('reports').update(base).eq('id', siblingId).select().single()
+      : await supabase.from('reports').insert(base).select().single()
   }
 
   async function doSubmit(mode: 'draft' | 'submit') {
@@ -345,6 +566,8 @@ export default function DailyReportForm() {
 
     // Затраты: при редактировании проще всего снести старые строки
     // и записать текущее состояние формы заново, чем сверять построчно.
+    // Затраты привязаны только к основной строке (бурение) — не дублируем
+    // и не делим их между прицепленными работами той же смены.
     if (isEditMode) {
       const { error: deleteError } = await supabase
         .from('report_costs')
@@ -375,8 +598,113 @@ export default function DailyReportForm() {
       }
     }
 
+    // Прицепленные к скважине работы (керн/распиловка/опробование) —
+    // отдельные строки reports с той же датой/сменой/часами/комментарием,
+    // см. комментарий в шапке файла. Пишем только те, где реально введены
+    // данные (или где уже есть строка-сиблинг — тогда обновляем её, даже
+    // если поля очистили до пустых).
+    const newSiblingIds: SiblingIds = { ...siblingIds }
+    const attachedShift = shiftNumber ? Number(shiftNumber) : null
+
+    if (taskType === 'drilling') {
+      if (attachedGeoCore && !siblingLocked.geo && (siblingIds.geo || geoCoreTo || geoPhotoTo)) {
+        const res = await saveAttachedReport(
+          'core_description_task_id',
+          attachedGeoCore.id,
+          siblingIds.geo,
+          siteId,
+          attachedShift,
+          {
+            core_description_interval_from: geoCoreTo ? Number(geoCoreFrom) : null,
+            core_description_interval_to: geoCoreTo ? Number(geoCoreTo) : null,
+            photofixation_interval_from: geoPhotoTo ? Number(geoPhotoFrom) : null,
+            photofixation_interval_to: geoPhotoTo ? Number(geoPhotoTo) : null,
+          },
+        )
+        if (res.error || !res.data) {
+          setError(`Сводка по бурению сохранена, но не удалось сохранить керн (геологическая): ${res.error?.message ?? '—'}`)
+          setSubmitting(null)
+          return
+        }
+        newSiblingIds.geo = res.data.id
+      }
+
+      if (attachedGeotechCore && !siblingLocked.geotech && (siblingIds.geotech || geotechCoreTo || geotechPhotoTo)) {
+        const res = await saveAttachedReport(
+          'core_description_task_id',
+          attachedGeotechCore.id,
+          siblingIds.geotech,
+          siteId,
+          attachedShift,
+          {
+            core_description_interval_from: geotechCoreTo ? Number(geotechCoreFrom) : null,
+            core_description_interval_to: geotechCoreTo ? Number(geotechCoreTo) : null,
+            photofixation_interval_from: geotechPhotoTo ? Number(geotechPhotoFrom) : null,
+            photofixation_interval_to: geotechPhotoTo ? Number(geotechPhotoTo) : null,
+          },
+        )
+        if (res.error || !res.data) {
+          setError(`Сводка по бурению сохранена, но не удалось сохранить керн (геотехническая): ${res.error?.message ?? '—'}`)
+          setSubmitting(null)
+          return
+        }
+        newSiblingIds.geotech = res.data.id
+      }
+
+      if (attachedSawing && !siblingLocked.sawing && (siblingIds.sawing || sawnMeters)) {
+        const res = await saveAttachedReport(
+          'core_sawing_task_id',
+          attachedSawing.id,
+          siblingIds.sawing,
+          siteId,
+          attachedShift,
+          { sawn_meters: sawnMeters ? Number(sawnMeters) : null },
+        )
+        if (res.error || !res.data) {
+          setError(`Сводка по бурению сохранена, но не удалось сохранить распиловку: ${res.error?.message ?? '—'}`)
+          setSubmitting(null)
+          return
+        }
+        newSiblingIds.sawing = res.data.id
+      }
+
+      if (
+        canFillAttachedSampling &&
+        attachedSampling &&
+        !siblingLocked.sampling &&
+        (siblingIds.sampling || samplesTaken || samplesSubmitted)
+      ) {
+        const res = await saveAttachedReport(
+          'sampling_task_id',
+          attachedSampling.id,
+          siblingIds.sampling,
+          siteId,
+          null,
+          {
+            samples_taken: samplesTaken ? Number(samplesTaken) : null,
+            samples_submitted: samplesSubmitted ? Number(samplesSubmitted) : null,
+          },
+        )
+        if (res.error || !res.data) {
+          setError(`Сводка по бурению сохранена, но не удалось сохранить опробование: ${res.error?.message ?? '—'}`)
+          setSubmitting(null)
+          return
+        }
+        newSiblingIds.sampling = res.data.id
+      }
+
+      setSiblingIds(newSiblingIds)
+    }
+
     if (mode === 'submit') {
       const now = new Date().toISOString()
+      const idsToSubmit = [
+        report.id,
+        ...(taskType === 'drilling'
+          ? [newSiblingIds.geo, newSiblingIds.geotech, newSiblingIds.sawing, newSiblingIds.sampling]
+          : []),
+      ].filter((id): id is string => Boolean(id))
+
       const { error: submitError } = await supabase
         .from('reports')
         .update({
@@ -387,7 +715,7 @@ export default function DailyReportForm() {
           edit_unlocked: false,
           review_comment: null,
         })
-        .eq('id', report.id)
+        .in('id', idsToSubmit)
       if (submitError) {
         setError(
           `Сводка и затраты сохранены как черновик, но не удалось отправить на согласование: ${submitError.message}`,
@@ -408,6 +736,25 @@ export default function DailyReportForm() {
 
   async function handleCopyWhatsApp() {
     const meters = drillingMeters ? Number(drillingMeters) : 0
+    const coreDescriptions = []
+    if (attachedGeoCore && geoCoreTo) {
+      coreDescriptions.push({
+        label: 'геологическая',
+        from: Number(geoCoreFrom),
+        to: Number(geoCoreTo),
+        photoFrom: geoPhotoTo ? Number(geoPhotoFrom) : null,
+        photoTo: geoPhotoTo ? Number(geoPhotoTo) : null,
+      })
+    }
+    if (attachedGeotechCore && geotechCoreTo) {
+      coreDescriptions.push({
+        label: 'геотехническая',
+        from: Number(geotechCoreFrom),
+        to: Number(geotechCoreTo),
+        photoFrom: geotechPhotoTo ? Number(geotechPhotoFrom) : null,
+        photoTo: geotechPhotoTo ? Number(geotechPhotoTo) : null,
+      })
+    }
     const message = buildDrillingShiftMessage({
       wellNumber: drillingTask?.well_number ?? '?',
       rigNumber: drillingTask?.rig_number ?? null,
@@ -416,6 +763,10 @@ export default function DailyReportForm() {
       meters,
       bottomHole: priorApprovedMeters + meters,
       shiftNotes,
+      coreDescriptions,
+      sawnMeters: attachedSawing && sawnMeters ? Number(sawnMeters) : null,
+      samplesTaken: canFillAttachedSampling && samplesTaken ? Number(samplesTaken) : null,
+      samplesSubmitted: canFillAttachedSampling && samplesSubmitted ? Number(samplesSubmitted) : null,
     })
     try {
       await navigator.clipboard.writeText(message)
@@ -593,6 +944,149 @@ export default function DailyReportForm() {
                   step="1"
                   value={samplesSubmitted}
                   onChange={(e) => setSamplesSubmitted(e.target.value)}
+                />
+              </label>
+            </>
+          )}
+
+          {taskType === 'drilling' && attachedGeoCore && (
+            <fieldset>
+              <legend>Керн, геологическая документация — интервал</legend>
+              {siblingLocked.geo && (
+                <p className="text-muted" style={{ fontSize: 12.5, margin: '0 0 6px' }}>
+                  Уже согласуется отдельно от бурения — правка отсюда недоступна.
+                </p>
+              )}
+              <input
+                type="number"
+                step="any"
+                placeholder="от"
+                value={geoCoreFrom}
+                readOnly
+                title="Подставляется автоматически из предыдущей сводки"
+                style={{ width: 80 }}
+              />
+              <input
+                type="number"
+                step="any"
+                placeholder="до"
+                value={geoCoreTo}
+                onChange={(e) => setGeoCoreTo(e.target.value)}
+                disabled={siblingLocked.geo}
+                style={{ width: 80 }}
+              />
+              <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--color-text-muted)' }}>Фотофиксация</div>
+              <input
+                type="number"
+                step="any"
+                placeholder="от"
+                value={geoPhotoFrom}
+                readOnly
+                style={{ width: 80 }}
+              />
+              <input
+                type="number"
+                step="any"
+                placeholder="до"
+                value={geoPhotoTo}
+                onChange={(e) => setGeoPhotoTo(e.target.value)}
+                disabled={siblingLocked.geo}
+                style={{ width: 80 }}
+              />
+            </fieldset>
+          )}
+
+          {taskType === 'drilling' && attachedGeotechCore && (
+            <fieldset>
+              <legend>Керн, геотехническая документация — интервал</legend>
+              {siblingLocked.geotech && (
+                <p className="text-muted" style={{ fontSize: 12.5, margin: '0 0 6px' }}>
+                  Уже согласуется отдельно от бурения — правка отсюда недоступна.
+                </p>
+              )}
+              <input
+                type="number"
+                step="any"
+                placeholder="от"
+                value={geotechCoreFrom}
+                readOnly
+                title="Подставляется автоматически из предыдущей сводки"
+                style={{ width: 80 }}
+              />
+              <input
+                type="number"
+                step="any"
+                placeholder="до"
+                value={geotechCoreTo}
+                onChange={(e) => setGeotechCoreTo(e.target.value)}
+                disabled={siblingLocked.geotech}
+                style={{ width: 80 }}
+              />
+              <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--color-text-muted)' }}>Фотофиксация</div>
+              <input
+                type="number"
+                step="any"
+                placeholder="от"
+                value={geotechPhotoFrom}
+                readOnly
+                style={{ width: 80 }}
+              />
+              <input
+                type="number"
+                step="any"
+                placeholder="до"
+                value={geotechPhotoTo}
+                onChange={(e) => setGeotechPhotoTo(e.target.value)}
+                disabled={siblingLocked.geotech}
+                style={{ width: 80 }}
+              />
+            </fieldset>
+          )}
+
+          {taskType === 'drilling' && attachedSawing && (
+            <label>
+              Распилено за смену, м
+              {siblingLocked.sawing && (
+                <span className="text-muted" style={{ fontWeight: 400, fontSize: 12.5 }}>
+                  {' '}
+                  (уже согласуется отдельно — правка отсюда недоступна)
+                </span>
+              )}
+              <input
+                type="number"
+                step="any"
+                value={sawnMeters}
+                onChange={(e) => setSawnMeters(e.target.value)}
+                disabled={siblingLocked.sawing}
+              />
+            </label>
+          )}
+
+          {taskType === 'drilling' && canFillAttachedSampling && (
+            <>
+              {siblingLocked.sampling && (
+                <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>
+                  Опробование за эту дату уже согласуется отдельно — правка отсюда недоступна.
+                </p>
+              )}
+              <label>
+                Проб отобрано
+                <input
+                  type="number"
+                  step="1"
+                  value={samplesTaken}
+                  onChange={(e) => setSamplesTaken(e.target.value)}
+                  disabled={siblingLocked.sampling}
+                />
+              </label>
+              <label>
+                Проб сдано в лабораторию
+                <input
+                  type="number"
+                  step="1"
+                  value={samplesSubmitted}
+                  onChange={(e) => setSamplesSubmitted(e.target.value)}
+                  disabled={siblingLocked.sampling}
                 />
               </label>
             </>

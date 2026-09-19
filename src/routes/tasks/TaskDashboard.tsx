@@ -13,6 +13,7 @@ import {
   Pencil,
   Scissors,
   FlaskConical,
+  Plus,
 } from 'lucide-react'
 import DerrickIcon from '../../components/icons/DerrickIcon'
 import { supabase } from '../../lib/supabaseClient'
@@ -386,13 +387,20 @@ export default function TaskDashboard() {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 14, fontSize: 13.5, marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 13.5, marginBottom: 14, flexWrap: 'wrap' }}>
         {siteId && (
           <Link to={`/sites/${siteId}`} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <ChevronLeft size={15} /> Участок
           </Link>
         )}
         <Link to={`/tasks/${taskType}/${taskId}/reports`}>Все сводки →</Link>
+        {profile?.role === 'party_chief' && (
+          <Link to={`/tasks/${taskType}/${taskId}/reports/new`} style={{ marginLeft: 'auto' }}>
+            <button type="button" style={{ fontSize: 12.5, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Plus size={13} /> Сводка
+            </button>
+          </Link>
+        )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>

@@ -207,7 +207,7 @@ li:last-child {
 }
 
 /* ==========================================================================
-   Оболочка приложения: верхняя навигация (ПК) / нижний таб-бар (моб.)
+   Оболочка приложения: левый тулбар (ПК) / нижний таб-бар (моб.)
    ========================================================================== */
 .app-shell {
   flex: 1;
@@ -216,22 +216,7 @@ li:last-child {
   min-height: 100svh;
 }
 
-.topnav {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: var(--nav-h);
-  padding: 0 24px;
-  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
-  backdrop-filter: blur(10px) saturate(1.4);
-  -webkit-backdrop-filter: blur(10px) saturate(1.4);
-  border-bottom: 1px solid var(--color-border);
-  position: sticky;
-  top: 0;
-  z-index: 30;
-}
-
-.topnav-brand {
+.brand {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -239,12 +224,13 @@ li:last-child {
   font-weight: 700;
   font-size: 18px;
   color: var(--color-text);
-  margin-right: 18px;
   white-space: nowrap;
   flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.topnav-brand-mark {
+.brand-mark {
   width: 30px;
   height: 30px;
   border-radius: 9px;
@@ -257,62 +243,151 @@ li:last-child {
   box-shadow: var(--shadow-sm);
 }
 
-.topnav-links {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex: 1;
-  overflow-x: auto;
-  scrollbar-width: none;
-  height: 100%;
-}
-
-.topnav-links::-webkit-scrollbar {
+/* ---- левый тулбар (ПК, >=768px) ---- */
+.sidebar {
   display: none;
 }
 
-.topnav-link {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 100%;
-  padding: 0 14px;
-  color: var(--color-text-muted);
-  font-weight: 600;
-  font-size: 13.5px;
-  white-space: nowrap;
-  transition: color var(--dur-fast) var(--ease-out);
+@media (min-width: 768px) {
+  .app-shell {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    width: var(--sidebar-w, 232px);
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+    backdrop-filter: blur(10px) saturate(1.4);
+    -webkit-backdrop-filter: blur(10px) saturate(1.4);
+    border-right: 1px solid var(--color-border);
+    position: sticky;
+    top: 0;
+    height: 100svh;
+    z-index: 30;
+    transition: width var(--dur-base) var(--ease-out);
+  }
+
+  .sidebar.is-collapsed {
+    width: var(--sidebar-w-collapsed, 68px);
+  }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: var(--nav-h);
+    padding: 0 14px;
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+
+  .sidebar.is-collapsed .sidebar-header {
+    padding: 0 12px;
+  }
+
+  .sidebar-collapse-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    border: none;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+
+  .sidebar-collapse-btn:hover {
+    background: var(--color-surface-muted);
+    color: var(--color-primary);
+  }
+
+  .sidebar-links {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px;
+    overflow-y: auto;
+  }
+
+  .sidebar-link {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 10px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    font-weight: 600;
+    font-size: 13.5px;
+    white-space: nowrap;
+    transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .sidebar.is-collapsed .sidebar-link {
+    justify-content: center;
+    padding: 9px;
+  }
+
+  .sidebar-link:hover {
+    color: var(--color-primary);
+    background: var(--color-surface-muted);
+    text-decoration: none;
+  }
+
+  .sidebar-link.is-active {
+    color: var(--color-primary);
+    background: var(--color-primary-soft);
+  }
+
+  .sidebar-link-icon {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+
+  .sidebar-link-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sidebar-link-indicator {
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+    background: var(--color-primary);
+  }
+
+  .sidebar-dot {
+    position: absolute;
+    top: -3px;
+    right: -4px;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    background: var(--color-danger);
+    border: 2px solid var(--color-surface);
+  }
+
+  .sidebar-footer {
+    padding: 10px;
+    border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
 }
 
-.topnav-link:hover {
-  color: var(--color-primary);
-  text-decoration: none;
-}
-
-.topnav-link.is-active {
-  color: var(--color-primary);
-}
-
-.topnav-link-underline {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 0;
-  height: 2.5px;
-  border-radius: 2px 2px 0 0;
-  background: var(--color-primary);
-}
-
-.topnav-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-  margin-left: 10px;
-}
-
-.topnav-icon-btn {
+.icon-btn-round {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -324,10 +399,11 @@ li:last-child {
   color: var(--color-text-muted);
   border: none;
   padding: 0;
+  flex-shrink: 0;
   transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 
-.topnav-icon-btn:hover:not(:disabled) {
+.icon-btn-round:hover:not(:disabled) {
   background: var(--color-surface-muted);
   color: var(--color-primary);
 }
@@ -349,6 +425,31 @@ li:last-child {
   align-items: center;
   justify-content: center;
   border: 2px solid var(--color-surface);
+}
+
+/* ---- модальное окно (напр. категория сводок, "Мои сводки") ---- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-text) 45%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 50;
+}
+
+.modal-panel {
+  width: 100%;
+  max-width: 420px;
+  max-height: calc(100svh - 40px);
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 18px;
+  box-sizing: border-box;
 }
 
 .user-menu-trigger {
@@ -396,6 +497,13 @@ li:last-child {
   z-index: 40;
 }
 
+.user-menu-panel-up {
+  top: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: auto;
+}
+
 .user-menu-header {
   padding: 8px 10px 10px;
   border-bottom: 1px solid var(--color-border);
@@ -433,10 +541,6 @@ li:last-child {
 }
 
 @media (max-width: 767px) {
-  .topnav {
-    display: none;
-  }
-
   .mobile-header {
     display: flex;
     align-items: center;
@@ -545,6 +649,7 @@ li:last-child {
 
 .page {
   flex: 1;
+  min-width: 0;
   width: 100%;
   max-width: 1080px;
   margin: 0 auto;
@@ -583,6 +688,75 @@ li:last-child {
   box-shadow: var(--shadow-md);
   border-color: var(--color-border-strong);
   text-decoration: none;
+}
+
+/* ---- дополнительные работы, прицепленные к заданию на бурение
+   (AttachedCoreDescriptionCard / AttachedSawingCard / AttachedSamplingCard) ---- */
+button.attached-task-add {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  justify-content: flex-start;
+  padding: 12px 14px;
+  border-style: dashed;
+  font-size: 13.5px;
+}
+
+.attached-task-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.attached-task-card-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.attached-task-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.attached-task-checkbox input {
+  width: auto;
+}
+
+/* ---- вложенные в карточку скважины подзадачи (SiteDetail) ---- */
+.attached-row-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--color-border);
+}
+
+.attached-row {
+  padding: 10px 12px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+}
+
+.attached-row-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  font-weight: 600;
 }
 
 /* ==========================================================================
