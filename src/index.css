@@ -1,0 +1,900 @@
+@import '@fontsource/manrope/400.css';
+@import '@fontsource/manrope/500.css';
+@import '@fontsource/manrope/600.css';
+@import '@fontsource/manrope/700.css';
+@import '@fontsource/fraunces/500.css';
+@import '@fontsource/fraunces/600.css';
+@import '@fontsource/fraunces/700.css';
+@import '@fontsource/fraunces/500-italic.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/600.css';
+
+/* ==========================================================================
+   Дизайн-токены
+   Палитра — намеренно не "тёплый AI-крем" (#F4F1EA) и не типовой SaaS-синий:
+   тёплый каменно-песочный фон + приглушённый мшисто-зелёный акцент
+   (ассоциация с керном/породой — предметная область бурения/геологии),
+   глина как редкий второстепенный акцент. Цвета — НЕ трогать без явного
+   запроса (см. CLAUDE.md).
+
+   Редизайн 2026-09-17: пара шрифтов вместо одного — Fraunces (тёплая
+   контрастная антиква, характер геологического полевого дневника) на
+   заголовках, Manrope на интерфейсе, JetBrains Mono на всех числах
+   (глубины, проценты, даты) — приборная точность там, где это буровая
+   инженерия. Все три самохостятся через @fontsource — офлайн-режим
+   не должен зависеть от Google Fonts CDN.
+   ========================================================================== */
+:root {
+  --color-bg: #f5f2ec;
+  --color-surface: #ffffff;
+  --color-surface-muted: #faf8f4;
+  --color-border: #e3ddd0;
+  --color-border-strong: #cfc7b6;
+
+  --color-text: #2b2a26;
+  --color-text-muted: #6f6a5e;
+  --color-text-faint: #9a947f;
+
+  --color-primary: #3f6259;
+  --color-primary-hover: #34504a;
+  --color-primary-soft: #e4ebe6;
+
+  --color-accent: #a97a52;
+  --color-accent-soft: #f1e4d6;
+
+  --color-success: #4f7d5a;
+  --color-success-soft: #e6efe4;
+  --color-danger: #a8503f;
+  --color-danger-soft: #f4e3de;
+  --color-warning: #a67a34;
+  --color-warning-soft: #f3e8d3;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-full: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(43, 42, 38, 0.07);
+  --shadow-md: 0 8px 24px -4px rgba(43, 42, 38, 0.12);
+  --shadow-lg: 0 20px 45px -12px rgba(43, 42, 38, 0.22);
+  --shadow-focus: 0 0 0 3px var(--color-primary-soft);
+
+  --font-body: 'Manrope', system-ui, sans-serif;
+  --font-display: 'Fraunces', 'Manrope', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 420ms;
+
+  --nav-h: 64px;
+  --tabbar-h: 60px;
+
+  color-scheme: light;
+  color: var(--color-text);
+  background: var(--color-bg);
+  font: 15.5px/1.55 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  /* лёгкое "бумажное" зерно на фоне — не текстура-картинка, а сгенерированный
+     радиальный узор поверх плоского цвета, ощущается как полевой блокнот,
+     а не плоская SaaS-панель */
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(43, 42, 38, 0.045) 1px, transparent 0);
+  background-size: 22px 22px;
+  background-color: var(--color-bg);
+}
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+::selection {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   Типографика
+   ========================================================================== */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0 0 12px;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(26px, 4vw, 32px);
+  font-weight: 600;
+}
+
+h2 {
+  font-size: 21px;
+  margin-top: 30px;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+p {
+  margin: 0 0 8px;
+  color: var(--color-text);
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+ul {
+  padding-left: 0;
+  list-style: none;
+  margin: 0;
+}
+
+li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 15px;
+}
+
+li:last-child {
+  border-bottom: none;
+}
+
+/* Числа — глубины, проценты, даты, метраж: моноширинный приборный вид,
+   табличное выравнивание разрядов. Используется точечно через className. */
+.num,
+.eyebrow,
+.badge {
+  font-variant-numeric: tabular-nums;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+/* ==========================================================================
+   Оболочка приложения: верхняя навигация (ПК) / нижний таб-бар (моб.)
+   ========================================================================== */
+.app-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+.topnav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--nav-h);
+  padding: 0 24px;
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  backdrop-filter: blur(10px) saturate(1.4);
+  -webkit-backdrop-filter: blur(10px) saturate(1.4);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.topnav-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--color-text);
+  margin-right: 18px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.topnav-brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: linear-gradient(155deg, var(--color-primary), var(--color-primary-hover));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.topnav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+  height: 100%;
+}
+
+.topnav-links::-webkit-scrollbar {
+  display: none;
+}
+
+.topnav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 100%;
+  padding: 0 14px;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 13.5px;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.topnav-link:hover {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.topnav-link.is-active {
+  color: var(--color-primary);
+}
+
+.topnav-link-underline {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  height: 2.5px;
+  border-radius: 2px 2px 0 0;
+  background: var(--color-primary);
+}
+
+.topnav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-left: 10px;
+}
+
+.topnav-icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-muted);
+  border: none;
+  padding: 0;
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.topnav-icon-btn:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+  color: var(--color-primary);
+}
+
+.topnav-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-danger);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--color-surface);
+}
+
+.user-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  padding: 4px 10px 4px 4px;
+  color: var(--color-text);
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+
+.user-menu-trigger:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+  border-color: var(--color-border);
+}
+
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.user-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  z-index: 40;
+}
+
+.user-menu-header {
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 6px;
+}
+
+.user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-weight: 500;
+  font-size: 13.5px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+.user-menu-item:hover:not(:disabled) {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+/* ---- мобильная шапка ---- */
+.mobile-header {
+  display: none;
+}
+
+/* ---- нижний таб-бар (моб.) ---- */
+.bottom-tabbar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .topnav {
+    display: none;
+  }
+
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    padding: 0 16px;
+    padding-top: env(safe-area-inset-top, 0px);
+    background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--color-border);
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+
+  .mobile-header-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 17px;
+    color: var(--color-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bottom-tabbar {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+    backdrop-filter: blur(14px) saturate(1.4);
+    -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    border-top: 1px solid var(--color-border);
+    z-index: 30;
+  }
+
+  .tabbar-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: transparent;
+    border: none;
+    color: var(--color-text-faint);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 6px 2px 0;
+  }
+
+  .tabbar-item.is-active {
+    color: var(--color-primary);
+  }
+
+  .tabbar-item-icon {
+    position: relative;
+    display: flex;
+  }
+
+  .tabbar-dot {
+    position: absolute;
+    top: -3px;
+    right: -7px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    border-radius: var(--radius-full);
+    background: var(--color-danger);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--color-surface);
+  }
+
+  .tabbar-indicator {
+    position: absolute;
+    top: 0;
+    width: 32px;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--color-primary);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  body {
+    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.page {
+  flex: 1;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 28px 24px 60px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 767px) {
+  .page {
+    padding: 18px 16px 32px;
+  }
+}
+
+@media (max-width: 400px) {
+  .page {
+    padding: 14px 14px 28px;
+  }
+}
+
+/* ==========================================================================
+   Карточки и поверхности
+   ========================================================================== */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-interactive {
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+}
+
+.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-strong);
+  text-decoration: none;
+}
+
+/* ==========================================================================
+   Формы
+   ========================================================================== */
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  /* 16px не меньше — иначе iOS Safari зумит страницу при фокусе на поле */
+  font-size: 16px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+input[readonly] {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  width: auto;
+  margin-right: 6px;
+  accent-color: var(--color-primary);
+}
+
+fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin: 0 0 4px;
+}
+
+legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 0 6px;
+}
+
+form {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ==========================================================================
+   Кнопки
+   ========================================================================== */
+button {
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  color: #fff;
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  box-shadow: var(--shadow-sm);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+button:disabled {
+  background: var(--color-border-strong);
+  color: var(--color-text-faint);
+  cursor: not-allowed;
+}
+
+/* Кнопки-иконки (✕ у динамических строк) — второстепенное действие,
+   не должно визуально спорить с основным CTA формы. */
+button.icon-btn {
+  background: transparent;
+  color: var(--color-text-faint);
+  border: 1px solid var(--color-border);
+  padding: 8px 10px;
+}
+
+button.icon-btn:hover:not(:disabled) {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+button.btn-outline {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+}
+
+button.btn-outline:hover:not(:disabled) {
+  background: var(--color-primary-soft);
+}
+
+button.btn-danger {
+  background: var(--color-danger);
+}
+
+button.btn-danger:hover:not(:disabled) {
+  background: #8a4436;
+}
+
+/* Спиннер для кнопок в состоянии загрузки */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: spin 0.6s linear infinite;
+  vertical-align: -2px;
+  margin-right: 7px;
+  opacity: 0.85;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==========================================================================
+   Скелетоны загрузки
+   ========================================================================== */
+.skeleton {
+  background: linear-gradient(
+    100deg,
+    var(--color-surface-muted) 30%,
+    var(--color-border) 50%,
+    var(--color-surface-muted) 70%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -20% 0;
+  }
+}
+
+/* ==========================================================================
+   Появление контента — плавный, единообразный въезд снизу
+   ========================================================================== */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise-in {
+  animation: rise-in var(--dur-slow) var(--ease-out) both;
+}
+
+/* ==========================================================================
+   Динамические строки (интервалы диаметров, затраты) — grid вместо
+   фиксированных px-ширин, чтобы поля сжимались пропорционально на узких
+   экранах Android вместо горизонтального переполнения/обрезки.
+   ========================================================================== */
+.dynamic-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.dynamic-row input,
+.dynamic-row select {
+  min-width: 0;
+}
+
+.dynamic-row-costs {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.dynamic-row-costs select,
+.dynamic-row-costs input {
+  min-width: 0;
+}
+
+@media (max-width: 420px) {
+  .dynamic-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas: 'a b' 'c d';
+  }
+  .dynamic-row > :nth-child(1) {
+    grid-area: a;
+  }
+  .dynamic-row > :nth-child(2) {
+    grid-area: b;
+  }
+  .dynamic-row > :nth-child(3) {
+    grid-area: c;
+  }
+  .dynamic-row > :nth-child(4) {
+    grid-area: d;
+    justify-self: end;
+  }
+}
+
+/* ==========================================================================
+   Утилиты
+   ========================================================================== */
+.text-error {
+  color: var(--color-danger);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-faint {
+  color: var(--color-text-faint);
+}
+
+.site-card {
+  text-decoration: none;
+  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+}
+
+.site-card:hover {
+  text-decoration: none;
+  transform: translateY(-2px);
+  border-color: var(--color-primary) !important;
+  box-shadow: var(--shadow-md);
+}
+
+/* ==========================================================================
+   Статусные "бейджи" — согласование, статус задания
+   ========================================================================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.badge-neutral {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+
+.badge-primary {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.badge-success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.badge-danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.badge-warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
