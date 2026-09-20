@@ -4,6 +4,7 @@ import { CheckCircle2, XCircle, MessageSquare } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
+import { loadReportSiteAndWellLabel } from '../../lib/reportLabel'
 import type { CostItem, Report, ReportCost } from '../../types/database'
 
 interface EnrichedCost extends ReportCost {
@@ -18,6 +19,8 @@ export default function ReportReview() {
   const [report, setReport] = useState<Report | null>(null)
   const [costs, setCosts] = useState<EnrichedCost[]>([])
   const [authorName, setAuthorName] = useState('—')
+  const [siteName, setSiteName] = useState('—')
+  const [wellLabel, setWellLabel] = useState('—')
   const [loading, setLoading] = useState(true)
 
   const [comment, setComment] = useState('')
@@ -37,12 +40,13 @@ export default function ReportReview() {
       setReport(r)
 
       if (r) {
-        const { data: authorProfile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', r.author_id)
-          .single()
-        if (authorProfile) setAuthorName(authorProfile.full_name)
+        const [authorRes, siteAndWell] = await Promise.all([
+          supabase.from('profiles').select('full_name').eq('id', r.author_id).single(),
+          loadReportSiteAndWellLabel(r),
+        ])
+        if (authorRes.data) setAuthorName(authorRes.data.full_name)
+        setSiteName(siteAndWell.siteName)
+        setWellLabel(siteAndWell.wellLabel)
 
         const { data: costsData } = await supabase
           .from('report_costs')
@@ -125,6 +129,9 @@ export default function ReportReview() {
       ) : (
         <>
           <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+            <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 15 }}>
+              {siteName}, {wellLabel}
+            </p>
             <p style={{ margin: '0 0 4px' }}>
               <b>{authorName}</b>
             </p>

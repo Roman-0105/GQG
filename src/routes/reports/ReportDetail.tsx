@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
-import { ChevronLeft, MessageSquare, MessageCircle, Check, Pencil } from 'lucide-react'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { ChevronLeft, MessageSquare, MessageCircle, Check, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
+import { isManagement } from '../../types/roles'
 import { ApprovalBadge } from '../../components/StatusBadge'
 import { buildDrillingShiftMessage } from '../../lib/whatsappMessage'
+import { loadReportSiteAndWellLabel } from '../../lib/reportLabel'
 import type { TaskType } from '../../types/taskType'
 import type { CostItem, DrillingTask, Report, ReportCost } from '../../types/database'
 
@@ -30,16 +32,21 @@ export default function ReportDetail() {
     reportId: string
   }>()
   const { session, profile, loading: authLoading } = useAuth()
+  const navigate = useNavigate()
 
   const [report, setReport] = useState<Report | null>(null)
   const [drillingTask, setDrillingTask] = useState<DrillingTask | null>(null)
   const [drillingRigNumber, setDrillingRigNumber] = useState<string | null>(null)
   const [authorName, setAuthorName] = useState('—')
+  const [siteName, setSiteName] = useState('—')
+  const [wellLabel, setWellLabel] = useState('—')
   const [costs, setCosts] = useState<EnrichedCost[]>([])
   const [bottomHole, setBottomHole] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (!session || !taskId || !taskType || !reportId) return
@@ -61,11 +68,14 @@ export default function ReportDetail() {
         return
       }
 
-      const [authorRes, costsRes] = await Promise.all([
+      const [authorRes, costsRes, siteAndWell] = await Promise.all([
         supabase.from('profiles').select('full_name').eq('id', r.author_id).single(),
         supabase.from('report_costs').select('*').eq('report_id', reportId),
+        loadReportSiteAndWellLabel(r),
       ])
       if (authorRes.data) setAuthorName(authorRes.data.full_name)
+      setSiteName(siteAndWell.siteName)
+      setWellLabel(siteAndWell.wellLabel)
 
       if (costsRes.data && costsRes.data.length > 0) {
         const itemIds = [...new Set(costsRes.data.map((c) => c.cost_item_id))]
@@ -157,6 +167,42 @@ export default function ReportDetail() {
     report.author_id === profile.id &&
     (report.approval_status === 'draft' || report.edit_unlocked)
 
+  // Автор может удалить только СВОЙ черновик — отправленную/согласованную/
+  // отклонённую сводку удалить так нельзя, это уже часть истории (см.
+  // отзыв 20.09.2026 и RLS-политику reports_delete_own_draft). Management
+  // может удалить сводку в любом статусе (reports_delete_management) —
+  // например, для уборки тестовых/ошибочных данных.
+  const canDelete =
+    !!report &&
+    !!profile &&
+    (isManagement(profile.role) || (report.author_id === profile.id && report.approval_status === 'draft'))
+
+  async function handleDelete() {
+    if (!reportId) return
+    setDeleting(true)
+    setError(null)
+    // .select() обязателен: DELETE, которому RLS не разрешил тронуть ни
+    // одной строки, возвращает error: null и просто 0 затронутых строк —
+    // без .select() это выглядело бы как успех, хотя на деле ничего не
+    // удалилось (например, миграция 0011 ещё не применена на сервере).
+    const { data: deletedRows, error: deleteError } = await supabase
+      .from('reports')
+      .delete()
+      .eq('id', reportId)
+      .select('id')
+    setDeleting(false)
+    if (deleteError) {
+      setError(deleteError.message)
+      return
+    }
+    if (!deletedRows || deletedRows.length === 0) {
+      setError('Не удалось удалить — сводка не найдена или уже недоступна для удаления.')
+      setConfirmingDelete(false)
+      return
+    }
+    navigate(`/tasks/${taskType}/${taskId}/reports`)
+  }
+
   return (
     <div style={{ maxWidth: 460 }}>
       <Link
@@ -176,9 +222,12 @@ export default function ReportDetail() {
         <>
           <div className="card" style={{ padding: 16, marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-              <b>{authorName}</b>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>
+                {siteName}, {wellLabel}
+              </p>
               <ApprovalBadge status={report.approval_status} />
             </div>
+            <p style={{ margin: '0 0 4px' }}>{authorName}</p>
             <p className="text-muted num" style={{ margin: '0 0 12px', fontSize: 13.5 }}>
               {report.report_date}
               {shiftLabel(taskType, report.shift_number)}
@@ -279,6 +328,39 @@ export default function ReportDetail() {
                   {report.approval_status === 'rejected' ? 'Исправить и отправить заново' : 'Редактировать'}
                 </button>
               </Link>
+            )}
+            {canDelete && !confirmingDelete && (
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={() => setConfirmingDelete(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'var(--color-danger)' }}
+              >
+                <Trash2 size={15} /> {report.approval_status === 'draft' ? 'Удалить черновик' : 'Удалить сводку'}
+              </button>
+            )}
+            {canDelete && confirmingDelete && (
+              <>
+                <span style={{ alignSelf: 'center', fontSize: 13.5 }}>Удалить безвозвратно?</span>
+                <button
+                  type="button"
+                  className="btn-danger"
+                  disabled={deleting}
+                  onClick={handleDelete}
+                  style={{ display: 'flex', alignItems: 'center', gap: 7 }}
+                >
+                  {deleting ? <span className="spinner" style={{ marginRight: 0 }} /> : <Trash2 size={15} />}
+                  {deleting ? 'Удаляем…' : 'Да, удалить'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  disabled={deleting}
+                  onClick={() => setConfirmingDelete(false)}
+                >
+                  Отмена
+                </button>
+              </>
             )}
           </div>
         </>
