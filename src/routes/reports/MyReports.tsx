@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { X, ChevronLeft, ChevronRight, Layers, Scissors, FlaskConical } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, ChevronDown, Layers, Scissors, FlaskConical } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import DerrickIcon from '../../components/icons/DerrickIcon'
 import { supabase } from '../../lib/supabaseClient'
@@ -23,9 +23,22 @@ interface ReportCategory {
   taskType: TaskType
   taskId: string
   icon: LucideIcon
-  label: string
   sublabel: string
   reports: Report[]
+}
+
+interface WellGroup {
+  key: string
+  label: string
+  categories: ReportCategory[]
+  count: number
+}
+
+interface SiteGroup {
+  siteId: string
+  siteName: string
+  wells: WellGroup[]
+  count: number
 }
 
 function shiftLabel(taskType: TaskType, shiftNumber: number | null) {
@@ -44,9 +57,17 @@ function sortReports(rows: Report[]) {
 // Личная история сводок бригадира сразу по ВСЕМ его заданиям (все скважины,
 // все виды работ) — см. отзыв 19.09.2026: список "Все сводки" внутри
 // ОДНОГО задания физически не может показать чужие категории, а бригадиру
-// был нужен именно сквозной обзор. Категории — карточки вида "Бурение,
-// скважина №21"; клик открывает компактное окно с постраничным просмотром
-// (по PAGE_SIZE сводок за раз), а не сразу полный список.
+// был нужен именно сквозной обзор.
+//
+// 20.09.2026 (по отзыву заказчика) — плоский список карточек "иконка +
+// счётчик" оказался нечитаемым, особенно когда на одной скважине сразу
+// несколько видов работ (бурение + керн + распиловка выглядели как
+// отдельные одинаковые карточки без видимой связи, и не было видно, на
+// каком участке какая скважина). Переведено на ту же трёхуровневую
+// группировку, что и "Сводки на согласовании" (PendingApprovals.tsx):
+// участок -> скважина/задание -> вид работ. Клик по виду работ
+// по-прежнему открывает компактное окно с постраничным просмотром — сам
+// механизм модалки не менялся.
 export default function MyReports() {
   const { session, profile, loading: authLoading } = useAuth()
 
@@ -55,7 +76,9 @@ export default function MyReports() {
   const [sawingTasks, setSawingTasks] = useState<CoreSawingTask[]>([])
   const [samplingTasks, setSamplingTasks] = useState<SamplingTask[]>([])
   const [reports, setReports] = useState<Report[]>([])
+  const [siteNames, setSiteNames] = useState<Map<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
+  const [collapsedSiteIds, setCollapsedSiteIds] = useState<Set<string>>(new Set())
 
   const [openCategoryKey, setOpenCategoryKey] = useState<string | null>(null)
   const [page, setPage] = useState(0)
@@ -76,11 +99,26 @@ export default function MyReports() {
         supabase.from('sampling_tasks').select('*'),
         supabase.from('reports').select('*').eq('author_id', currentProfileId),
       ])
-      setDrillingTasks(drillingRes.data ?? [])
-      setCoreTasks(coreRes.data ?? [])
-      setSawingTasks(sawingRes.data ?? [])
-      setSamplingTasks(samplingRes.data ?? [])
+      const drilling = drillingRes.data ?? []
+      const core = coreRes.data ?? []
+      const sawing = sawingRes.data ?? []
+      const sampling = samplingRes.data ?? []
+      setDrillingTasks(drilling)
+      setCoreTasks(core)
+      setSawingTasks(sawing)
+      setSamplingTasks(sampling)
       setReports(reportsRes.data ?? [])
+
+      const siteIds = [
+        ...new Set(
+          [...drilling, ...core, ...sawing, ...sampling].map((t) => t.site_id),
+        ),
+      ]
+      if (siteIds.length) {
+        const { data: sitesData } = await supabase.from('sites').select('id, name').in('id', siteIds)
+        setSiteNames(new Map((sitesData ?? []).map((s) => [s.id, s.name])))
+      }
+
       setLoading(false)
     }
 
@@ -93,17 +131,38 @@ export default function MyReports() {
     return <p>Этот экран — личная история сводок начальника буровой партии.</p>
   }
 
-  const categories: ReportCategory[] = []
+  // ---- сборка иерархии: участок -> скважина/задание -> вид работ ----
+  const siteGroups = new Map<string, SiteGroup>()
+
+  function ensureSite(siteId: string): SiteGroup {
+    let site = siteGroups.get(siteId)
+    if (!site) {
+      site = { siteId, siteName: siteNames.get(siteId) ?? '—', wells: [], count: 0 }
+      siteGroups.set(siteId, site)
+    }
+    return site
+  }
+
+  function addCategory(siteId: string, wellKey: string, wellLabel: string, category: ReportCategory) {
+    const site = ensureSite(siteId)
+    site.count += category.reports.length
+    let well = site.wells.find((w) => w.key === wellKey)
+    if (!well) {
+      well = { key: wellKey, label: wellLabel, categories: [], count: 0 }
+      site.wells.push(well)
+    }
+    well.count += category.reports.length
+    well.categories.push(category)
+  }
 
   for (const t of drillingTasks) {
     const rows = sortReports(reports.filter((r) => r.drilling_task_id === t.id))
     if (rows.length === 0) continue
-    categories.push({
+    addCategory(t.site_id, t.id, `Скважина №${t.well_number}`, {
       key: `drilling:${t.id}`,
       taskType: 'drilling',
       taskId: t.id,
       icon: DerrickIcon as unknown as LucideIcon,
-      label: `Скважина №${t.well_number}`,
       sublabel: TASK_TYPE_LABELS.drilling,
       reports: rows,
     })
@@ -113,16 +172,16 @@ export default function MyReports() {
     const rows = sortReports(reports.filter((r) => r.core_description_task_id === t.id))
     if (rows.length === 0) continue
     const linkedWell = drillingTasks.find((d) => d.id === t.drilling_task_id)
+    const wellKey = t.drilling_task_id ?? `core-description:${t.id}`
     const wellLabel = t.drilling_task_id
-      ? `Своя скважина №${linkedWell?.well_number ?? '…'}`
-      : `Скважина подрядчика №${t.external_well_number}`
-    categories.push({
+      ? `Скважина №${linkedWell?.well_number ?? '…'}`
+      : `Скв. подрядчика №${t.external_well_number}`
+    addCategory(t.site_id, wellKey, wellLabel, {
       key: `core-description:${t.id}`,
       taskType: 'core-description',
       taskId: t.id,
       icon: Layers,
-      label: wellLabel,
-      sublabel: `${TASK_TYPE_LABELS['core-description']} · ${t.documentation_type === 'geological' ? 'геологическая' : 'геотехническая'}`,
+      sublabel: `${TASK_TYPE_LABELS['core-description']} — ${t.documentation_type === 'geological' ? 'геологическая' : 'геотехническая'}`,
       reports: rows,
     })
   }
@@ -131,12 +190,11 @@ export default function MyReports() {
     const rows = sortReports(reports.filter((r) => r.core_sawing_task_id === t.id))
     if (rows.length === 0) continue
     const linkedWell = drillingTasks.find((d) => d.id === t.drilling_task_id)
-    categories.push({
+    addCategory(t.site_id, t.drilling_task_id, `Скважина №${linkedWell?.well_number ?? '…'}`, {
       key: `core-sawing:${t.id}`,
       taskType: 'core-sawing',
       taskId: t.id,
       icon: Scissors,
-      label: `Скважина №${linkedWell?.well_number ?? '…'}`,
       sublabel: TASK_TYPE_LABELS['core-sawing'],
       reports: rows,
     })
@@ -146,113 +204,193 @@ export default function MyReports() {
     const rows = sortReports(reports.filter((r) => r.sampling_task_id === t.id))
     if (rows.length === 0) continue
     const linkedWell = drillingTasks.find((d) => d.id === t.drilling_task_id)
+    const wellKey = t.drilling_task_id ?? `sampling:${t.id}`
     const wellLabel = t.drilling_task_id
-      ? `Своя скважина №${linkedWell?.well_number ?? '…'}`
-      : `Скважина подрядчика №${t.external_well_number}`
-    categories.push({
+      ? `Скважина №${linkedWell?.well_number ?? '…'}`
+      : `Скв. подрядчика №${t.external_well_number}`
+    addCategory(t.site_id, wellKey, wellLabel, {
       key: `sampling:${t.id}`,
       taskType: 'sampling',
       taskId: t.id,
       icon: FlaskConical,
-      label: wellLabel,
       sublabel: TASK_TYPE_LABELS.sampling,
       reports: rows,
     })
   }
 
-  categories.sort((a, b) => (b.reports[0]?.report_date ?? '').localeCompare(a.reports[0]?.report_date ?? ''))
+  const sites = [...siteGroups.values()].sort((a, b) => a.siteName.localeCompare(b.siteName))
+  for (const site of sites) {
+    site.wells.sort((a, b) => a.label.localeCompare(b.label))
+  }
 
-  const openCategory = categories.find((c) => c.key === openCategoryKey) ?? null
+  const allCategories = sites.flatMap((s) => s.wells.flatMap((w) => w.categories))
+  const openCategory = allCategories.find((c) => c.key === openCategoryKey) ?? null
   const totalPages = openCategory ? Math.max(1, Math.ceil(openCategory.reports.length / PAGE_SIZE)) : 1
   const pageReports = openCategory
     ? openCategory.reports.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
-    : []
+    : null
 
   function openCategoryModal(key: string) {
     setOpenCategoryKey(key)
     setPage(0)
   }
 
+  function toggleSite(siteId: string) {
+    setCollapsedSiteIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(siteId)) next.delete(siteId)
+      else next.add(siteId)
+      return next
+    })
+  }
+
   return (
     <div>
       <h1>Мои сводки</h1>
       <p className="text-muted" style={{ marginTop: -12, marginBottom: 22 }}>
-        Вся ваша история сводок — по всем скважинам и видам работ. Откройте категорию, чтобы пролистать сводки.
+        Вся ваша история сводок — по участкам, скважинам и видам работ. Откройте вид работ, чтобы пролистать сводки.
       </p>
 
       {loading ? (
-        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+        <div style={{ display: 'grid', gap: 10 }}>
           {[0, 1, 2].map((i) => (
             <div key={i} className="skeleton" style={{ height: 88, borderRadius: 'var(--radius-md)' }} />
           ))}
         </div>
-      ) : categories.length === 0 ? (
+      ) : sites.length === 0 ? (
         <p className="text-muted">Вы ещё не отправляли сводок.</p>
       ) : (
-        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-          {categories.map((c, i) => {
-            const submitted = c.reports.filter((r) => r.approval_status === 'submitted').length
-            const rejected = c.reports.filter((r) => r.approval_status === 'rejected').length
-            const Icon = c.icon
+        <div style={{ display: 'grid', gap: 10 }}>
+          {sites.map((site, i) => {
+            const isOpen = !collapsedSiteIds.has(site.siteId)
             return (
-              <motion.button
-                key={c.key}
-                type="button"
-                className="card card-interactive"
-                onClick={() => openCategoryModal(c.key)}
+              <motion.div
+                key={site.siteId}
+                className="card"
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25, delay: Math.min(i, 10) * 0.03, ease: [0.16, 1, 0.3, 1] }}
-                style={{ textAlign: 'left', padding: 14, display: 'block', width: '100%' }}
+                style={{ padding: 0, overflow: 'hidden' }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <span
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 9,
-                      background: 'var(--color-accent-soft)',
-                      color: 'var(--color-accent)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Icon size={16} />
+                <button
+                  type="button"
+                  onClick={() => toggleSite(site.siteId)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    width: '100%',
+                    padding: '13px 16px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--color-text)',
+                    textAlign: 'left',
+                  }}
+                >
+                  {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16, flex: 1 }}>
+                    {site.siteName}
                   </span>
-                  <span style={{ minWidth: 0 }}>
-                    <span
-                      style={{
-                        display: 'block',
-                        fontFamily: 'var(--font-display)',
-                        fontWeight: 600,
-                        fontSize: 15,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {c.label}
-                    </span>
-                    <span className="text-muted" style={{ fontSize: 12.5 }}>
-                      {c.sublabel}
-                    </span>
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <span className="badge badge-neutral num">{c.reports.length} сводок</span>
-                  {submitted > 0 && <span className="badge badge-primary num">{submitted} на согл.</span>}
-                  {rejected > 0 && <span className="badge badge-danger num">{rejected} откл.</span>}
-                </div>
-              </motion.button>
+                  <span className="badge badge-primary num">{site.count}</span>
+                </button>
+
+                {isOpen && (
+                  <div style={{ padding: '0 16px 16px', display: 'grid', gap: 16 }}>
+                    {site.wells.map((well) => (
+                      <div key={well.key}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            marginBottom: 8,
+                            paddingBottom: 6,
+                            borderBottom: '1px solid var(--color-border)',
+                          }}
+                        >
+                          <span style={{ fontWeight: 600, fontSize: 14 }}>{well.label}</span>
+                          <span className="badge badge-neutral num">{well.count}</span>
+                        </div>
+                        <div style={{ display: 'grid', gap: 6, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+                          {well.categories.map((c) => {
+                            const submitted = c.reports.filter((r) => r.approval_status === 'submitted').length
+                            const rejected = c.reports.filter((r) => r.approval_status === 'rejected').length
+                            const Icon = c.icon
+                            return (
+                              <button
+                                key={c.key}
+                                type="button"
+                                className="card card-interactive"
+                                onClick={() => openCategoryModal(c.key)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 10,
+                                  padding: '10px 12px',
+                                  textAlign: 'left',
+                                  color: 'var(--color-text)',
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: 30,
+                                    height: 30,
+                                    borderRadius: 8,
+                                    background: 'var(--color-accent-soft)',
+                                    color: 'var(--color-accent)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  <Icon size={15} />
+                                </span>
+                                <span style={{ flex: 1, minWidth: 0 }}>
+                                  <span
+                                    style={{
+                                      display: 'block',
+                                      fontWeight: 600,
+                                      fontSize: 13.5,
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}
+                                  >
+                                    {c.sublabel}
+                                  </span>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 2 }}>
+                                    <span className="badge badge-neutral num" style={{ fontSize: 11 }}>
+                                      {c.reports.length}
+                                    </span>
+                                    {submitted > 0 && (
+                                      <span className="badge badge-primary num" style={{ fontSize: 11 }}>
+                                        {submitted} на согл.
+                                      </span>
+                                    )}
+                                    {rejected > 0 && (
+                                      <span className="badge badge-danger num" style={{ fontSize: 11 }}>
+                                        {rejected} откл.
+                                      </span>
+                                    )}
+                                  </span>
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
             )
           })}
         </div>
       )}
 
       <AnimatePresence>
-        {openCategory && (
+        {openCategory && pageReports && (
           <motion.div
             className="modal-backdrop"
             initial={{ opacity: 0 }}
@@ -271,10 +409,7 @@ export default function MyReports() {
             >
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
                 <div>
-                  <h2 style={{ margin: 0 }}>{openCategory.label}</h2>
-                  <p className="text-muted" style={{ margin: '2px 0 0', fontSize: 13 }}>
-                    {openCategory.sublabel}
-                  </p>
+                  <h2 style={{ margin: 0 }}>{openCategory.sublabel}</h2>
                 </div>
                 <button
                   type="button"

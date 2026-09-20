@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ChevronDown, ChevronRight, FolderPlus, Plus, Wallet } from 'lucide-react'
+import { ChevronDown, ChevronRight, FolderPlus, Pencil, Plus, Wallet } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
@@ -12,24 +12,87 @@ import Modal from '../../components/Modal'
 const UNIT_OPTIONS = ['шт', 'л', 'м', 'м³', 'т', 'кг', 'компл.']
 const OTHER_UNIT = '__other__'
 
-// Карточка одной категории — список видов затрат внутри + кнопка,
-// открывающая модалку добавления вида (имя + единица измерения), по
-// образцу Attached*Card.tsx: сама пишет в базу и сообщает наверх через
-// onItemAdded, без перезагрузки всего списка. Модалка вместо инлайн-формы
-// — см. отзыв 19.09.2026: заказчику не понравилось, что формы добавления
-// либо всегда развёрнуты, либо появляются прямо в потоке страницы.
+// Единица измерения существующего вида затрат может быть НЕ из
+// UNIT_OPTIONS (заведена вручную как "другая…" раньше) — тогда селект
+// нужно сразу переключить на "другая…" и подставить значение в свободное
+// поле, а не молча показать первый вариант из списка.
+function unitToSelectValue(unit: string | null): { select: string; custom: string } {
+  if (unit && UNIT_OPTIONS.includes(unit)) return { select: unit, custom: '' }
+  if (unit) return { select: OTHER_UNIT, custom: unit }
+  return { select: UNIT_OPTIONS[0], custom: '' }
+}
+
+// Мини-форма имя+единица измерения — общая для добавления и переименования
+// вида затрат (20.09.2026, по запросу заказчика: нужно было редактировать
+// уже существующие статьи, не только заводить новые).
+function ItemFields({
+  name,
+  setName,
+  unit,
+  setUnit,
+  customUnit,
+  setCustomUnit,
+}: {
+  name: string
+  setName: (v: string) => void
+  unit: string
+  setUnit: (v: string) => void
+  customUnit: string
+  setCustomUnit: (v: string) => void
+}) {
+  return (
+    <>
+      <input
+        required
+        autoFocus
+        placeholder="Наименование затрат"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <select value={unit} onChange={(e) => setUnit(e.target.value)} style={{ flex: 1 }}>
+          {UNIT_OPTIONS.map((u) => (
+            <option key={u} value={u}>
+              {u}
+            </option>
+          ))}
+          <option value={OTHER_UNIT}>другая…</option>
+        </select>
+        {unit === OTHER_UNIT && (
+          <input
+            required
+            placeholder="ед. изм."
+            value={customUnit}
+            onChange={(e) => setCustomUnit(e.target.value)}
+            style={{ flex: 1 }}
+          />
+        )}
+      </div>
+    </>
+  )
+}
+
+// Карточка одной категории — список видов затрат внутри (каждый со своей
+// кнопкой переименования) + кнопка добавления нового вида, по образцу
+// Attached*Card.tsx: сама пишет в базу и сообщает наверх через колбэки,
+// без перезагрузки всего списка. Модалка вместо инлайн-формы — см. отзыв
+// 19.09.2026.
 function CategoryCard({
   category,
   items,
   isOpen,
   onToggle,
+  onCategoryUpdated,
   onItemAdded,
+  onItemUpdated,
 }: {
   category: CostCategory
   items: CostItem[]
   isOpen: boolean
   onToggle: () => void
+  onCategoryUpdated: (category: CostCategory) => void
   onItemAdded: (item: CostItem) => void
+  onItemUpdated: (item: CostItem) => void
 }) {
   const [addOpen, setAddOpen] = useState(false)
   const [name, setName] = useState('')
@@ -37,6 +100,18 @@ function CategoryCard({
   const [customUnit, setCustomUnit] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [editCategoryOpen, setEditCategoryOpen] = useState(false)
+  const [editCategoryName, setEditCategoryName] = useState(category.name)
+  const [savingCategory, setSavingCategory] = useState(false)
+  const [categoryEditError, setCategoryEditError] = useState<string | null>(null)
+
+  const [editingItem, setEditingItem] = useState<CostItem | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editUnit, setEditUnit] = useState(UNIT_OPTIONS[0])
+  const [editCustomUnit, setEditCustomUnit] = useState('')
+  const [savingItem, setSavingItem] = useState(false)
+  const [itemEditError, setItemEditError] = useState<string | null>(null)
 
   async function handleAddItem(e: FormEvent) {
     e.preventDefault()
@@ -65,29 +140,98 @@ function CategoryCard({
     setAddOpen(false)
   }
 
+  function openEditCategory() {
+    setEditCategoryName(category.name)
+    setCategoryEditError(null)
+    setEditCategoryOpen(true)
+  }
+
+  async function handleEditCategory(e: FormEvent) {
+    e.preventDefault()
+    setSavingCategory(true)
+    setCategoryEditError(null)
+    const { data, error: updateError } = await supabase
+      .from('cost_categories')
+      .update({ name: editCategoryName.trim() })
+      .eq('id', category.id)
+      .select()
+      .single()
+    if (updateError) {
+      setCategoryEditError(updateError.message)
+      setSavingCategory(false)
+      return
+    }
+    onCategoryUpdated(data)
+    setSavingCategory(false)
+    setEditCategoryOpen(false)
+  }
+
+  function openEditItem(item: CostItem) {
+    const { select, custom } = unitToSelectValue(item.unit)
+    setEditingItem(item)
+    setEditName(item.name)
+    setEditUnit(select)
+    setEditCustomUnit(custom)
+    setItemEditError(null)
+  }
+
+  async function handleEditItem(e: FormEvent) {
+    e.preventDefault()
+    if (!editingItem) return
+    setSavingItem(true)
+    setItemEditError(null)
+    const finalUnit = editUnit === OTHER_UNIT ? editCustomUnit.trim() : editUnit
+    const { data, error: updateError } = await supabase
+      .from('cost_items')
+      .update({ name: editName.trim(), unit: finalUnit || null })
+      .eq('id', editingItem.id)
+      .select()
+      .single()
+    if (updateError) {
+      setItemEditError(updateError.message)
+      setSavingItem(false)
+      return
+    }
+    onItemUpdated(data)
+    setSavingItem(false)
+    setEditingItem(null)
+  }
+
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      <button
-        type="button"
-        onClick={onToggle}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          width: '100%',
-          padding: '12px 14px',
-          background: 'transparent',
-          border: 'none',
-          color: 'var(--color-text)',
-          textAlign: 'left',
-        }}
-      >
-        {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15, flex: 1 }}>
-          {category.name}
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 8px 8px 14px' }}>
+        <button
+          type="button"
+          onClick={onToggle}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flex: 1,
+            minWidth: 0,
+            padding: '4px 0',
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--color-text)',
+            textAlign: 'left',
+          }}
+        >
+          {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15 }}>
+            {category.name}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="icon-btn-round"
+          onClick={openEditCategory}
+          title="Переименовать категорию"
+          style={{ width: 30, height: 30 }}
+        >
+          <Pencil size={13} />
+        </button>
         <span className="badge badge-neutral num">{items.length}</span>
-      </button>
+      </div>
 
       {isOpen && (
         <div style={{ padding: '0 14px 14px', display: 'grid', gap: 8 }}>
@@ -103,15 +247,36 @@ function CategoryCard({
                   key={it.id}
                   style={{
                     display: 'flex',
-                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 8,
                     padding: '8px 10px',
                     borderRadius: 'var(--radius-sm)',
                     background: 'var(--color-surface-muted)',
                     fontSize: 13.5,
                   }}
                 >
-                  <span>{it.name}</span>
+                  <span style={{ flex: 1 }}>{it.name}</span>
                   {it.unit && <span className="text-muted num">{it.unit}</span>}
+                  <button
+                    type="button"
+                    onClick={() => openEditItem(it)}
+                    title="Переименовать вид затрат"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 22,
+                      height: 22,
+                      borderRadius: 'var(--radius-full)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--color-text-muted)',
+                      padding: 0,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Pencil size={12} />
+                  </button>
                 </div>
               ))}
             </div>
@@ -130,35 +295,54 @@ function CategoryCard({
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title={`${category.name} — новый вид затрат`}>
         <form onSubmit={handleAddItem} style={{ display: 'grid', gap: 10 }}>
-          <input
-            required
-            autoFocus
-            placeholder="Наименование затрат"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+          <ItemFields
+            name={name}
+            setName={setName}
+            unit={unit}
+            setUnit={setUnit}
+            customUnit={customUnit}
+            setCustomUnit={setCustomUnit}
           />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <select value={unit} onChange={(e) => setUnit(e.target.value)} style={{ flex: 1 }}>
-              {UNIT_OPTIONS.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-              <option value={OTHER_UNIT}>другая…</option>
-            </select>
-            {unit === OTHER_UNIT && (
-              <input
-                required
-                placeholder="ед. изм."
-                value={customUnit}
-                onChange={(e) => setCustomUnit(e.target.value)}
-                style={{ flex: 1 }}
-              />
-            )}
-          </div>
           {error && <p className="text-error" style={{ fontSize: 13, margin: 0 }}>{error}</p>}
           <button type="submit" disabled={submitting}>
             {submitting ? 'Сохраняем…' : 'Сохранить'}
+          </button>
+        </form>
+      </Modal>
+
+      <Modal open={editCategoryOpen} onClose={() => setEditCategoryOpen(false)} title="Переименовать категорию">
+        <form onSubmit={handleEditCategory} style={{ display: 'grid', gap: 10 }}>
+          <input
+            required
+            autoFocus
+            placeholder="Название категории"
+            value={editCategoryName}
+            onChange={(e) => setEditCategoryName(e.target.value)}
+          />
+          {categoryEditError && <p className="text-error" style={{ fontSize: 13, margin: 0 }}>{categoryEditError}</p>}
+          <button type="submit" disabled={savingCategory}>
+            {savingCategory ? 'Сохраняем…' : 'Сохранить'}
+          </button>
+        </form>
+      </Modal>
+
+      <Modal
+        open={editingItem != null}
+        onClose={() => setEditingItem(null)}
+        title={editingItem ? `${category.name} — «${editingItem.name}»` : ''}
+      >
+        <form onSubmit={handleEditItem} style={{ display: 'grid', gap: 10 }}>
+          <ItemFields
+            name={editName}
+            setName={setEditName}
+            unit={editUnit}
+            setUnit={setEditUnit}
+            customUnit={editCustomUnit}
+            setCustomUnit={setEditCustomUnit}
+          />
+          {itemEditError && <p className="text-error" style={{ fontSize: 13, margin: 0 }}>{itemEditError}</p>}
+          <button type="submit" disabled={savingItem}>
+            {savingItem ? 'Сохраняем…' : 'Сохранить'}
           </button>
         </form>
       </Modal>
@@ -172,6 +356,10 @@ function CategoryCard({
 // каждого своя единица измерения) заводится прямо в приложении. Доступно
 // только management — как и остальные справочники (Пользователи), это
 // вопрос организации учёта, не полевая работа бригадира.
+//
+// 20.09.2026 — добавлено переименование уже существующих категорий и видов
+// затрат (не только добавление новых): заказчик уже успел завести "ГСМ" и
+// хотел без пересоздания переименовать его в "Солярка" и т.п.
 export default function CostCategoriesSettings() {
   const { session, profile, loading: authLoading } = useAuth()
 
@@ -283,7 +471,15 @@ export default function CostCategoriesSettings() {
                 items={items.filter((it) => it.category_id === c.id)}
                 isOpen={openCategoryId === c.id}
                 onToggle={() => setOpenCategoryId((prev) => (prev === c.id ? null : c.id))}
+                onCategoryUpdated={(updated) =>
+                  setCategories((prev) =>
+                    prev.map((cat) => (cat.id === updated.id ? updated : cat)).sort((a, b) => a.name.localeCompare(b.name)),
+                  )
+                }
                 onItemAdded={(item) => setItems((prev) => [...prev, item])}
+                onItemUpdated={(updated) =>
+                  setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)))
+                }
               />
             </motion.div>
           ))}
