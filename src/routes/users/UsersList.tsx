@@ -8,6 +8,7 @@ import { createAuxSupabaseClient } from '../../lib/supabaseAuxClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement, ROLE_LABELS, type UserRole } from '../../types/roles'
 import type { Profile } from '../../types/database'
+import Modal from '../../components/Modal'
 
 const ROLE_OPTIONS: UserRole[] = [
   'general_director',
@@ -40,6 +41,7 @@ export default function UsersList() {
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
 
   async function loadUsers() {
     setLoadingUsers(true)
@@ -109,15 +111,22 @@ export default function UsersList() {
 
   return (
     <div>
-      <h1>Пользователи</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+        <h1 style={{ margin: 0 }}>Пользователи</h1>
+        <button
+          type="button"
+          onClick={() => setAddOpen(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+        >
+          <UserPlus size={16} /> Добавить пользователя
+        </button>
+      </div>
 
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Добавить пользователя">
       <form
         onSubmit={handleCreate}
-        style={{ display: 'grid', gap: 12, maxWidth: 380, marginBottom: 28 }}
+        style={{ display: 'grid', gap: 12 }}
       >
-        <h2 style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <UserPlus size={19} className="text-muted" /> Добавить пользователя
-        </h2>
         <label>
           ФИО
           <input
@@ -168,6 +177,7 @@ export default function UsersList() {
           {submitting ? 'Создаём…' : 'Создать пользователя'}
         </button>
       </form>
+      </Modal>
 
       <h2>Список пользователей</h2>
       {listError && <p className="text-error">{listError}</p>}

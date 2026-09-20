@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
 import type { Site } from '../../types/database'
+import Modal from '../../components/Modal'
 
 // Доступ и видимый список регулируются на уровне БД (RLS, см.
 // supabase/migrations/0002_rls_policies.sql) — здесь просто запрашиваем
@@ -15,10 +16,12 @@ export default function SitesList() {
   const { session, profile, loading: authLoading } = useAuth()
   const [sites, setSites] = useState<Site[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const [newSiteName, setNewSiteName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   async function loadSites() {
     setLoading(true)
@@ -27,7 +30,7 @@ export default function SitesList() {
       .select('*')
       .order('created_at', { ascending: false })
 
-    if (fetchError) setError(fetchError.message)
+    if (fetchError) setLoadError(fetchError.message)
     else setSites(data ?? [])
     setLoading(false)
   }
@@ -40,7 +43,7 @@ export default function SitesList() {
     e.preventDefault()
     if (!newSiteName.trim() || !profile) return
     setCreating(true)
-    setError(null)
+    setFormError(null)
 
     const { error: insertError } = await supabase.from('sites').insert({
       name: newSiteName.trim(),
@@ -50,10 +53,11 @@ export default function SitesList() {
     setCreating(false)
 
     if (insertError) {
-      setError(insertError.message)
+      setFormError(insertError.message)
       return
     }
     setNewSiteName('')
+    setAddOpen(false)
     loadSites()
   }
 
@@ -62,23 +66,25 @@ export default function SitesList() {
 
   return (
     <div>
-      <h1>Участки работ</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+        <h1 style={{ margin: 0 }}>Участки работ</h1>
+        {isManagement(profile?.role) && (
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+          >
+            <Plus size={16} /> Добавить участок
+          </button>
+        )}
+      </div>
 
-      {isManagement(profile?.role) && (
-        <form
-          onSubmit={handleCreate}
-          style={{
-            display: 'flex',
-            gap: 8,
-            margin: '0 0 22px',
-            flexWrap: 'wrap',
-            padding: 14,
-            alignItems: 'flex-end',
-          }}
-        >
-          <label style={{ flex: 1, minWidth: 200, marginBottom: 0 }}>
-            Новый участок
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Новый участок">
+        <form onSubmit={handleCreate} style={{ display: 'grid', gap: 12 }}>
+          <label>
+            Название участка
             <input
+              autoFocus
               type="text"
               placeholder="Название участка"
               value={newSiteName}
@@ -86,14 +92,15 @@ export default function SitesList() {
               required
             />
           </label>
-          <button type="submit" disabled={creating} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {formError && <p className="text-error" style={{ margin: 0 }}>{formError}</p>}
+          <button type="submit" disabled={creating} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             {creating ? <span className="spinner" style={{ marginRight: 0 }} /> : <Plus size={16} />}
             {creating ? 'Добавляем…' : 'Добавить'}
           </button>
         </form>
-      )}
+      </Modal>
 
-      {error && <p className="text-error">{error}</p>}
+      {loadError && <p className="text-error" style={{ marginTop: 14 }}>{loadError}</p>}
 
       {loading ? (
         <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>

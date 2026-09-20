@@ -432,6 +432,8 @@ li:last-child {
   position: fixed;
   inset: 0;
   background: color-mix(in srgb, var(--color-text) 45%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -973,7 +975,7 @@ button.btn-danger:hover:not(:disabled) {
 
 .dynamic-row-costs {
   display: grid;
-  grid-template-columns: 2fr 1fr auto;
+  grid-template-columns: 1.3fr 1.3fr 0.9fr auto;
   gap: 6px;
   margin-bottom: 6px;
   align-items: center;
@@ -982,6 +984,29 @@ button.btn-danger:hover:not(:disabled) {
 .dynamic-row-costs select,
 .dynamic-row-costs input {
   min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .dynamic-row-costs {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'cat cat'
+      'item item'
+      'qty del';
+  }
+  .dynamic-row-costs > :nth-child(1) {
+    grid-area: cat;
+  }
+  .dynamic-row-costs > :nth-child(2) {
+    grid-area: item;
+  }
+  .dynamic-row-costs > :nth-child(3) {
+    grid-area: qty;
+  }
+  .dynamic-row-costs > :nth-child(4) {
+    grid-area: del;
+    justify-self: end;
+  }
 }
 
 @media (max-width: 420px) {

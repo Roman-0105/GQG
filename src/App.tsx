@@ -20,6 +20,9 @@ import ReportReview from './routes/reports/ReportReview'
 import SummaryReport from './routes/reports/SummaryReport'
 import TaskDashboard from './routes/tasks/TaskDashboard'
 import UsersList from './routes/users/UsersList'
+import CostCategoriesSettings from './routes/settings/CostCategoriesSettings'
+import DrillingOrganizationsSettings from './routes/settings/DrillingOrganizationsSettings'
+import WorkersSettings from './routes/settings/WorkersSettings'
 
 // Каркас роутинга по экранам из ТЗ (раздел 5). Защита маршрутов по роли
 // (AuthGuard/RequireRole) добавится позже; пока каждый экран сам проверяет
@@ -57,6 +60,9 @@ function App() {
           <Route path="/sites" element={<SitesList />} />
           <Route path="/sites/:siteId" element={<SiteDetail />} />
           <Route path="/users" element={<UsersList />} />
+          <Route path="/settings/costs" element={<CostCategoriesSettings />} />
+          <Route path="/settings/organizations" element={<DrillingOrganizationsSettings />} />
+          <Route path="/settings/workers" element={<WorkersSettings />} />
           <Route
             path="/sites/:siteId/tasks/drilling/new"
             element={<DrillingTaskForm />}

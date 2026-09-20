@@ -10,6 +10,7 @@ import type {
   CoreDescriptionTask,
   CoreSawingTask,
   CostCategory,
+  CostItem,
   DrillingTask,
   SamplingTask,
 } from '../../types/database'
@@ -80,6 +81,7 @@ export default function DailyReportForm() {
   const [searchParams] = useSearchParams()
 
   const [drillingTask, setDrillingTask] = useState<DrillingTask | null>(null)
+  const [drillingRigNumber, setDrillingRigNumber] = useState<string | null>(null)
   const [coreTask, setCoreTask] = useState<CoreDescriptionTask | null>(null)
   const [sawingTask, setSawingTask] = useState<CoreSawingTask | null>(null)
   const [samplingTask, setSamplingTask] = useState<SamplingTask | null>(null)
@@ -101,6 +103,7 @@ export default function DailyReportForm() {
   const [siblingLocked, setSiblingLocked] = useState<SiblingLocked>(NOTHING_LOCKED)
 
   const [categories, setCategories] = useState<CostCategory[]>([])
+  const [costItems, setCostItems] = useState<CostItem[]>([])
   const [costRows, setCostRows] = useState<CostRow[]>([emptyCostRow()])
 
   const [shiftNotes, setShiftNotes] = useState('')
@@ -234,8 +237,12 @@ export default function DailyReportForm() {
     async function load() {
       setLoadingTask(true)
 
-      const catRes = await supabase.from('cost_categories').select('*').order('name')
+      const [catRes, itemsRes] = await Promise.all([
+        supabase.from('cost_categories').select('*').order('name'),
+        supabase.from('cost_items').select('*').order('name'),
+      ])
       if (catRes.data) setCategories(catRes.data)
+      if (itemsRes.data) setCostItems(itemsRes.data)
 
       let geo: CoreDescriptionTask | null = null
       let geotech: CoreDescriptionTask | null = null
@@ -249,6 +256,14 @@ export default function DailyReportForm() {
           .eq('id', taskId)
           .single()
         setDrillingTask(data)
+        if (data?.drilling_rig_id) {
+          const { data: rig } = await supabase
+            .from('drilling_rigs')
+            .select('rig_number')
+            .eq('id', data.drilling_rig_id)
+            .single()
+          setDrillingRigNumber(rig?.rig_number ?? null)
+        }
 
         const { data: approvedRows } = await supabase
           .from('reports')
@@ -364,7 +379,9 @@ export default function DailyReportForm() {
         if (costsRes.data && costsRes.data.length > 0) {
           setCostRows(
             costsRes.data.map((c) => ({
-              cost_category_id: c.cost_category_id,
+              cost_category_id:
+                itemsRes.data?.find((it) => it.id === c.cost_item_id)?.category_id ?? '',
+              cost_item_id: c.cost_item_id,
               quantity: c.quantity != null ? String(c.quantity) : '',
             })),
           )
@@ -580,12 +597,12 @@ export default function DailyReportForm() {
       }
     }
 
-    const validCosts = costRows.filter((c) => c.cost_category_id)
+    const validCosts = costRows.filter((c) => c.cost_item_id)
     if (validCosts.length > 0) {
       const { error: costsError } = await supabase.from('report_costs').insert(
         validCosts.map((c) => ({
           report_id: report.id,
-          cost_category_id: c.cost_category_id,
+          cost_item_id: c.cost_item_id,
           quantity: c.quantity ? Number(c.quantity) : null,
         })),
       )
@@ -757,7 +774,7 @@ export default function DailyReportForm() {
     }
     const message = buildDrillingShiftMessage({
       wellNumber: drillingTask?.well_number ?? '?',
-      rigNumber: drillingTask?.rig_number ?? null,
+      rigNumber: drillingRigNumber,
       reportDate,
       shiftNumber: shiftsApply && shiftNumber ? Number(shiftNumber) : null,
       meters,
@@ -1117,6 +1134,7 @@ export default function DailyReportForm() {
           <CostRowsEditor
             rows={costRows}
             categories={categories}
+            items={costItems}
             onChange={setCostRows}
           />
 

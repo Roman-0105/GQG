@@ -25,8 +25,51 @@ export interface DrillingOrganization {
   is_own: boolean
 }
 
+// Станок навсегда закреплён за одной организацией (своей или подрядчика) —
+// решение 19.09.2026, передавать между организациями не нужно.
+export interface DrillingRig {
+  id: string
+  organization_id: string
+  rig_number: string
+  model: string | null
+  drilling_type: string | null
+}
+
+// Справочник состава буровых бригад — БЕЗ входа в приложение (в отличие
+// от profiles/party_chief), только для учёта и распределения по
+// бригадирам (assigned_foreman_id ссылается на profiles с ролью
+// party_chief). Решение 19.09.2026.
+export interface Worker {
+  id: string
+  full_name: string
+  position: string | null
+  organization_id: string
+  assigned_foreman_id: string | null
+}
+
+// Учётное распределение конкретных работников по ролям на задании
+// (20.09.2026) — не влияет на согласование/права подачи сводок, только
+// "кто по факту делал". Ровно один из 4 *_task_id заполнен (как в Report).
+export type WorkerRole = 'driller' | 'assistant_driller' | 'responsible'
+
+export interface TaskWorkerAssignment {
+  id: string
+  drilling_task_id: string | null
+  core_description_task_id: string | null
+  core_sawing_task_id: string | null
+  sampling_task_id: string | null
+  role: WorkerRole
+  worker_id: string
+}
+
 export interface CostCategory {
   id: string
+  name: string
+}
+
+export interface CostItem {
+  id: string
+  category_id: string
   name: string
   unit: string | null
 }
@@ -43,7 +86,7 @@ export interface DrillingTask {
   id: string
   site_id: string
   well_number: string
-  rig_number: string | null
+  drilling_rig_id: string | null
   drilling_org_id: string
   coord_wgs84_lat: number | null
   coord_wgs84_lon: number | null
@@ -147,7 +190,7 @@ export interface Report {
 export interface ReportCost {
   id: string
   report_id: string
-  cost_category_id: string
+  cost_item_id: string
   quantity: number | null
   amount: number | null
 }

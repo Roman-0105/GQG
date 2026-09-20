@@ -14,6 +14,7 @@ import {
   Scissors,
   FlaskConical,
   Plus,
+  Users,
 } from 'lucide-react'
 import DerrickIcon from '../../components/icons/DerrickIcon'
 import { supabase } from '../../lib/supabaseClient'
@@ -21,6 +22,8 @@ import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
 import ProgressBar from '../../components/ProgressBar'
 import WellboreProgress from '../../components/WellboreProgress'
+import CrewAssignmentSection from '../../components/CrewAssignmentSection'
+import Modal from '../../components/Modal'
 import { TASK_TYPE_REPORT_COLUMN, TASK_TYPE_LABELS, type TaskType } from '../../types/taskType'
 import type {
   CoreDescriptionTask,
@@ -102,6 +105,16 @@ export default function TaskDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Работы, прицепленные к ЭТОЙ скважине бурения (см. отзыв 19.09.2026) —
+  // нужны здесь только чтобы показать их в единой модалке "Состав
+  // бригады" вместе с самим бурением (отзыв 20.09.2026: раньше назначить
+  // ответственного исполнителя на них было негде найти).
+  const [attachedGeoCore, setAttachedGeoCore] = useState<CoreDescriptionTask | null>(null)
+  const [attachedGeotechCore, setAttachedGeotechCore] = useState<CoreDescriptionTask | null>(null)
+  const [attachedSawing, setAttachedSawing] = useState<CoreSawingTask | null>(null)
+  const [attachedSampling, setAttachedSampling] = useState<SamplingTask | null>(null)
+  const [crewOpen, setCrewOpen] = useState(false)
+
   const [planDraft, setPlanDraft] = useState('')
   const [editingPlan, setEditingPlan] = useState(false)
   const [savingPlan, setSavingPlan] = useState(false)
@@ -133,6 +146,16 @@ export default function TaskDashboard() {
         if (taskError) setError(taskError.message)
         setDrillingTask(data)
         foremanId = data?.foreman_id ?? null
+
+        const [coreRes, sawingRes, samplingRes] = await Promise.all([
+          supabase.from('core_description_tasks').select('*').eq('drilling_task_id', taskId),
+          supabase.from('core_sawing_tasks').select('*').eq('drilling_task_id', taskId).maybeSingle(),
+          supabase.from('sampling_tasks').select('*').eq('drilling_task_id', taskId).maybeSingle(),
+        ])
+        setAttachedGeoCore(coreRes.data?.find((t) => t.documentation_type === 'geological') ?? null)
+        setAttachedGeotechCore(coreRes.data?.find((t) => t.documentation_type === 'geotechnical') ?? null)
+        setAttachedSawing(sawingRes.data ?? null)
+        setAttachedSampling(samplingRes.data ?? null)
       } else if (taskType === 'core-description') {
         const { data, error: taskError } = await supabase
           .from('core_description_tasks')
@@ -419,7 +442,15 @@ export default function TaskDashboard() {
         >
           <TaskIcon size={19} />
         </span>
-        <h1 style={{ margin: 0 }}>{wellLabel}</h1>
+        <h1 style={{ margin: 0, flex: 1, minWidth: 0 }}>{wellLabel}</h1>
+        <button
+          type="button"
+          className="btn-outline"
+          onClick={() => setCrewOpen(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}
+        >
+          <Users size={15} /> Состав бригады
+        </button>
       </div>
       <p className="eyebrow" style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         {TASK_TYPE_LABELS[taskType]}
@@ -440,6 +471,62 @@ export default function TaskDashboard() {
           {description}
         </p>
       )}
+
+      <Modal open={crewOpen} onClose={() => setCrewOpen(false)} title="Состав бригады">
+        <div style={{ display: 'grid', gap: 20 }}>
+          <CrewAssignmentSection
+            heading={isDrilling ? 'Бурение' : undefined}
+            taskType={taskType}
+            taskId={taskId}
+            foremanId={foreman?.id ?? null}
+            canEdit={isManagement(profile?.role) || (foreman != null && foreman.id === profile?.id)}
+          />
+          {isDrilling && attachedGeoCore && (
+            <CrewAssignmentSection
+              heading="Керн — геологическая документация"
+              taskType="core-description"
+              taskId={attachedGeoCore.id}
+              foremanId={attachedGeoCore.assigned_party_chief_id ?? foreman?.id ?? null}
+              canEdit={
+                isManagement(profile?.role) ||
+                (attachedGeoCore.assigned_party_chief_id ?? foreman?.id) === profile?.id
+              }
+            />
+          )}
+          {isDrilling && attachedGeotechCore && (
+            <CrewAssignmentSection
+              heading="Керн — геотехническая документация"
+              taskType="core-description"
+              taskId={attachedGeotechCore.id}
+              foremanId={attachedGeotechCore.assigned_party_chief_id ?? foreman?.id ?? null}
+              canEdit={
+                isManagement(profile?.role) ||
+                (attachedGeotechCore.assigned_party_chief_id ?? foreman?.id) === profile?.id
+              }
+            />
+          )}
+          {isDrilling && attachedSawing && (
+            <CrewAssignmentSection
+              heading="Распиловка керна"
+              taskType="core-sawing"
+              taskId={attachedSawing.id}
+              foremanId={foreman?.id ?? null}
+              canEdit={isManagement(profile?.role) || (foreman != null && foreman.id === profile?.id)}
+            />
+          )}
+          {isDrilling && attachedSampling && (
+            <CrewAssignmentSection
+              heading="Опробование"
+              taskType="sampling"
+              taskId={attachedSampling.id}
+              foremanId={attachedSampling.assigned_party_chief_id}
+              canEdit={
+                isManagement(profile?.role) || attachedSampling.assigned_party_chief_id === profile?.id
+              }
+            />
+          )}
+        </div>
+      </Modal>
 
       {isDrilling ? (
         <motion.div

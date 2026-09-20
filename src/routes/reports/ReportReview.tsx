@@ -4,7 +4,7 @@ import { CheckCircle2, XCircle, MessageSquare } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
-import type { CostCategory, Report, ReportCost } from '../../types/database'
+import type { CostItem, Report, ReportCost } from '../../types/database'
 
 interface EnrichedCost extends ReportCost {
   categoryName: string
@@ -50,20 +50,20 @@ export default function ReportReview() {
           .eq('report_id', reportId)
 
         if (costsData && costsData.length > 0) {
-          const categoryIds = [
-            ...new Set(costsData.map((c) => c.cost_category_id)),
-          ]
-          const { data: categories } = await supabase
-            .from('cost_categories')
-            .select('*')
-            .in('id', categoryIds)
-          const catMap = new Map(
-            ((categories ?? []) as CostCategory[]).map((c) => [c.id, c.name]),
+          const itemIds = [...new Set(costsData.map((c) => c.cost_item_id))]
+          const { data: items } = await supabase
+            .from('cost_items')
+            .select('*, cost_categories(name)')
+            .in('id', itemIds)
+          const itemMap = new Map(
+            ((items ?? []) as (CostItem & { cost_categories: { name: string } | null })[]).map(
+              (it) => [it.id, `${it.cost_categories?.name ?? '—'} — ${it.name}`],
+            ),
           )
           setCosts(
             costsData.map((c) => ({
               ...c,
-              categoryName: catMap.get(c.cost_category_id) ?? '—',
+              categoryName: itemMap.get(c.cost_item_id) ?? '—',
             })),
           )
         } else {

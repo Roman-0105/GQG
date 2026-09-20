@@ -154,7 +154,7 @@ export default function SummaryReport() {
       reportsList.length
         ? supabase
             .from('report_costs')
-            .select('*, cost_categories(name, unit)')
+            .select('*, cost_items(name, unit, cost_categories(name))')
             .in(
               'report_id',
               reportsList.map((r) => r.id),
@@ -184,20 +184,22 @@ export default function SummaryReport() {
     }))
     setReports(enriched)
 
-    // Агрегация затрат по категориям
+    // Агрегация затрат по видам затрат (внутри категории)
     type CostRow = {
       quantity: number | null
       amount: number | null
-      cost_categories: { name: string; unit: string | null } | null
+      cost_items: { name: string; unit: string | null; cost_categories: { name: string } | null } | null
     }
     const costsByCategory = new Map<
       string,
       { unit: string | null; quantity: number; amount: number }
     >()
     for (const c of (costsRes.data ?? []) as CostRow[]) {
-      const name = c.cost_categories?.name ?? '—'
+      const categoryName = c.cost_items?.cost_categories?.name ?? '—'
+      const itemName = c.cost_items?.name ?? '—'
+      const name = `${categoryName} — ${itemName}`
       const prev = costsByCategory.get(name) ?? {
-        unit: c.cost_categories?.unit ?? null,
+        unit: c.cost_items?.unit ?? null,
         quantity: 0,
         amount: 0,
       }

@@ -9,6 +9,7 @@ import type {
   CoreDescriptionTask,
   CoreSawingTask,
   DrillingOrganization,
+  DrillingRig,
   Profile,
   SamplingTask,
   TaskStatus,
@@ -38,11 +39,12 @@ export default function DrillingTaskForm() {
   const navigate = useNavigate()
 
   const [organizations, setOrganizations] = useState<DrillingOrganization[]>([])
+  const [rigs, setRigs] = useState<DrillingRig[]>([])
   const [foremen, setForemen] = useState<Profile[]>([])
   const [loadingTask, setLoadingTask] = useState(isEditMode)
 
   const [wellNumber, setWellNumber] = useState('')
-  const [rigNumber, setRigNumber] = useState('')
+  const [drillingRigId, setDrillingRigId] = useState('')
   const [drillingOrgId, setDrillingOrgId] = useState('')
   const [coordLat, setCoordLat] = useState('')
   const [coordLon, setCoordLon] = useState('')
@@ -73,8 +75,9 @@ export default function DrillingTaskForm() {
   useEffect(() => {
     if (!session) return
     async function loadRefs() {
-      const [orgsRes, foremenRes] = await Promise.all([
+      const [orgsRes, rigsRes, foremenRes] = await Promise.all([
         supabase.from('drilling_organizations').select('*').order('name'),
+        supabase.from('drilling_rigs').select('*').order('rig_number'),
         supabase
           .from('profiles')
           .select('*')
@@ -82,6 +85,7 @@ export default function DrillingTaskForm() {
           .order('full_name'),
       ])
       if (orgsRes.data) setOrganizations(orgsRes.data)
+      if (rigsRes.data) setRigs(rigsRes.data)
       if (foremenRes.data) setForemen(foremenRes.data)
     }
     loadRefs()
@@ -101,7 +105,7 @@ export default function DrillingTaskForm() {
       if (taskRes.data) {
         const t = taskRes.data
         setWellNumber(t.well_number)
-        setRigNumber(t.rig_number ?? '')
+        setDrillingRigId(t.drilling_rig_id ?? '')
         setDrillingOrgId(t.drilling_org_id)
         setCoordLat(t.coord_wgs84_lat != null ? String(t.coord_wgs84_lat) : '')
         setCoordLon(t.coord_wgs84_lon != null ? String(t.coord_wgs84_lon) : '')
@@ -155,7 +159,7 @@ export default function DrillingTaskForm() {
     const commonFields = {
       site_id: siteId,
       well_number: wellNumber,
-      rig_number: rigNumber || null,
+      drilling_rig_id: drillingRigId || null,
       drilling_org_id: drillingOrgId,
       coord_wgs84_lat: coordLat ? Number(coordLat) : null,
       coord_wgs84_lon: coordLon ? Number(coordLon) : null,
@@ -252,15 +256,14 @@ export default function DrillingTaskForm() {
             />
           </label>
           <label>
-            Номер бурового станка
-            <input value={rigNumber} onChange={(e) => setRigNumber(e.target.value)} />
-          </label>
-          <label>
             Организация бурения
             <select
               required
               value={drillingOrgId}
-              onChange={(e) => setDrillingOrgId(e.target.value)}
+              onChange={(e) => {
+                setDrillingOrgId(e.target.value)
+                setDrillingRigId('')
+              }}
             >
               <option value="">— выбрать —</option>
               {organizations.map((org) => (
@@ -269,6 +272,30 @@ export default function DrillingTaskForm() {
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            Буровой станок
+            <select
+              value={drillingRigId}
+              disabled={!drillingOrgId}
+              onChange={(e) => setDrillingRigId(e.target.value)}
+            >
+              <option value="">— выбрать —</option>
+              {rigs
+                .filter((r) => r.organization_id === drillingOrgId)
+                .map((r) => (
+                  <option key={r.id} value={r.id}>
+                    № {r.rig_number}
+                    {r.model ? ` (${r.model})` : ''}
+                  </option>
+                ))}
+            </select>
+            {drillingOrgId && rigs.filter((r) => r.organization_id === drillingOrgId).length === 0 && (
+              <span className="text-muted" style={{ fontSize: 12.5 }}>
+                У этой организации пока нет станков в справочнике — добавьте на странице{' '}
+                <Link to="/settings/organizations">«Организации бурения»</Link>.
+              </span>
+            )}
           </label>
 
           {isEditMode && (

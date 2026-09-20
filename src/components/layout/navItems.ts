@@ -5,6 +5,9 @@ import {
   ClipboardCheck,
   FileBarChart,
   FileClock,
+  Wallet,
+  Building2,
+  HardHat,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { UserRole } from '../../types/roles'
@@ -39,6 +42,9 @@ export const NAV_ITEMS: NavItem[] = [
   },
   { to: '/reports/summary', label: 'Отчёты', icon: FileBarChart, show: isManagement },
   { to: '/users', label: 'Пользователи', icon: Users, show: isManagement },
+  { to: '/settings/workers', label: 'Работники', icon: HardHat, show: isManagement },
+  { to: '/settings/organizations', label: 'Организации бурения', icon: Building2, show: isManagement },
+  { to: '/settings/costs', label: 'Статьи затрат', icon: Wallet, show: isManagement },
 ]
 
 export function isNavItemActive(pathname: string, to: string) {

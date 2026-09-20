@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext'
 import { ApprovalBadge } from '../../components/StatusBadge'
 import { buildDrillingShiftMessage } from '../../lib/whatsappMessage'
 import type { TaskType } from '../../types/taskType'
-import type { CostCategory, DrillingTask, Report, ReportCost } from '../../types/database'
+import type { CostItem, DrillingTask, Report, ReportCost } from '../../types/database'
 
 interface EnrichedCost extends ReportCost {
   categoryName: string
@@ -33,6 +33,7 @@ export default function ReportDetail() {
 
   const [report, setReport] = useState<Report | null>(null)
   const [drillingTask, setDrillingTask] = useState<DrillingTask | null>(null)
+  const [drillingRigNumber, setDrillingRigNumber] = useState<string | null>(null)
   const [authorName, setAuthorName] = useState('—')
   const [costs, setCosts] = useState<EnrichedCost[]>([])
   const [bottomHole, setBottomHole] = useState<number | null>(null)
@@ -67,14 +68,18 @@ export default function ReportDetail() {
       if (authorRes.data) setAuthorName(authorRes.data.full_name)
 
       if (costsRes.data && costsRes.data.length > 0) {
-        const categoryIds = [...new Set(costsRes.data.map((c) => c.cost_category_id))]
-        const { data: categories } = await supabase
-          .from('cost_categories')
-          .select('*')
-          .in('id', categoryIds)
-        const catMap = new Map(((categories ?? []) as CostCategory[]).map((c) => [c.id, c.name]))
+        const itemIds = [...new Set(costsRes.data.map((c) => c.cost_item_id))]
+        const { data: items } = await supabase
+          .from('cost_items')
+          .select('*, cost_categories(name)')
+          .in('id', itemIds)
+        const itemMap = new Map(
+          ((items ?? []) as (CostItem & { cost_categories: { name: string } | null })[]).map(
+            (it) => [it.id, `${it.cost_categories?.name ?? '—'} — ${it.name}`],
+          ),
+        )
         setCosts(
-          costsRes.data.map((c) => ({ ...c, categoryName: catMap.get(c.cost_category_id) ?? '—' })),
+          costsRes.data.map((c) => ({ ...c, categoryName: itemMap.get(c.cost_item_id) ?? '—' })),
         )
       } else {
         setCosts([])
@@ -87,6 +92,14 @@ export default function ReportDetail() {
           .eq('id', taskId)
           .single()
         setDrillingTask(task)
+        if (task?.drilling_rig_id) {
+          const { data: rig } = await supabase
+            .from('drilling_rigs')
+            .select('rig_number')
+            .eq('id', task.drilling_rig_id)
+            .single()
+          setDrillingRigNumber(rig?.rig_number ?? null)
+        }
 
         // Забой на момент ЭТОЙ смены — сумма подтверждённых метров по
         // заданию строго ДО неё хронологически (по дате и номеру смены),
@@ -122,7 +135,7 @@ export default function ReportDetail() {
     if (!report || !drillingTask) return
     const message = buildDrillingShiftMessage({
       wellNumber: drillingTask.well_number,
-      rigNumber: drillingTask.rig_number,
+      rigNumber: drillingRigNumber,
       reportDate: report.report_date,
       shiftNumber: report.shift_number,
       meters: report.drilling_meters ?? 0,
