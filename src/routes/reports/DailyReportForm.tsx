@@ -150,7 +150,19 @@ export default function DailyReportForm() {
   // сумма уже ПОДТВЕРЖДЁННЫХ смен по заданию, без учёта текущей формы
   // (см. отзыв 17.09.2026 — бригадиры дублируют сводку в рабочий чат).
   const [priorApprovedMeters, setPriorApprovedMeters] = useState(0)
+  // Тот же забой, но включая ещё НЕ согласованные (submitted) смены —
+  // подсказка возле поля "Метраж бурения за смену" (отзыв 20.09.2026,
+  // "для понимания" — бригадиру нужно видеть актуальный забой сразу
+  // после своей же отправки, не дожидаясь техдира). На WhatsApp-сообщение
+  // не влияет — там принципиально только подтверждённые метры (см. выше).
+  const [knownMeters, setKnownMeters] = useState(0)
   const [copied, setCopied] = useState(false)
+  // Дата+смена последней успешно ОТПРАВЛЕННОЙ в этом сеансе сводки — пока
+  // форма стоит на той же дате/смене, кнопки отправки заблокированы, чтобы
+  // случайный повторный клик не создал вторую строку reports на то же
+  // (дата, смена) (см. отзыв 20.09.2026). Меняется дата или смена —
+  // разблокируется само, реактивно.
+  const [lastSubmitted, setLastSubmitted] = useState<{ date: string; shift: string } | null>(null)
 
   const shiftsApply =
     taskType === 'drilling' || taskType === 'core-sawing'
@@ -265,13 +277,19 @@ export default function DailyReportForm() {
           setDrillingRigNumber(rig?.rig_number ?? null)
         }
 
-        const { data: approvedRows } = await supabase
+        const { data: taskReports } = await supabase
           .from('reports')
-          .select('drilling_meters')
+          .select('drilling_meters, approval_status')
           .eq('drilling_task_id', taskId)
-          .eq('approval_status', 'approved')
         setPriorApprovedMeters(
-          (approvedRows ?? []).reduce((s, r) => s + (r.drilling_meters ?? 0), 0),
+          (taskReports ?? [])
+            .filter((r) => r.approval_status === 'approved')
+            .reduce((s, r) => s + (r.drilling_meters ?? 0), 0),
+        )
+        setKnownMeters(
+          (taskReports ?? [])
+            .filter((r) => r.approval_status === 'approved' || r.approval_status === 'submitted')
+            .reduce((s, r) => s + (r.drilling_meters ?? 0), 0),
         )
 
         const [coreRes, sawingRes, samplingRes] = await Promise.all([
@@ -744,7 +762,46 @@ export default function DailyReportForm() {
 
     setSubmitting(null)
     if (mode === 'submit') {
-      setSuccessMsg('Сводка отправлена на согласование.')
+      // Правка (пересдача отклонённой/уже отправленной сводки) — уходим
+      // со страницы, как и при сохранении черновика: этот конкретный
+      // reportId только что перестал быть редактируемым, оставаться на
+      // форме незачем и рискованно (повторный клик упёрся бы в RLS,
+      // см. PGRST116 выше). Новая сводка (не правка) — остаёмся и сразу
+      // готовим форму под следующую смену (см. отзыв 20.09.2026).
+      if (isEditMode) {
+        navigate(`/tasks/${taskType}/${taskId}/reports`)
+        return
+      }
+      if (taskType === 'drilling' && drillingMeters) {
+        setKnownMeters((prev) => prev + Number(drillingMeters))
+      }
+      setLastSubmitted({ date: reportDate, shift: shiftNumber })
+      setSuccessMsg('Сводка отправлена на согласование. Можно сразу заполнять следующую смену.')
+      setHoursWorked('')
+      setDrillingMeters('')
+      setCoreFrom('0')
+      setCoreTo('')
+      setPhotoFrom('0')
+      setPhotoTo('')
+      setSawnMeters('')
+      setSamplesTaken('')
+      setSamplesSubmitted('')
+      setShiftNotes('')
+      setCostRows([emptyCostRow()])
+      setGeoCoreFrom('0')
+      setGeoCoreTo('')
+      setGeoPhotoFrom('0')
+      setGeoPhotoTo('')
+      setGeotechCoreFrom('0')
+      setGeotechCoreTo('')
+      setGeotechPhotoFrom('0')
+      setGeotechPhotoTo('')
+      // Сиблинги (прицепленные работы) относились к ТОЛЬКО ЧТО отправленной
+      // дате/смене — если бригадир сейчас поменяет дату/смену и продолжит
+      // заполнять форму, это должны быть НОВЫЕ строки, а не обновление
+      // уже отправленных. Без сброса второй submit тихо перезаписал бы их.
+      setSiblingIds(EMPTY_SIBLINGS)
+      setSiblingLocked(NOTHING_LOCKED)
     } else {
       navigate(`/tasks/${taskType}/${taskId}/reports`)
       return
@@ -871,12 +928,29 @@ export default function DailyReportForm() {
           {taskType === 'drilling' && (
             <label>
               Метраж бурения за смену, м
-              {drillingTask?.planned_daily_meters != null && (
-                <span className="text-muted" style={{ fontWeight: 400 }}>
-                  {' '}
-                  (план: {drillingTask.planned_daily_meters} м/сутки)
-                </span>
-              )}
+              <span className="text-muted" style={{ fontWeight: 400 }}>
+                {' '}
+                (забой: {knownMeters} м
+                {knownMeters !== priorApprovedMeters && (
+                  <span
+                    title="Включает ещё не согласованные техдиром сводки — цифра может измениться"
+                    style={{
+                      display: 'inline-block',
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: 'var(--color-danger)',
+                      marginLeft: 5,
+                      marginRight: 3,
+                      verticalAlign: 'middle',
+                    }}
+                  />
+                )}
+                {knownMeters !== priorApprovedMeters && ' не согласован'}
+                {drillingTask?.planned_daily_meters != null &&
+                  `, план: ${drillingTask.planned_daily_meters} м/сутки`}
+                )
+              </span>
               <input
                 type="number"
                 step="any"
@@ -1141,29 +1215,46 @@ export default function DailyReportForm() {
           {error && <p className="text-error">{error}</p>}
           {successMsg && <p className="text-success">{successMsg}</p>}
 
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn-outline"
-              disabled={submitting !== null}
-              onClick={(e) => handleSubmit(e, 'draft')}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              {submitting === 'draft' && <span className="spinner" style={{ marginRight: 0 }} />}
-              {submitting === 'draft' ? 'Сохраняем…' : 'Сохранить черновик'}
-            </button>
-            <button
-              type="button"
-              disabled={submitting !== null}
-              onClick={(e) => handleSubmit(e, 'submit')}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              {submitting === 'submit' && <span className="spinner" style={{ marginRight: 0 }} />}
-              {submitting === 'submit'
-                ? 'Отправляем…'
-                : 'Отправить на согласование'}
-            </button>
-          </div>
+          {(() => {
+            // Пока форма стоит на той же дате/смене, что уже была успешно
+            // отправлена в этом сеансе, — кнопки заблокированы (иначе
+            // случайный повторный клик создал бы вторую строку reports на
+            // те же дату/смену, см. отзыв 20.09.2026). Смена даты или
+            // смены снимает блокировку сама, реактивно.
+            const alreadySubmittedHere =
+              !isEditMode &&
+              lastSubmitted !== null &&
+              lastSubmitted.date === reportDate &&
+              lastSubmitted.shift === shiftNumber
+            const disabled = submitting !== null || alreadySubmittedHere
+            return (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  disabled={disabled}
+                  onClick={(e) => handleSubmit(e, 'draft')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  {submitting === 'draft' && <span className="spinner" style={{ marginRight: 0 }} />}
+                  {submitting === 'draft' ? 'Сохраняем…' : 'Сохранить черновик'}
+                </button>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={(e) => handleSubmit(e, 'submit')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  {submitting === 'submit' && <span className="spinner" style={{ marginRight: 0 }} />}
+                  {submitting === 'submit'
+                    ? 'Отправляем…'
+                    : alreadySubmittedHere
+                      ? 'Уже отправлено — измените дату/смену'
+                      : 'Отправить на согласование'}
+                </button>
+              </div>
+            )
+          })()}
         </form>
       )}
     </div>
