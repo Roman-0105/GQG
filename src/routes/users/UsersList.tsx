@@ -16,10 +16,14 @@ const ROLE_OPTIONS: UserRole[] = [
   'party_chief',
 ]
 
+// 'developer' сюда не попадёт по факту (RLS не отдаёт такой профиль
+// этому экрану вообще, см. миграцию 0012) — запись нужна только чтобы
+// удовлетворить Record<UserRole, ...>, иконка никогда не используется.
 const ROLE_ICON: Record<UserRole, typeof Crown> = {
   general_director: Crown,
   technical_director: Shield,
   party_chief: HardHat,
+  developer: Crown,
 }
 
 function initials(fullName: string) {

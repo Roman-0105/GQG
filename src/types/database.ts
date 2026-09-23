@@ -7,6 +7,19 @@ export interface Profile {
   created_at: string
 }
 
+// Оргструктура компании (22.09.2026) — дерево должностей, реальный
+// человек назначается через assigned_worker_id (справочник workers, не
+// profiles — см. решение в миграции 0013). "Мастер" может встречаться
+// несколько раз в разных ветках — это независимые штатные единицы.
+export interface OrgPosition {
+  id: string
+  parent_id: string | null
+  title: string
+  sort_order: number
+  submits_reports: boolean
+  assigned_worker_id: string | null
+}
+
 export type SiteStatus = 'active' | 'closed'
 
 export interface Site {

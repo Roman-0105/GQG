@@ -8,6 +8,7 @@ import {
   Wallet,
   Building2,
   HardHat,
+  Network,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { UserRole } from '../../types/roles'
@@ -45,6 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/settings/workers', label: 'Работники', icon: HardHat, show: isManagement },
   { to: '/settings/organizations', label: 'Организации бурения', icon: Building2, show: isManagement },
   { to: '/settings/costs', label: 'Статьи затрат', icon: Wallet, show: isManagement },
+  { to: '/org-chart', label: 'Оргструктура', icon: Network, show: () => true },
 ]
 
 export function isNavItemActive(pathname: string, to: string) {

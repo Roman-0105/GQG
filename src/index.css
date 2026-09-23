@@ -1097,3 +1097,139 @@ button.btn-danger:hover:not(:disabled) {
   background: var(--color-warning-soft);
   color: var(--color-warning);
 }
+
+/* ---- оргструктура (OrgChart.tsx, 22.09.2026) — классическое "чистое
+   CSS" дерево на ul/li с линиями-коннекторами через ::before/::after,
+   без сторонних библиотек диаграмм. ---- */
+.org-tree-wrap {
+  overflow-x: auto;
+  padding: 12px 4px 24px;
+}
+
+.org-tree,
+.org-tree ul {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  justify-content: center;
+}
+
+.org-tree ul {
+  padding-top: 28px;
+}
+
+.org-tree li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 10px;
+  position: relative;
+}
+
+.org-tree li ul {
+  margin-top: 0;
+}
+
+/* линия вниз от родителя к горизонтальной перекладине над детьми */
+.org-tree li > ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 28px;
+  border-left: 2px solid var(--color-border-strong);
+  transform: translateX(-1px);
+}
+
+/* горизонтальные "плечи", соединяющие соседей на одном уровне */
+.org-tree li::before,
+.org-tree li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 28px;
+  border-top: 2px solid var(--color-border-strong);
+}
+
+.org-tree li::before {
+  right: 50%;
+}
+
+.org-tree li::after {
+  left: 50%;
+  border-left: 2px solid var(--color-border-strong);
+}
+
+.org-tree > li {
+  padding-top: 0;
+}
+
+.org-tree > li::before,
+.org-tree > li::after {
+  display: none;
+}
+
+.org-tree li:only-child::before,
+.org-tree li:only-child::after {
+  display: none;
+}
+
+.org-tree li:first-child::before,
+.org-tree li:last-child::after {
+  border: none;
+}
+
+.org-tree li:last-child::before {
+  border-right: 2px solid var(--color-border-strong);
+  border-radius: 0 6px 0 0;
+}
+
+.org-tree li:first-child::after {
+  border-radius: 6px 0 0 0;
+}
+
+.org-node-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 150px;
+  padding: 10px 14px;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+}
+
+.org-node-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-strong);
+}
+
+.org-node-btn.org-node-flagged {
+  border-color: var(--color-warning);
+  border-width: 2px;
+}
+
+.org-node-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+
+.org-node-worker {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
