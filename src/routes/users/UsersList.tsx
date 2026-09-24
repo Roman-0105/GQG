@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { UserPlus, Crown, Shield, HardHat } from 'lucide-react'
+import { UserPlus, Crown, Shield, HardHat, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { createAuxSupabaseClient } from '../../lib/supabaseAuxClient'
 import { useAuth } from '../../context/AuthContext'
@@ -29,6 +29,126 @@ const ROLE_ICON: Record<UserRole, typeof Crown> = {
 function initials(fullName: string) {
   const parts = fullName.trim().split(/\s+/)
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase()
+}
+
+// Карточка пользователя со своим состоянием удаления в два шага (тот же
+// паттерн, что и у сводок/работников/оргструктуры) — 23.09.2026, по
+// запросу заказчика. Удаляет ТОЛЬКО строку profiles (см. подробный
+// комментарий в миграции 0014 — саму учётную запись в Supabase Auth с
+// фронтенда снести нельзя, нет service_role). Если у пользователя есть
+// история (автор сводок, назначен бригадиром и т.п.) — обычный foreign
+// key без каскада вернёт понятную ошибку вместо того, чтобы молча
+// потерять данные.
+function UserCard({
+  user,
+  isSelf,
+  onDeleted,
+}: {
+  user: Profile
+  isSelf: boolean
+  onDeleted: (id: string) => void
+}) {
+  const RoleIcon = ROLE_ICON[user.role]
+  const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleDelete() {
+    setDeleting(true)
+    setError(null)
+    const { data: deletedRows, error: deleteError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', user.id)
+      .select('id')
+    setDeleting(false)
+    if (deleteError) {
+      setError(
+        deleteError.code === '23503'
+          ? 'Нельзя удалить — у пользователя есть сводки или он назначен на задания. Сначала переназначьте их другому человеку.'
+          : deleteError.message,
+      )
+      return
+    }
+    if (!deletedRows || deletedRows.length === 0) {
+      setError('Не удалось удалить — попробуйте обновить страницу.')
+      return
+    }
+    onDeleted(user.id)
+  }
+
+  return (
+    <motion.div
+      className="card"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      style={{ padding: '10px 14px', display: 'grid', gap: 8 }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span className="user-avatar">{initials(user.full_name)}</span>
+        <span style={{ minWidth: 0, flex: 1 }}>
+          <span style={{ display: 'block', fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {user.full_name}
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+            <RoleIcon size={12} /> {ROLE_LABELS[user.role]}
+          </span>
+        </span>
+        {!isSelf && !confirming && (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            title="Удалить пользователя"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 26,
+              height: 26,
+              borderRadius: 'var(--radius-full)',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--color-danger)',
+              padding: 0,
+              flexShrink: 0,
+            }}
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+      </div>
+
+      {confirming && (
+        <div style={{ display: 'grid', gap: 6 }}>
+          {error && <p className="text-error" style={{ fontSize: 12, margin: 0 }}>{error}</p>}
+          <p style={{ fontSize: 12, margin: 0, color: 'var(--color-text-muted)' }}>
+            Удалить пользователя безвозвратно?
+          </p>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              className="btn-danger"
+              disabled={deleting}
+              onClick={handleDelete}
+              style={{ flex: 1, fontSize: 12.5 }}
+            >
+              {deleting ? 'Удаляем…' : 'Да, удалить'}
+            </button>
+            <button
+              type="button"
+              className="btn-outline"
+              disabled={deleting}
+              onClick={() => setConfirming(false)}
+              style={{ flex: 1, fontSize: 12.5 }}
+            >
+              Отмена
+            </button>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  )
 }
 
 export default function UsersList() {
@@ -193,29 +313,14 @@ export default function UsersList() {
         </div>
       ) : (
         <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
-          {users.map((u, i) => {
-            const RoleIcon = ROLE_ICON[u.role]
-            return (
-              <motion.div
-                key={u.id}
-                className="card"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: Math.min(i, 10) * 0.03, ease: [0.16, 1, 0.3, 1] }}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}
-              >
-                <span className="user-avatar">{initials(u.full_name)}</span>
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ display: 'block', fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {u.full_name}
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--color-text-muted)' }}>
-                    <RoleIcon size={12} /> {ROLE_LABELS[u.role]}
-                  </span>
-                </span>
-              </motion.div>
-            )
-          })}
+          {users.map((u) => (
+            <UserCard
+              key={u.id}
+              user={u}
+              isSelf={u.id === profile?.id}
+              onDeleted={(id) => setUsers((prev) => prev.filter((x) => x.id !== id))}
+            />
+          ))}
         </div>
       )}
     </div>

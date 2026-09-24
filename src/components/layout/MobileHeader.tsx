@@ -20,7 +20,7 @@ export default function MobileHeader() {
           <span className="brand-mark">
             <Mountain size={15} strokeWidth={2.5} />
           </span>
-          GQS
+          GQG
         </Link>
       </header>
     )
@@ -35,7 +35,7 @@ export default function MobileHeader() {
             {current.label}
           </>
         ) : (
-          'GQS'
+          'GQG'
         )}
       </div>
       <UserMenu />

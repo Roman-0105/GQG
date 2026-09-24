@@ -2,18 +2,150 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { HardHat, UserPlus } from 'lucide-react'
+import { Archive, ArchiveRestore, HardHat, Trash2, UserPlus } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
 import type { DrillingOrganization, Profile, Worker } from '../../types/database'
 import Modal from '../../components/Modal'
 
+// Карточка работника — своё состояние для удаления в два шага (тот же
+// паттерн, что и у сводок/оргструктуры, см. отзыв 20.09.2026), чтобы не
+// раздувать родительский компонент состоянием на каждую карточку.
+function WorkerCard({
+  worker,
+  orgName,
+  foremen,
+  onReassign,
+  onArchiveToggle,
+  onDeleted,
+}: {
+  worker: Worker
+  orgName: string
+  foremen: Profile[]
+  onReassign: (workerId: string, foremanId: string) => void
+  onArchiveToggle: (worker: Worker) => void
+  onDeleted: (workerId: string) => void
+}) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  async function handleDelete() {
+    setDeleting(true)
+    setDeleteError(null)
+    const { data: deletedRows, error } = await supabase
+      .from('workers')
+      .delete()
+      .eq('id', worker.id)
+      .select('id')
+    setDeleting(false)
+    if (error) {
+      setDeleteError(error.message)
+      return
+    }
+    if (!deletedRows || deletedRows.length === 0) {
+      setDeleteError('Не удалось удалить — попробуйте обновить страницу.')
+      return
+    }
+    onDeleted(worker.id)
+  }
+
+  return (
+    <motion.div
+      className="card"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      style={{ padding: '10px 14px', display: 'grid', gap: 6, opacity: worker.archived_at ? 0.6 : 1 }}
+    >
+      <div>
+        <span style={{ display: 'block', fontWeight: 600, fontSize: 14 }}>
+          {worker.full_name}
+          {worker.archived_at && (
+            <span className="badge badge-neutral" style={{ marginLeft: 6, fontSize: 10.5 }}>
+              архивирован
+            </span>
+          )}
+        </span>
+        <span className="text-muted" style={{ fontSize: 12.5 }}>
+          {worker.position ?? '—'} · {orgName}
+        </span>
+      </div>
+      <select
+        value={worker.assigned_foreman_id ?? ''}
+        onChange={(e) => onReassign(worker.id, e.target.value)}
+        style={{ fontSize: 13 }}
+      >
+        <option value="">— без бригадира —</option>
+        {foremen.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.full_name}
+          </option>
+        ))}
+      </select>
+
+      {!confirmingDelete ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={() => onArchiveToggle(worker)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 12.5, flex: 1 }}
+          >
+            {worker.archived_at ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+            {worker.archived_at ? 'Вернуть из архива' : 'Архивировать'}
+          </button>
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={() => setConfirmingDelete(true)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 12.5, color: 'var(--color-danger)' }}
+            title="Удалить безвозвратно"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 6 }}>
+          {deleteError && <p className="text-error" style={{ fontSize: 12, margin: 0 }}>{deleteError}</p>}
+          <p style={{ fontSize: 12, margin: 0, color: 'var(--color-text-muted)' }}>
+            Удалить безвозвратно? Это уберёт работника и из истории распределений по заданиям, и из оргструктуры.
+          </p>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              className="btn-danger"
+              disabled={deleting}
+              onClick={handleDelete}
+              style={{ flex: 1, fontSize: 12.5 }}
+            >
+              {deleting ? 'Удаляем…' : 'Да, удалить'}
+            </button>
+            <button
+              type="button"
+              className="btn-outline"
+              disabled={deleting}
+              onClick={() => setConfirmingDelete(false)}
+              style={{ flex: 1, fontSize: 12.5 }}
+            >
+              Отмена
+            </button>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
 // Справочник состава буровых бригад (19.09.2026, по запросу заказчика) —
 // отдельно от "Пользователей" (там только те, кто реально логинится).
 // Здесь — ФИО/должность/организация + распределение по бригадирам:
 // смена бригадира — обычный select на карточке, сохраняется сразу же
 // (см. handleReassign), без отдельной формы правки.
+//
+// 23.09.2026 — добавлены архивирование (мягкое скрытие, не теряет
+// историю распределений) и удаление (безвозвратное, см. миграцию 0014).
 export default function WorkersSettings() {
   const { session, profile, loading: authLoading } = useAuth()
 
@@ -32,6 +164,7 @@ export default function WorkersSettings() {
 
   const [filterOrgId, setFilterOrgId] = useState('')
   const [filterForemanId, setFilterForemanId] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -94,9 +227,22 @@ export default function WorkersSettings() {
       .eq('id', workerId)
   }
 
+  async function handleArchiveToggle(worker: Worker) {
+    const nextArchivedAt = worker.archived_at ? null : new Date().toISOString()
+    setWorkers((prev) =>
+      prev.map((w) => (w.id === worker.id ? { ...w, archived_at: nextArchivedAt } : w)),
+    )
+    await supabase.from('workers').update({ archived_at: nextArchivedAt }).eq('id', worker.id)
+  }
+
+  function handleDeleted(workerId: string) {
+    setWorkers((prev) => prev.filter((w) => w.id !== workerId))
+  }
+
   const orgName = (id: string) => organizations.find((o) => o.id === id)?.name ?? '—'
 
   const visibleWorkers = workers.filter((w) => {
+    if (!showArchived && w.archived_at) return false
     if (filterOrgId && w.organization_id !== filterOrgId) return false
     if (filterForemanId === '__none__' && w.assigned_foreman_id) return false
     if (filterForemanId && filterForemanId !== '__none__' && w.assigned_foreman_id !== filterForemanId)
@@ -177,7 +323,16 @@ export default function WorkersSettings() {
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0 }}>Список работников</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, margin: 0, fontWeight: 400, color: 'var(--color-text)' }}>
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              style={{ width: 'auto' }}
+            />
+            показывать архивных
+          </label>
           <select value={filterOrgId} onChange={(e) => setFilterOrgId(e.target.value)}>
             <option value="">Все организации</option>
             {organizations.map((o) => (
@@ -217,34 +372,16 @@ export default function WorkersSettings() {
             marginTop: 12,
           }}
         >
-          {visibleWorkers.map((w, i) => (
-            <motion.div
+          {visibleWorkers.map((w) => (
+            <WorkerCard
               key={w.id}
-              className="card"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, delay: Math.min(i, 10) * 0.03, ease: [0.16, 1, 0.3, 1] }}
-              style={{ padding: '10px 14px', display: 'grid', gap: 6 }}
-            >
-              <div>
-                <span style={{ display: 'block', fontWeight: 600, fontSize: 14 }}>{w.full_name}</span>
-                <span className="text-muted" style={{ fontSize: 12.5 }}>
-                  {w.position ?? '—'} · {orgName(w.organization_id)}
-                </span>
-              </div>
-              <select
-                value={w.assigned_foreman_id ?? ''}
-                onChange={(e) => handleReassign(w.id, e.target.value)}
-                style={{ fontSize: 13 }}
-              >
-                <option value="">— без бригадира —</option>
-                {foremen.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.full_name}
-                  </option>
-                ))}
-              </select>
-            </motion.div>
+              worker={w}
+              orgName={orgName(w.organization_id)}
+              foremen={foremen}
+              onReassign={handleReassign}
+              onArchiveToggle={handleArchiveToggle}
+              onDeleted={handleDeleted}
+            />
           ))}
         </div>
       )}

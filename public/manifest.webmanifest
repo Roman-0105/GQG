@@ -1,9 +1,9 @@
 {
-  "name": "GQS — учёт буровых работ",
-  "short_name": "GQS",
+  "name": "GQG — учёт буровых работ",
+  "short_name": "GQG",
   "description": "Учёт буровых работ и описания керна",
-  "start_url": "/GQS/",
-  "scope": "/GQS/",
+  "start_url": "/GQG/",
+  "scope": "/GQG/",
   "display": "standalone",
   "background_color": "#F5F2EC",
   "theme_color": "#3F6259",

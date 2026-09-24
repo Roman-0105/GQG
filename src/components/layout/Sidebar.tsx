@@ -43,7 +43,7 @@ export default function Sidebar() {
             <span className="brand-mark">
               <Mountain size={16} strokeWidth={2.5} />
             </span>
-            GQS
+            GQG
           </Link>
         </div>
       </aside>
@@ -59,7 +59,7 @@ export default function Sidebar() {
           <span className="brand-mark">
             <Mountain size={16} strokeWidth={2.5} />
           </span>
-          {!collapsed && 'GQS'}
+          {!collapsed && 'GQG'}
         </Link>
         <button
           type="button"

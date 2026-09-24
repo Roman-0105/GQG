@@ -4,9 +4,16 @@ import { Navigate } from 'react-router-dom'
 import { Network, Plus, Trash2, UserCircle2 } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
-import { isManagement } from '../../types/roles'
-import type { OrgPosition, Worker } from '../../types/database'
+import { isManagement, ROLE_LABELS } from '../../types/roles'
+import type { OrgPosition, Profile, Worker } from '../../types/database'
 import Modal from '../../components/Modal'
+
+// Значение в объединённом select'е назначения — префикс различает, из
+// какой таблицы взят id (worker/profile — оба UUID, сами по себе не
+// различимы), см. отзыв 24.09.2026.
+const NONE_VALUE = ''
+const workerValue = (id: string) => `worker:${id}`
+const profileValue = (id: string) => `profile:${id}`
 
 // Собирает id узла и ВСЕХ его потомков — нужно, чтобы при переносе
 // должности в другую ветку нельзя было выбрать самого себя или своего
@@ -33,13 +40,13 @@ function countDescendants(rootId: string, all: OrgPosition[]): number {
 interface NodeProps {
   position: OrgPosition
   childrenByParent: Map<string | null, OrgPosition[]>
-  workerName: (id: string | null) => string | null
+  assigneeName: (p: OrgPosition) => string | null
   onSelect: (p: OrgPosition) => void
 }
 
-function OrgNode({ position, childrenByParent, workerName, onSelect }: NodeProps) {
+function OrgNode({ position, childrenByParent, assigneeName, onSelect }: NodeProps) {
   const kids = childrenByParent.get(position.id) ?? []
-  const name = workerName(position.assigned_worker_id)
+  const name = assigneeName(position)
   return (
     <li>
       <button
@@ -55,7 +62,7 @@ function OrgNode({ position, childrenByParent, workerName, onSelect }: NodeProps
       {kids.length > 0 && (
         <ul>
           {kids.map((k) => (
-            <OrgNode key={k.id} position={k} childrenByParent={childrenByParent} workerName={workerName} onSelect={onSelect} />
+            <OrgNode key={k.id} position={k} childrenByParent={childrenByParent} assigneeName={assigneeName} onSelect={onSelect} />
           ))}
         </ul>
       )}
@@ -65,22 +72,31 @@ function OrgNode({ position, childrenByParent, workerName, onSelect }: NodeProps
 
 // Организационная структура компании (22.09.2026, по запросу владельца
 // платформы) — дерево должностей, редактируемое гендиром/техдиром/
-// разработчиком (см. is_management(), теперь включает и 'developer').
-// Назначение реального человека на должность — из справочника "Работники"
-// (workers), не через отдельный список: так решил заказчик, чтобы не
-// вести два параллельных реестра людей.
+// разработчиком (см. is_management(), включает и 'developer').
+//
+// 24.09.2026 — назначение на должность теперь идёт ЛИБО из справочника
+// "Работники" (для тех, у кого нет входа в систему), ЛИБО из реальных
+// логин-пользователей ("Пользователи") — изначально было только через
+// workers, но это оказалось неудобно для позиций типа "Генеральный
+// директор"/"Технический директор"/"Начальник буровой партии": человек
+// уже есть в БД как пользователь, а выбрать его было нельзя, пришлось бы
+// заводить дубликат в workers. Разработчик (role='developer') в списке
+// пользователей никогда не появится — RLS прячет его профиль от всех,
+// кроме него самого (см. миграцию 0012), так что "серый кардинал"
+// остаётся невидимым и здесь.
 export default function OrgChart() {
   const { session, profile, loading: authLoading } = useAuth()
 
   const [positions, setPositions] = useState<OrgPosition[]>([])
   const [workers, setWorkers] = useState<Worker[]>([])
+  const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [selected, setSelected] = useState<OrgPosition | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editSubmits, setEditSubmits] = useState(false)
-  const [editWorkerId, setEditWorkerId] = useState('')
+  const [editAssignee, setEditAssignee] = useState(NONE_VALUE)
   const [editParentId, setEditParentId] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -102,13 +118,20 @@ export default function OrgChart() {
 
   async function load() {
     setLoading(true)
-    const [posRes, workersRes] = await Promise.all([
+    const [posRes, workersRes, profilesRes] = await Promise.all([
       supabase.from('org_positions').select('*').order('sort_order'),
       supabase.from('workers').select('*').order('full_name'),
+      // .neq('role', 'developer') — доп. подстраховка сверх RLS: RLS и так
+      // прячет профиль-разработчика от гендира/техдира, но если ЭТО ОКНО
+      // открыл сам разработчик, он увидел бы себя (id = auth.uid() всегда
+      // проходит) и мог случайно назначить себя на видимую должность —
+      // а он должен оставаться невидимым в схеме в любом случае.
+      supabase.from('profiles').select('*').neq('role', 'developer').order('full_name'),
     ])
     if (posRes.error) setError(posRes.error.message)
     setPositions(posRes.data ?? [])
     setWorkers(workersRes.data ?? [])
+    setProfiles(profilesRes.data ?? [])
     setLoading(false)
   }
 
@@ -127,17 +150,29 @@ export default function OrgChart() {
   }
   const roots = childrenByParent.get(null) ?? []
 
-  const workerName = (id: string | null) => {
-    if (!id) return null
-    const w = workers.find((x) => x.id === id)
-    return w ? `${w.full_name}${w.position ? ` — ${w.position}` : ''}` : null
+  function assigneeName(p: OrgPosition): string | null {
+    if (p.assigned_worker_id) {
+      const w = workers.find((x) => x.id === p.assigned_worker_id)
+      return w ? `${w.full_name}${w.position ? ` — ${w.position}` : ''}` : null
+    }
+    if (p.assigned_profile_id) {
+      const u = profiles.find((x) => x.id === p.assigned_profile_id)
+      return u ? `${u.full_name} — ${ROLE_LABELS[u.role]}` : null
+    }
+    return null
   }
 
   function openNode(p: OrgPosition) {
     setSelected(p)
     setEditTitle(p.title)
     setEditSubmits(p.submits_reports)
-    setEditWorkerId(p.assigned_worker_id ?? '')
+    setEditAssignee(
+      p.assigned_worker_id
+        ? workerValue(p.assigned_worker_id)
+        : p.assigned_profile_id
+          ? profileValue(p.assigned_profile_id)
+          : NONE_VALUE,
+    )
     setEditParentId(p.parent_id ?? '')
     setSaveError(null)
     setConfirmingDelete(false)
@@ -156,12 +191,14 @@ export default function OrgChart() {
     if (!selected) return
     setSaving(true)
     setSaveError(null)
+    const [kind, id] = editAssignee ? editAssignee.split(':') : [null, null]
     const { data, error: updateError } = await supabase
       .from('org_positions')
       .update({
         title: editTitle.trim(),
         submits_reports: editSubmits,
-        assigned_worker_id: editWorkerId || null,
+        assigned_worker_id: kind === 'worker' ? id : null,
+        assigned_profile_id: kind === 'profile' ? id : null,
         parent_id: editParentId || null,
       })
       .eq('id', selected.id)
@@ -253,6 +290,8 @@ export default function OrgChart() {
   const parentOptions = positions.filter((p) => !excludedForParent.has(p.id))
   const childCount = selected ? countDescendants(selected.id, positions) : 0
 
+  const activeWorkers = workers.filter((w) => !w.archived_at || workerValue(w.id) === editAssignee)
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
@@ -285,7 +324,7 @@ export default function OrgChart() {
         <div className="org-tree-wrap">
           <ul className="org-tree">
             {roots.map((r) => (
-              <OrgNode key={r.id} position={r} childrenByParent={childrenByParent} workerName={workerName} onSelect={openNode} />
+              <OrgNode key={r.id} position={r} childrenByParent={childrenByParent} assigneeName={assigneeName} onSelect={openNode} />
             ))}
           </ul>
         </div>
@@ -317,15 +356,29 @@ export default function OrgChart() {
                   <input required value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
                 </label>
                 <label>
-                  Назначенный работник
-                  <select value={editWorkerId} onChange={(e) => setEditWorkerId(e.target.value)}>
-                    <option value="">— не назначено —</option>
-                    {workers.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.full_name}
-                        {w.position ? ` — ${w.position}` : ''}
-                      </option>
-                    ))}
+                  Назначенный человек
+                  <select value={editAssignee} onChange={(e) => setEditAssignee(e.target.value)}>
+                    <option value={NONE_VALUE}>— не назначено —</option>
+                    {profiles.length > 0 && (
+                      <optgroup label="Пользователи (вход в систему)">
+                        {profiles.map((u) => (
+                          <option key={u.id} value={profileValue(u.id)}>
+                            {u.full_name} — {ROLE_LABELS[u.role]}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {activeWorkers.length > 0 && (
+                      <optgroup label="Работники">
+                        {activeWorkers.map((w) => (
+                          <option key={w.id} value={workerValue(w.id)}>
+                            {w.full_name}
+                            {w.position ? ` — ${w.position}` : ''}
+                            {w.archived_at ? ' (архивирован)' : ''}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </label>
                 <label>
@@ -356,9 +409,7 @@ export default function OrgChart() {
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <UserCircle2 size={18} className="text-muted" />
-                {workerName(selected.assigned_worker_id) ?? (
-                  <span className="text-muted">Работник не назначен</span>
-                )}
+                {assigneeName(selected) ?? <span className="text-muted">Никто не назначен</span>}
               </div>
             )}
 

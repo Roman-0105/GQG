@@ -102,8 +102,11 @@ export default function CrewAssignmentSection({ taskType, taskId, foremanId, can
       <div style={{ display: 'grid', gap: 14 }}>
         {roles.map((role) => {
           const rows = assignments.filter((a) => a.role === role.value)
+          // Уже назначенных архивированных работников продолжаем показывать
+          // по имени (см. workerName ниже, там весь brigadeWorkers без
+          // фильтра) — просто не даём НАЗНАЧАТЬ архивированных заново.
           const availableToAdd = brigadeWorkers.filter(
-            (w) => !rows.some((r) => r.worker_id === w.id),
+            (w) => !w.archived_at && !rows.some((r) => r.worker_id === w.id),
           )
           return (
             <div key={role.value}>

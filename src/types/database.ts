@@ -7,10 +7,13 @@ export interface Profile {
   created_at: string
 }
 
-// Оргструктура компании (22.09.2026) — дерево должностей, реальный
-// человек назначается через assigned_worker_id (справочник workers, не
-// profiles — см. решение в миграции 0013). "Мастер" может встречаться
-// несколько раз в разных ветках — это независимые штатные единицы.
+// Оргструктура компании (22.09.2026) — дерево должностей. "Мастер" может
+// встречаться несколько раз в разных ветках — это независимые штатные
+// единицы. Реальный человек назначается ЛИБО через assigned_worker_id
+// (справочник workers — для тех, у кого нет входа в систему), ЛИБО через
+// assigned_profile_id (реальный логин-пользователь — гендир/техдир/
+// бригадир и т.п.), не оба сразу (см. миграцию 0015, отзыв 24.09.2026:
+// дублировать логин-пользователя ещё и как работника было неудобно).
 export interface OrgPosition {
   id: string
   parent_id: string | null
@@ -18,6 +21,7 @@ export interface OrgPosition {
   sort_order: number
   submits_reports: boolean
   assigned_worker_id: string | null
+  assigned_profile_id: string | null
 }
 
 export type SiteStatus = 'active' | 'closed'
@@ -58,6 +62,10 @@ export interface Worker {
   position: string | null
   organization_id: string
   assigned_foreman_id: string | null
+  // NULL = активен, дата = когда заархивирован (23.09.2026) — мягкое
+  // скрытие из активных списков назначения, история (task_worker_
+  // assignments/org_positions) не теряется.
+  archived_at: string | null
 }
 
 // Учётное распределение конкретных работников по ролям на задании
