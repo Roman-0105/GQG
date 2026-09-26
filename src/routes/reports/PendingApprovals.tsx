@@ -5,6 +5,7 @@ import { ClipboardCheck, ChevronDown, ChevronRight, PartyPopper, X } from 'lucid
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
+import { riseIn } from '../../lib/motionVariants'
 import type { Report } from '../../types/database'
 
 type SubtaskKey = 'drilling' | 'core-geological' | 'core-geotechnical' | 'sawing' | 'sampling'
@@ -377,9 +378,7 @@ export default function PendingApprovals() {
               <motion.div
                 key={site.siteId}
                 className="card"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: Math.min(i, 10) * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                {...riseIn(i, { duration: 0.25, cap: 10, step: 0.03 })}
                 style={{ padding: 0, overflow: 'hidden' }}
               >
                 <button

@@ -6,6 +6,7 @@ import { Mountain, Plus, ChevronRight } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
+import { riseIn } from '../../lib/motionVariants'
 import type { Site } from '../../types/database'
 import Modal from '../../components/Modal'
 
@@ -113,12 +114,7 @@ export default function SitesList() {
       ) : (
         <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
           {sites.map((site, i) => (
-            <motion.div
-              key={site.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: Math.min(i, 8) * 0.035, ease: [0.16, 1, 0.3, 1] }}
-            >
+            <motion.div key={site.id} {...riseIn(i, { y: 10, duration: 0.3 })}>
               <Link
                 to={`/sites/${site.id}`}
                 className="site-card card"

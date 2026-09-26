@@ -20,6 +20,8 @@ import DerrickIcon from '../../components/icons/DerrickIcon'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
+import { riseIn } from '../../lib/motionVariants'
+import { round2 } from '../../lib/taskProgress'
 import ProgressBar from '../../components/ProgressBar'
 import WellboreProgress from '../../components/WellboreProgress'
 import CrewAssignmentSection from '../../components/CrewAssignmentSection'
@@ -298,8 +300,8 @@ export default function TaskDashboard() {
   }
 
   // ---- сводные прогресс-бары ----
-  const approvedAdditiveMeters = approvedReports.reduce((s, r) => s + (additiveMetric(r) ?? 0), 0)
-  const pendingAdditiveMeters = submittedReports.reduce((s, r) => s + (additiveMetric(r) ?? 0), 0)
+  const approvedAdditiveMeters = round2(approvedReports.reduce((s, r) => s + (additiveMetric(r) ?? 0), 0))
+  const pendingAdditiveMeters = round2(submittedReports.reduce((s, r) => s + (additiveMetric(r) ?? 0), 0))
 
   const approvedCoreTo = approvedReports.reduce(
     (max, r) => Math.max(max, r.core_description_interval_to ?? 0),
@@ -359,7 +361,7 @@ export default function TaskDashboard() {
         ? r.core_description_interval_to - r.core_description_interval_from
         : null
     return {
-      meters,
+      meters: meters != null ? round2(meters) : null,
       hours: r.hours_worked,
       status: r.approval_status,
       notes: r.shift_notes,
@@ -373,9 +375,9 @@ export default function TaskDashboard() {
     const cells = shiftsApply ? [cellValue(row.shift1), cellValue(row.shift2)] : [cellValue(row.noShift)]
 
     const dayApproved = isAdditiveMeters
-      ? cells.reduce((s, c) => s + (c.status === 'approved' ? (c.meters ?? 0) : 0), 0)
+      ? round2(cells.reduce((s, c) => s + (c.status === 'approved' ? (c.meters ?? 0) : 0), 0))
       : 0
-    runningApproved += dayApproved
+    runningApproved = round2(runningApproved + dayApproved)
 
     const daySamplesTaken = isSampling
       ? cells.reduce((s, c) => s + (c.status === 'approved' ? (c.samplesTaken ?? 0) : 0), 0)
@@ -383,7 +385,7 @@ export default function TaskDashboard() {
 
     const plannedCumulative =
       isDrilling && plannedDailyMeters != null && projectedDepth != null
-        ? Math.min(plannedDailyMeters * (dayIndex(startDate, row.date) + 1), projectedDepth)
+        ? round2(Math.min(plannedDailyMeters * (dayIndex(startDate, row.date) + 1), projectedDepth))
         : null
 
     return { row, cells, dayApproved, runningApproved, daySamplesTaken, plannedCumulative }
@@ -531,9 +533,7 @@ export default function TaskDashboard() {
       {isDrilling ? (
         <motion.div
           className="card"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          {...riseIn(0, { y: 10, duration: 0.35 })}
           style={{
             display: 'grid',
             gridTemplateColumns: 'minmax(0, 260px) 1fr',
@@ -593,7 +593,7 @@ export default function TaskDashboard() {
                   Факт
                 </div>
                 <div className="num" style={{ fontSize: 22, fontWeight: 700 }}>
-                  {approvedAdditiveMeters} м
+                  {approvedAdditiveMeters.toFixed(2)} м
                 </div>
               </div>
               <div>
@@ -740,7 +740,7 @@ export default function TaskDashboard() {
                 </thead>
                 <tbody>
                   {rowsForDisplay.map(({ row, cells, dayApproved, runningApproved: cumApproved, daySamplesTaken, plannedCumulative }, rowIndex) => {
-                    const dayDiff = plannedCumulative != null ? cumApproved - plannedCumulative : null
+                    const dayDiff = plannedCumulative != null ? round2(cumApproved - plannedCumulative) : null
                     const isToday = row.date === todayIso()
                     return (
                       <tr
@@ -784,12 +784,12 @@ export default function TaskDashboard() {
                         )}
                         {isDrilling && (
                           <>
-                            <td className="num" style={{ padding: '9px 12px' }}>{plannedCumulative != null ? `${plannedCumulative.toFixed(1)} м` : '—'}</td>
+                            <td className="num" style={{ padding: '9px 12px' }}>{plannedCumulative != null ? `${plannedCumulative.toFixed(2)} м` : '—'}</td>
                             <td className="num" style={{ padding: '9px 12px' }}>
                               {dayDiff != null ? (
                                 <span className={dayDiff >= 0 ? 'text-success' : 'text-error'}>
                                   {dayDiff >= 0 ? '+' : ''}
-                                  {dayDiff.toFixed(1)} м
+                                  {dayDiff.toFixed(2)} м
                                 </span>
                               ) : (
                                 '—'

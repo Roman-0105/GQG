@@ -5,6 +5,7 @@ import { ChevronLeft, MessageCircle, Check } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { buildDrillingShiftMessage } from '../../lib/whatsappMessage'
+import { round2 } from '../../lib/taskProgress'
 import { TASK_TYPE_REPORT_COLUMN, type TaskType } from '../../types/taskType'
 import type {
   CoreDescriptionTask,
@@ -113,7 +114,15 @@ export default function DailyReportForm() {
     shiftFromQuery === '2' ? '2' : '1',
   )
   const [hoursWorked, setHoursWorked] = useState('')
-  const [drillingMeters, setDrillingMeters] = useState('')
+  // Метраж бурения (25.09.2026, по отзыву мастера участка — вернули
+  // интервальный ввод "от"/"до", как у описания керна, вместо одного
+  // числа за смену): "от" — забой на начало смены, автоподставляется из
+  // накопленного забоя (см. knownMeters ниже) и НЕ редактируется; "до" —
+  // забой на конец смены, вводится вручную. Сам delta (drillingTo -
+  // drillingFrom) — то, что уходит в reports.drilling_meters, схема БД не
+  // меняется, меняется только форма ввода.
+  const [drillingFrom, setDrillingFrom] = useState('0')
+  const [drillingTo, setDrillingTo] = useState('')
   const [coreFrom, setCoreFrom] = useState('0')
   const [coreTo, setCoreTo] = useState('')
   const [photoFrom, setPhotoFrom] = useState('0')
@@ -260,6 +269,11 @@ export default function DailyReportForm() {
       let geotech: CoreDescriptionTask | null = null
       let saw: CoreSawingTask | null = null
       let sample: SamplingTask | null = null
+      // Забой на начало смены (см. drillingFrom ниже) — считан в этой же
+      // функции чуть позже; локальная переменная нужна, т.к. state
+      // (knownMeters) обновится асинхронно и не будет виден ниже по коду
+      // этого же вызова load().
+      let knownSumAtLoad = 0
 
       if (taskType === 'drilling') {
         const { data } = await supabase
@@ -279,18 +293,29 @@ export default function DailyReportForm() {
 
         const { data: taskReports } = await supabase
           .from('reports')
-          .select('drilling_meters, approval_status')
+          .select('id, drilling_meters, approval_status')
           .eq('drilling_task_id', taskId)
-        setPriorApprovedMeters(
-          (taskReports ?? [])
+        // Исключаем саму редактируемую сводку из суммы — иначе "от" при
+        // правке включал бы её же метраж и был бы уже забоем НА КОНЕЦ этой
+        // смены, а не на начало (см. пересчёт drillingTo ниже).
+        const otherReports = (taskReports ?? []).filter((r) => r.id !== reportId)
+        const approvedSum = round2(
+          otherReports
             .filter((r) => r.approval_status === 'approved')
             .reduce((s, r) => s + (r.drilling_meters ?? 0), 0),
         )
-        setKnownMeters(
-          (taskReports ?? [])
+        const knownSum = round2(
+          otherReports
             .filter((r) => r.approval_status === 'approved' || r.approval_status === 'submitted')
             .reduce((s, r) => s + (r.drilling_meters ?? 0), 0),
         )
+        setPriorApprovedMeters(approvedSum)
+        setKnownMeters(knownSum)
+        // "От" — забой на начало смены, автоподставляется и не редактируется
+        // (см. отзыв 25.09.2026). Для новой сводки это и есть текущий забой;
+        // при правке — тоже он, т.к. otherReports уже исключает саму сводку.
+        setDrillingFrom(String(knownSum))
+        knownSumAtLoad = knownSum
 
         const [coreRes, sawingRes, samplingRes] = await Promise.all([
           supabase.from('core_description_tasks').select('*').eq('drilling_task_id', taskId),
@@ -364,8 +389,11 @@ export default function DailyReportForm() {
           setReportDate(r.report_date)
           setShiftNumber(r.shift_number ? (String(r.shift_number) as '1' | '2') : '')
           setHoursWorked(r.hours_worked != null ? String(r.hours_worked) : '')
-          setDrillingMeters(
-            r.drilling_meters != null ? String(r.drilling_meters) : '',
+          // "До" при правке — забой на начало смены (knownSumAtLoad, уже
+          // считает без этой сводки) + её собственный метраж = забой на
+          // конец этой смены, как он был при первой отправке.
+          setDrillingTo(
+            r.drilling_meters != null ? String(round2(knownSumAtLoad + r.drilling_meters)) : '',
           )
           setCoreFrom(
             r.core_description_interval_from != null
@@ -458,7 +486,7 @@ export default function DailyReportForm() {
   if (!session) return <Navigate to="/login" replace />
   if (!taskId || !taskType) return <p>Не указано задание.</p>
   if (profile && profile.role !== 'party_chief') {
-    return <p>Сводки вносит только начальник буровой партии.</p>
+    return <p>Сводки вносит только назначенный ответственный.</p>
   }
 
   const description =
@@ -559,7 +587,9 @@ export default function DailyReportForm() {
       shift_number: shiftsApply && shiftNumber ? Number(shiftNumber) : null,
       hours_worked: hoursWorked ? Number(hoursWorked) : null,
       drilling_meters:
-        taskType === 'drilling' && drillingMeters ? Number(drillingMeters) : null,
+        taskType === 'drilling' && drillingFrom !== '' && drillingTo !== ''
+          ? round2(Number(drillingTo) - Number(drillingFrom))
+          : null,
       core_description_interval_from:
         taskType === 'core-description' && coreTo ? Number(coreFrom) : null,
       core_description_interval_to:
@@ -772,13 +802,16 @@ export default function DailyReportForm() {
         navigate(`/tasks/${taskType}/${taskId}/reports`)
         return
       }
-      if (taskType === 'drilling' && drillingMeters) {
-        setKnownMeters((prev) => prev + Number(drillingMeters))
+      if (taskType === 'drilling' && drillingFrom !== '' && drillingTo !== '') {
+        setKnownMeters((prev) => round2(prev + (Number(drillingTo) - Number(drillingFrom))))
+        // Забой на конец только что отправленной смены становится забоем
+        // на начало следующей — та же логика, что и у coreFrom/photoFrom.
+        setDrillingFrom(drillingTo)
       }
       setLastSubmitted({ date: reportDate, shift: shiftNumber })
       setSuccessMsg('Сводка отправлена на согласование. Можно сразу заполнять следующую смену.')
       setHoursWorked('')
-      setDrillingMeters('')
+      setDrillingTo('')
       setCoreFrom('0')
       setCoreTo('')
       setPhotoFrom('0')
@@ -809,7 +842,7 @@ export default function DailyReportForm() {
   }
 
   async function handleCopyWhatsApp() {
-    const meters = drillingMeters ? Number(drillingMeters) : 0
+    const meters = drillingFrom !== '' && drillingTo !== '' ? round2(Number(drillingTo) - Number(drillingFrom)) : 0
     const coreDescriptions = []
     if (attachedGeoCore && geoCoreTo) {
       coreDescriptions.push({
@@ -835,7 +868,7 @@ export default function DailyReportForm() {
       reportDate,
       shiftNumber: shiftsApply && shiftNumber ? Number(shiftNumber) : null,
       meters,
-      bottomHole: priorApprovedMeters + meters,
+      bottomHole: round2(priorApprovedMeters + meters),
       shiftNotes,
       coreDescriptions,
       sawnMeters: attachedSawing && sawnMeters ? Number(sawnMeters) : null,
@@ -926,12 +959,34 @@ export default function DailyReportForm() {
           </label>
 
           {taskType === 'drilling' && (
-            <label>
-              Метраж бурения за смену, м
-              <span className="text-muted" style={{ fontWeight: 400 }}>
-                {' '}
-                (забой: {knownMeters} м
-                {knownMeters !== priorApprovedMeters && (
+            <fieldset>
+              <legend>
+                Метраж бурения за смену, забой
+                {drillingTask?.planned_daily_meters != null && (
+                  <span className="text-muted" style={{ fontWeight: 400 }}>
+                    {' '}— план: {drillingTask.planned_daily_meters} м/сутки
+                  </span>
+                )}
+              </legend>
+              <input
+                type="number"
+                step="any"
+                placeholder="от"
+                value={drillingFrom}
+                readOnly
+                title="Подставляется автоматически — забой на начало смены"
+                style={{ width: 90 }}
+              />
+              <input
+                type="number"
+                step="any"
+                placeholder="до"
+                value={drillingTo}
+                onChange={(e) => setDrillingTo(e.target.value)}
+                style={{ width: 90 }}
+              />
+              {knownMeters !== priorApprovedMeters && (
+                <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
                   <span
                     title="Включает ещё не согласованные техдиром сводки — цифра может измениться"
                     style={{
@@ -940,24 +995,14 @@ export default function DailyReportForm() {
                       height: 6,
                       borderRadius: '50%',
                       background: 'var(--color-danger)',
-                      marginLeft: 5,
-                      marginRight: 3,
+                      marginRight: 5,
                       verticalAlign: 'middle',
                     }}
                   />
-                )}
-                {knownMeters !== priorApprovedMeters && ' не согласован'}
-                {drillingTask?.planned_daily_meters != null &&
-                  `, план: ${drillingTask.planned_daily_meters} м/сутки`}
-                )
-              </span>
-              <input
-                type="number"
-                step="any"
-                value={drillingMeters}
-                onChange={(e) => setDrillingMeters(e.target.value)}
-              />
-            </label>
+                  Забой не согласован — сумма может измениться после проверки техдиром
+                </div>
+              )}
+            </fieldset>
           )}
 
           {taskType === 'core-description' && (

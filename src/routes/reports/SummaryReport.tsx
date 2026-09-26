@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Download, Timer, Layers, Camera, Coins } from 'lucide-react'
+import { Download, Timer, Layers, Camera, Coins, Scissors, FlaskConical, TrendingUp } from 'lucide-react'
 import DerrickIcon from '../../components/icons/DerrickIcon'
 import { supabase } from '../../lib/supabaseClient'
 import { exportToXlsx } from '../../lib/xlsxExport'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
+import { riseIn } from '../../lib/motionVariants'
+import { round2 } from '../../lib/taskProgress'
+import TrendSparkline from '../../components/TrendSparkline'
 import type { CoreDescriptionTask, DrillingTask, Report, Site } from '../../types/database'
 
 interface EnrichedReport extends Report {
@@ -223,24 +226,47 @@ export default function SummaryReport() {
     return <p>Отчёты доступны только гендиру/техдиру.</p>
   }
 
-  const totalHours = reports.reduce((s, r) => s + (r.hours_worked ?? 0), 0)
-  const totalDrillingMeters = reports.reduce(
-    (s, r) => s + (r.drilling_meters ?? 0),
-    0,
+  const totalHours = round2(reports.reduce((s, r) => s + (r.hours_worked ?? 0), 0))
+  const totalDrillingMeters = round2(
+    reports.reduce((s, r) => s + (r.drilling_meters ?? 0), 0),
   )
-  const totalCoreMeters = reports.reduce((s, r) => {
-    if (r.core_description_interval_to == null) return s
-    return (
-      s +
-      (r.core_description_interval_to - (r.core_description_interval_from ?? 0))
-    )
-  }, 0)
-  const totalPhotoMeters = reports.reduce((s, r) => {
-    if (r.photofixation_interval_to == null) return s
-    return (
-      s + (r.photofixation_interval_to - (r.photofixation_interval_from ?? 0))
-    )
-  }, 0)
+  const totalCoreMeters = round2(
+    reports.reduce((s, r) => {
+      if (r.core_description_interval_to == null) return s
+      return (
+        s +
+        (r.core_description_interval_to - (r.core_description_interval_from ?? 0))
+      )
+    }, 0),
+  )
+  const totalPhotoMeters = round2(
+    reports.reduce((s, r) => {
+      if (r.photofixation_interval_to == null) return s
+      return (
+        s + (r.photofixation_interval_to - (r.photofixation_interval_from ?? 0))
+      )
+    }, 0),
+  )
+  // Распиловка/опробование — раньше не входили в сводный отчёт вообще
+  // (пробел, найденный при исследовании фазы 3 редизайна 25.09.2026),
+  // хотя строки reports для них уже приходят тем же запросом (фильтр
+  // выше — по approval_status/датам/участку, не по виду работ).
+  const totalSawnMeters = round2(reports.reduce((s, r) => s + (r.sawn_meters ?? 0), 0))
+  const totalSamplesTaken = reports.reduce((s, r) => s + (r.samples_taken ?? 0), 0)
+  const totalSamplesSubmitted = reports.reduce((s, r) => s + (r.samples_submitted ?? 0), 0)
+
+  // Темп бурения по дням за период — для TrendSparkline. Только
+  // approved-сводки (те же reports, что и остальные итоги), по датам с
+  // хотя бы одним метром — дни без бурения просто не рисуются точкой
+  // (спарклайн не обязан быть календарной сеткой день-в-день).
+  const drillingByDate = new Map<string, number>()
+  for (const r of reports) {
+    if (!r.drilling_meters) continue
+    drillingByDate.set(r.report_date, (drillingByDate.get(r.report_date) ?? 0) + r.drilling_meters)
+  }
+  const drillingTrend = [...drillingByDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, value]) => ({ date, value: round2(value) }))
 
   function handleExport() {
     exportToXlsx(
@@ -257,6 +283,9 @@ export default function SummaryReport() {
         'Керн до',
         'Фото от',
         'Фото до',
+        'Распиловка, м',
+        'Проб отобрано',
+        'Проб сдано',
       ],
       reports.map((r) => [
         r.report_date,
@@ -269,6 +298,9 @@ export default function SummaryReport() {
         r.core_description_interval_to,
         r.photofixation_interval_from,
         r.photofixation_interval_to,
+        r.sawn_meters,
+        r.samples_taken,
+        r.samples_submitted,
       ]),
     ).catch(() => setError('Не удалось сформировать файл экспорта.'))
   }
@@ -278,6 +310,8 @@ export default function SummaryReport() {
     { label: 'Метраж бурения', value: totalDrillingMeters, unit: 'м', icon: DerrickIcon },
     { label: 'Описание керна', value: totalCoreMeters, unit: 'м', icon: Layers },
     { label: 'Фотофиксация', value: totalPhotoMeters, unit: 'м', icon: Camera },
+    { label: 'Распиловка', value: totalSawnMeters, unit: 'м', icon: Scissors },
+    { label: 'Проб отобрано', value: totalSamplesTaken, unit: `(сдано ${totalSamplesSubmitted})`, icon: FlaskConical },
   ]
 
   return (
@@ -368,9 +402,7 @@ export default function SummaryReport() {
               <motion.div
                 key={tile.label}
                 className="card"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.28, delay: i * 0.04, ease: [0.16, 1, 0.3, 1] }}
+                {...riseIn(i, { duration: 0.28, step: 0.04, cap: Infinity })}
                 style={{ padding: 16 }}
               >
                 <tile.icon size={17} className="text-muted" style={{ marginBottom: 8 }} />
@@ -380,6 +412,13 @@ export default function SummaryReport() {
                 <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', fontWeight: 600 }}>{tile.label}</div>
               </motion.div>
             ))}
+          </div>
+
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <TrendingUp size={18} className="text-muted" /> Темп бурения по дням
+          </h2>
+          <div className="card" style={{ padding: 16, marginBottom: 24 }}>
+            <TrendSparkline data={drillingTrend} />
           </div>
 
           <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

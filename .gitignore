@@ -3,6 +3,12 @@ dist
 dist-ssr
 *.local
 
+# Playwright (см. playwright.config.ts, tests/e2e/)
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # Секреты Supabase — никогда не коммитить
 .env
 .env.*

@@ -6,6 +6,7 @@ import type { LucideIcon } from 'lucide-react'
 import DerrickIcon from '../../components/icons/DerrickIcon'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
+import { riseIn } from '../../lib/motionVariants'
 import { ApprovalBadge } from '../../components/StatusBadge'
 import { TASK_TYPE_LABELS, type TaskType } from '../../types/taskType'
 import type {
@@ -128,7 +129,7 @@ export default function MyReports() {
   if (authLoading) return <p>Загрузка…</p>
   if (!session) return <Navigate to="/login" replace />
   if (profile && profile.role !== 'party_chief') {
-    return <p>Этот экран — личная история сводок начальника буровой партии.</p>
+    return <p>Этот экран — личная история сводок ответственного.</p>
   }
 
   // ---- сборка иерархии: участок -> скважина/задание -> вид работ ----
@@ -267,9 +268,7 @@ export default function MyReports() {
               <motion.div
                 key={site.siteId}
                 className="card"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: Math.min(i, 10) * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                {...riseIn(i, { duration: 0.25, cap: 10, step: 0.03 })}
                 style={{ padding: 0, overflow: 'hidden' }}
               >
                 <button

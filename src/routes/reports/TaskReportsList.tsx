@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, FileText, ChevronRight } from 'lucide-react'
+import { Plus, FileText, ChevronRight, ChevronLeft } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
+import { riseIn } from '../../lib/motionVariants'
 import { ApprovalBadge } from '../../components/StatusBadge'
 import { TASK_TYPE_REPORT_COLUMN, type TaskType } from '../../types/taskType'
 import type { Report } from '../../types/database'
@@ -53,6 +54,12 @@ export default function TaskReportsList() {
 
   return (
     <div>
+      <Link
+        to={`/tasks/${taskType}/${taskId}/dashboard`}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}
+      >
+        <ChevronLeft size={15} /> Дашборд задания
+      </Link>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
         <h1 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
           <FileText size={24} className="text-muted" /> Сводки по заданию
@@ -82,12 +89,7 @@ export default function TaskReportsList() {
       ) : (
         <div style={{ display: 'grid', gap: 8, marginTop: 20 }}>
           {reports.map((r, i) => (
-            <motion.div
-              key={r.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, delay: Math.min(i, 10) * 0.03, ease: [0.16, 1, 0.3, 1] }}
-            >
+            <motion.div key={r.id} {...riseIn(i, { duration: 0.25, cap: 10, step: 0.03 })}>
               <Link
                 to={`/tasks/${taskType}/${taskId}/reports/${r.id}`}
                 className="card card-interactive"

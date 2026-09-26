@@ -7,6 +7,7 @@ import { isManagement } from '../../types/roles'
 import { ApprovalBadge } from '../../components/StatusBadge'
 import { buildDrillingShiftMessage } from '../../lib/whatsappMessage'
 import { loadReportSiteAndWellLabel } from '../../lib/reportLabel'
+import { round2 } from '../../lib/taskProgress'
 import type { TaskType } from '../../types/taskType'
 import type { CostItem, DrillingTask, Report, ReportCost } from '../../types/database'
 
@@ -128,7 +129,7 @@ export default function ReportDetail() {
             return (other.shift_number ?? 0) < (r.shift_number ?? 0)
           })
           .reduce((s, other) => s + (other.drilling_meters ?? 0), 0)
-        setBottomHole(priorSum + (r.drilling_meters ?? 0))
+        setBottomHole(round2(priorSum + (r.drilling_meters ?? 0)))
       }
 
       setLoading(false)
@@ -240,9 +241,9 @@ export default function ReportDetail() {
               )}
               {report.drilling_meters != null && (
                 <p style={{ margin: 0 }}>
-                  Метраж бурения: <span className="num">{report.drilling_meters} м</span>
+                  Метраж бурения: <span className="num">{round2(report.drilling_meters)} м</span>
                   {bottomHole != null && (
-                    <span className="text-muted"> (забой: <span className="num">{bottomHole} м</span>)</span>
+                    <span className="text-muted"> (забой: <span className="num">{round2(bottomHole)} м</span>)</span>
                   )}
                 </p>
               )}
@@ -250,7 +251,7 @@ export default function ReportDetail() {
                 <p style={{ margin: 0 }}>
                   Описание керна:{' '}
                   <span className="num">
-                    {report.core_description_interval_from}–{report.core_description_interval_to} м
+                    {round2(report.core_description_interval_from ?? 0)}–{round2(report.core_description_interval_to)} м
                   </span>
                 </p>
               )}
@@ -258,13 +259,13 @@ export default function ReportDetail() {
                 <p style={{ margin: 0 }}>
                   Фотофиксация:{' '}
                   <span className="num">
-                    {report.photofixation_interval_from}–{report.photofixation_interval_to} м
+                    {round2(report.photofixation_interval_from ?? 0)}–{round2(report.photofixation_interval_to)} м
                   </span>
                 </p>
               )}
               {report.sawn_meters != null && (
                 <p style={{ margin: 0 }}>
-                  Распилено: <span className="num">{report.sawn_meters} м</span>
+                  Распилено: <span className="num">{round2(report.sawn_meters)} м</span>
                 </p>
               )}
               {report.samples_taken != null && (

@@ -1,68 +1,66 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Navigate } from 'react-router-dom'
-import { Network, Plus, Trash2, UserCircle2 } from 'lucide-react'
+import { Link, Navigate } from 'react-router-dom'
+import { Network, UserPlus, UserCircle2, Plus } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
-import { isManagement, ROLE_LABELS } from '../../types/roles'
-import type { OrgPosition, Profile, Worker } from '../../types/database'
+import { isManagement, ROLE_LABELS, ROLE_OPTIONS, type UserRole } from '../../types/roles'
+import { createUserFromScratch } from '../../lib/grantAccess'
+import type { DrillingOrganization, Position, Profile, Worker } from '../../types/database'
+import {
+  buildPersonNodes,
+  collectDescendantKeys,
+  parsePersonValue,
+  profileValue,
+  reportsToValue,
+  workerValue,
+  type PersonKind,
+} from '../../lib/personRef'
 import Modal from '../../components/Modal'
+import PersonSelect from '../../components/PersonSelect'
+import PanZoomViewport from '../../components/PanZoomViewport'
 
-// Значение в объединённом select'е назначения — префикс различает, из
-// какой таблицы взят id (worker/profile — оба UUID, сами по себе не
-// различимы), см. отзыв 24.09.2026.
-const NONE_VALUE = ''
-const workerValue = (id: string) => `worker:${id}`
-const profileValue = (id: string) => `profile:${id}`
-
-// Собирает id узла и ВСЕХ его потомков — нужно, чтобы при переносе
-// должности в другую ветку нельзя было выбрать самого себя или своего
-// же потомка родителем (иначе дерево зациклится).
-function collectDescendantIds(rootId: string, all: OrgPosition[]): Set<string> {
-  const ids = new Set<string>([rootId])
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const p of all) {
-      if (p.parent_id && ids.has(p.parent_id) && !ids.has(p.id)) {
-        ids.add(p.id)
-        changed = true
-      }
-    }
-  }
-  return ids
-}
-
-function countDescendants(rootId: string, all: OrgPosition[]): number {
-  return collectDescendantIds(rootId, all).size - 1
+// Узел схемы — конкретный человек (profile или worker) с назначенной
+// должностью, не абстрактный "слот" (см. CLAUDE.md, переход на
+// person-centric модель 25.09.2026). Видимость в схеме ⟺ position_id
+// задан у самого человека — редактируется в "Пользователях"/"Работниках"
+// ИЛИ прямо здесь через ту же форму (два входа, одна правда).
+interface ChartPerson {
+  key: string
+  kind: PersonKind
+  id: string
+  fullName: string
+  positionId: string
+  positionName: string
+  reportsToKey: string | null
+  role: Profile['role'] | null
 }
 
 interface NodeProps {
-  position: OrgPosition
-  childrenByParent: Map<string | null, OrgPosition[]>
-  assigneeName: (p: OrgPosition) => string | null
-  onSelect: (p: OrgPosition) => void
+  person: ChartPerson
+  childrenByParent: Map<string | null, ChartPerson[]>
+  onSelect: (p: ChartPerson) => void
 }
 
-function OrgNode({ position, childrenByParent, assigneeName, onSelect }: NodeProps) {
-  const kids = childrenByParent.get(position.id) ?? []
-  const name = assigneeName(position)
+function OrgNode({ person, childrenByParent, onSelect }: NodeProps) {
+  const kids = childrenByParent.get(person.key) ?? []
   return (
     <li>
       <button
         type="button"
-        className={`org-node-btn${position.submits_reports ? ' org-node-flagged' : ''}`}
-        onClick={() => onSelect(position)}
+        className={`org-node-btn${person.role === 'party_chief' ? ' org-node-flagged' : ''}`}
+        onClick={() => onSelect(person)}
       >
-        <span className="org-node-title">{position.title}</span>
+        <span className="org-node-title">{person.positionName}</span>
         <span className="org-node-worker">
-          {name ?? <span className="text-faint">не назначено</span>}
+          {person.fullName}
+          {person.role && ` — ${ROLE_LABELS[person.role]}`}
         </span>
       </button>
       {kids.length > 0 && (
         <ul>
           {kids.map((k) => (
-            <OrgNode key={k.id} position={k} childrenByParent={childrenByParent} assigneeName={assigneeName} onSelect={onSelect} />
+            <OrgNode key={k.key} person={k} childrenByParent={childrenByParent} onSelect={onSelect} />
           ))}
         </ul>
       )}
@@ -70,68 +68,67 @@ function OrgNode({ position, childrenByParent, assigneeName, onSelect }: NodePro
   )
 }
 
-// Организационная структура компании (22.09.2026, по запросу владельца
-// платформы) — дерево должностей, редактируемое гендиром/техдиром/
-// разработчиком (см. is_management(), включает и 'developer').
-//
-// 24.09.2026 — назначение на должность теперь идёт ЛИБО из справочника
-// "Работники" (для тех, у кого нет входа в систему), ЛИБО из реальных
-// логин-пользователей ("Пользователи") — изначально было только через
-// workers, но это оказалось неудобно для позиций типа "Генеральный
-// директор"/"Технический директор"/"Начальник буровой партии": человек
-// уже есть в БД как пользователь, а выбрать его было нельзя, пришлось бы
-// заводить дубликат в workers. Разработчик (role='developer') в списке
-// пользователей никогда не появится — RLS прячет его профиль от всех,
-// кроме него самого (см. миграцию 0012), так что "серый кардинал"
-// остаётся невидимым и здесь.
+// Организационная структура компании (22.09.2026, редизайн 25.09.2026 —
+// переход от независимого дерева "вакантных должностей" к дереву,
+// построенному напрямую из profiles/workers: должность и "руководитель" —
+// поля самого человека, редактируются как здесь, так и в "Пользователях"/
+// "Работниках" — правки синхронизированы в обе стороны, т.к. это одни и
+// те же колонки БД. Прямое следствие отказа от вакансий (решение
+// владельца 25.09.2026): человек без должности просто не появляется в
+// схеме, пока её не назначат.
 export default function OrgChart() {
   const { session, profile, loading: authLoading } = useAuth()
 
-  const [positions, setPositions] = useState<OrgPosition[]>([])
-  const [workers, setWorkers] = useState<Worker[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
+  const [workers, setWorkers] = useState<Worker[]>([])
+  const [positions, setPositions] = useState<Position[]>([])
+  const [organizations, setOrganizations] = useState<DrillingOrganization[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [selected, setSelected] = useState<OrgPosition | null>(null)
-  const [editTitle, setEditTitle] = useState('')
-  const [editSubmits, setEditSubmits] = useState(false)
-  const [editAssignee, setEditAssignee] = useState(NONE_VALUE)
-  const [editParentId, setEditParentId] = useState('')
+  const [selected, setSelected] = useState<ChartPerson | null>(null)
+  const [editPositionId, setEditPositionId] = useState('')
+  const [editReportsTo, setEditReportsTo] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
 
-  const [addChildOpen, setAddChildOpen] = useState(false)
-  const [childTitle, setChildTitle] = useState('')
-  const [childSubmits, setChildSubmits] = useState(false)
-  const [addingChild, setAddingChild] = useState(false)
-  const [childError, setChildError] = useState<string | null>(null)
-
-  const [addRootOpen, setAddRootOpen] = useState(false)
-  const [rootTitle, setRootTitle] = useState('')
-  const [addingRoot, setAddingRoot] = useState(false)
-  const [rootError, setRootError] = useState<string | null>(null)
+  // "+ Добавить человека" (25.09.2026, по запросу владельца — не все
+  // существующие люди попадали в схему, и заводить их приходилось на
+  // других экранах). Создание намеренно НЕ спрашивает должность/
+  // руководителя сразу — новый человек появляется ниже, в разделе "Без
+  // назначенной должности", и назначается туда отдельным кликом (тот же
+  // openNode/handleSave, что и для узлов дерева).
+  const [addPersonOpen, setAddPersonOpen] = useState(false)
+  const [addKind, setAddKind] = useState<'worker' | 'profile'>('worker')
+  const [addFullName, setAddFullName] = useState('')
+  const [addEmail, setAddEmail] = useState('')
+  const [addPassword, setAddPassword] = useState('')
+  const [addRole, setAddRole] = useState<UserRole>('party_chief')
+  const [addOrganizationId, setAddOrganizationId] = useState('')
+  const [addSaving, setAddSaving] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+  const [addSuccessMsg, setAddSuccessMsg] = useState<string | null>(null)
 
   const canEdit = isManagement(profile?.role)
 
   async function load() {
     setLoading(true)
-    const [posRes, workersRes, profilesRes] = await Promise.all([
-      supabase.from('org_positions').select('*').order('sort_order'),
-      supabase.from('workers').select('*').order('full_name'),
+    const [profilesRes, workersRes, positionsRes, orgsRes] = await Promise.all([
       // .neq('role', 'developer') — доп. подстраховка сверх RLS: RLS и так
-      // прячет профиль-разработчика от гендира/техдира, но если ЭТО ОКНО
+      // прячет профиль-разработчика от гендира/техдира, но если это окно
       // открыл сам разработчик, он увидел бы себя (id = auth.uid() всегда
-      // проходит) и мог случайно назначить себя на видимую должность —
+      // проходит) и мог бы случайно назначить себя на видимую должность —
       // а он должен оставаться невидимым в схеме в любом случае.
       supabase.from('profiles').select('*').neq('role', 'developer').order('full_name'),
+      supabase.from('workers').select('*').order('full_name'),
+      supabase.from('positions').select('*').order('name'),
+      supabase.from('drilling_organizations').select('*').order('name'),
     ])
-    if (posRes.error) setError(posRes.error.message)
-    setPositions(posRes.data ?? [])
-    setWorkers(workersRes.data ?? [])
+    if (profilesRes.error) setError(profilesRes.error.message)
     setProfiles(profilesRes.data ?? [])
+    setWorkers(workersRes.data ?? [])
+    setPositions(positionsRes.data ?? [])
+    setOrganizations(orgsRes.data ?? [])
     setLoading(false)
   }
 
@@ -142,155 +139,224 @@ export default function OrgChart() {
   if (authLoading) return <p>Загрузка…</p>
   if (!session) return <Navigate to="/login" replace />
 
-  const childrenByParent = new Map<string | null, OrgPosition[]>()
-  for (const p of positions) {
-    const list = childrenByParent.get(p.parent_id) ?? []
+  const positionName = (id: string | null) => positions.find((p) => p.id === id)?.name ?? '—'
+
+  const allPeople = buildPersonNodes(profiles, workers)
+
+  const chartPeople: ChartPerson[] = [
+    ...profiles
+      .filter((p) => p.position_id)
+      .map((p) => ({
+        key: profileValue(p.id),
+        kind: 'profile' as const,
+        id: p.id,
+        fullName: p.full_name,
+        positionId: p.position_id as string,
+        positionName: positionName(p.position_id),
+        reportsToKey: reportsToValue(p.reports_to_profile_id, p.reports_to_worker_id) || null,
+        role: p.role,
+      })),
+    ...workers
+      // Архивный работник не должен висеть в схеме отдельным узлом — это
+      // либо человек, ушедший из штата, либо (с 25.09.2026) работник,
+      // которому "выдали доступ" (см. grantAccessToWorker): его запись
+      // архивируется и должность обнуляется, но на случай, если должность
+      // почему-то ещё не очищена, фильтруем и по archived_at тоже.
+      .filter((w) => w.position_id && !w.archived_at)
+      .map((w) => ({
+        key: workerValue(w.id),
+        kind: 'worker' as const,
+        id: w.id,
+        fullName: w.full_name,
+        positionId: w.position_id as string,
+        positionName: positionName(w.position_id),
+        reportsToKey: reportsToValue(w.reports_to_profile_id, w.reports_to_worker_id) || null,
+        role: null,
+      })),
+  ]
+
+  // "Без назначенной должности" (25.09.2026) — люди, которые уже есть в
+  // системе, но не показаны в дереве выше просто потому, что им никто не
+  // назначил должность (частый случай: человека когда-то завели в
+  // "Пользователях"/"Работниках" в обход оргструктуры). Та же форма
+  // "должность + руководитель", что у узлов дерева — openNode ниже
+  // принимает ChartPerson с пустым positionId одинаково хорошо.
+  const unassignedPeople: ChartPerson[] = [
+    ...profiles
+      .filter((p) => !p.position_id)
+      .map((p) => ({
+        key: profileValue(p.id),
+        kind: 'profile' as const,
+        id: p.id,
+        fullName: p.full_name,
+        positionId: '',
+        positionName: '',
+        reportsToKey: reportsToValue(p.reports_to_profile_id, p.reports_to_worker_id) || null,
+        role: p.role,
+      })),
+    ...workers
+      .filter((w) => !w.position_id && !w.archived_at)
+      .map((w) => ({
+        key: workerValue(w.id),
+        kind: 'worker' as const,
+        id: w.id,
+        fullName: w.full_name,
+        positionId: '',
+        positionName: '',
+        reportsToKey: reportsToValue(w.reports_to_profile_id, w.reports_to_worker_id) || null,
+        role: null,
+      })),
+  ].sort((a, b) => a.fullName.localeCompare(b.fullName))
+
+  const visibleKeys = new Set(chartPeople.map((p) => p.key))
+  const childrenByParent = new Map<string | null, ChartPerson[]>()
+  for (const p of chartPeople) {
+    // Руководитель без своей должности не показан в схеме — считаем такого
+    // человека корнем (его подчинённые всё равно должны быть видны).
+    const parentKey = p.reportsToKey && visibleKeys.has(p.reportsToKey) ? p.reportsToKey : null
+    const list = childrenByParent.get(parentKey) ?? []
     list.push(p)
-    childrenByParent.set(p.parent_id, list)
+    childrenByParent.set(parentKey, list)
+  }
+  for (const list of childrenByParent.values()) {
+    list.sort((a, b) => a.fullName.localeCompare(b.fullName))
   }
   const roots = childrenByParent.get(null) ?? []
 
-  function assigneeName(p: OrgPosition): string | null {
-    if (p.assigned_worker_id) {
-      const w = workers.find((x) => x.id === p.assigned_worker_id)
-      return w ? `${w.full_name}${w.position ? ` — ${w.position}` : ''}` : null
-    }
-    if (p.assigned_profile_id) {
-      const u = profiles.find((x) => x.id === p.assigned_profile_id)
-      return u ? `${u.full_name} — ${ROLE_LABELS[u.role]}` : null
-    }
-    return null
-  }
-
-  function openNode(p: OrgPosition) {
+  function openNode(p: ChartPerson) {
     setSelected(p)
-    setEditTitle(p.title)
-    setEditSubmits(p.submits_reports)
-    setEditAssignee(
-      p.assigned_worker_id
-        ? workerValue(p.assigned_worker_id)
-        : p.assigned_profile_id
-          ? profileValue(p.assigned_profile_id)
-          : NONE_VALUE,
-    )
-    setEditParentId(p.parent_id ?? '')
+    setEditPositionId(p.positionId)
+    setEditReportsTo(p.reportsToKey ?? '')
     setSaveError(null)
-    setConfirmingDelete(false)
-    setAddChildOpen(false)
-    setChildTitle('')
-    setChildSubmits(false)
-    setChildError(null)
   }
 
   function closeNode() {
     setSelected(null)
   }
 
+  // Тот же приём, что в Users/WorkersSettings — нельзя назначить
+  // руководителем самого себя или своего же подчинённого (иерархия
+  // зациклится). Считаем по ПОЛНОМУ списку людей (includes без должности),
+  // т.к. цикл возможен и через невидимое сейчас звено.
+  const excludeKeys = selected ? collectDescendantKeys(selected.key, allPeople) : new Set<string>()
+
   async function handleSave(e: FormEvent) {
     e.preventDefault()
     if (!selected) return
     setSaving(true)
     setSaveError(null)
-    const [kind, id] = editAssignee ? editAssignee.split(':') : [null, null]
+    const reportsTo = parsePersonValue(editReportsTo)
+    const table = selected.kind === 'profile' ? 'profiles' : 'workers'
     const { data, error: updateError } = await supabase
-      .from('org_positions')
+      .from(table)
       .update({
-        title: editTitle.trim(),
-        submits_reports: editSubmits,
-        assigned_worker_id: kind === 'worker' ? id : null,
-        assigned_profile_id: kind === 'profile' ? id : null,
-        parent_id: editParentId || null,
+        position_id: editPositionId || null,
+        reports_to_profile_id: reportsTo?.kind === 'profile' ? reportsTo.id : null,
+        reports_to_worker_id: reportsTo?.kind === 'worker' ? reportsTo.id : null,
       })
       .eq('id', selected.id)
       .select()
       .single()
+    setSaving(false)
     if (updateError) {
       setSaveError(updateError.message)
-      setSaving(false)
       return
     }
-    setPositions((prev) => prev.map((p) => (p.id === data.id ? data : p)))
-    setSelected(data)
-    setSaving(false)
-  }
-
-  async function handleAddChild(e: FormEvent) {
-    e.preventDefault()
-    if (!selected) return
-    setAddingChild(true)
-    setChildError(null)
-    const siblingCount = (childrenByParent.get(selected.id) ?? []).length
-    const { data, error: insertError } = await supabase
-      .from('org_positions')
-      .insert({
-        parent_id: selected.id,
-        title: childTitle.trim(),
-        submits_reports: childSubmits,
-        sort_order: siblingCount,
-      })
-      .select()
-      .single()
-    if (insertError) {
-      setChildError(insertError.message)
-      setAddingChild(false)
-      return
+    if (selected.kind === 'profile') {
+      setProfiles((prev) => prev.map((p) => (p.id === data.id ? data : p)))
+    } else {
+      setWorkers((prev) => prev.map((w) => (w.id === data.id ? data : w)))
     }
-    setPositions((prev) => [...prev, data])
-    setChildTitle('')
-    setChildSubmits(false)
-    setAddingChild(false)
-    setAddChildOpen(false)
-  }
-
-  async function handleDelete() {
-    if (!selected) return
-    setDeleting(true)
-    const descendantIds = collectDescendantIds(selected.id, positions)
-    const { data: deletedRows, error: deleteError } = await supabase
-      .from('org_positions')
-      .delete()
-      .eq('id', selected.id)
-      .select('id')
-    setDeleting(false)
-    if (deleteError) {
-      setSaveError(deleteError.message)
-      return
-    }
-    if (!deletedRows || deletedRows.length === 0) {
-      setSaveError('Не удалось удалить — попробуйте обновить страницу.')
-      return
-    }
-    // on delete cascade сносит и потомков в базе — синхронизируем локально,
-    // не дожидаясь перезагрузки всего списка.
-    setPositions((prev) => prev.filter((p) => !descendantIds.has(p.id)))
     setSelected(null)
   }
 
-  async function handleAddRoot(e: FormEvent) {
-    e.preventDefault()
-    setAddingRoot(true)
-    setRootError(null)
-    const { data, error: insertError } = await supabase
-      .from('org_positions')
-      .insert({ title: rootTitle.trim(), sort_order: roots.length })
+  // Убрать из схемы = очистить position_id — сам человек (и его
+  // должность в "Пользователях"/"Работниках", если задать заново) не
+  // удаляется, просто временно не отображается в дереве.
+  async function handleRemoveFromChart() {
+    if (!selected) return
+    setSaving(true)
+    setSaveError(null)
+    const table = selected.kind === 'profile' ? 'profiles' : 'workers'
+    const { data, error: updateError } = await supabase
+      .from(table)
+      .update({ position_id: null })
+      .eq('id', selected.id)
       .select()
       .single()
-    if (insertError) {
-      setRootError(insertError.message)
-      setAddingRoot(false)
+    setSaving(false)
+    if (updateError) {
+      setSaveError(updateError.message)
       return
     }
-    setPositions((prev) => [...prev, data])
-    setRootTitle('')
-    setAddingRoot(false)
-    setAddRootOpen(false)
+    if (selected.kind === 'profile') {
+      setProfiles((prev) => prev.map((p) => (p.id === data.id ? data : p)))
+    } else {
+      setWorkers((prev) => prev.map((w) => (w.id === data.id ? data : w)))
+    }
+    setSelected(null)
   }
 
-  const excludedForParent = selected ? collectDescendantIds(selected.id, positions) : new Set<string>()
-  const parentOptions = positions.filter((p) => !excludedForParent.has(p.id))
-  const childCount = selected ? countDescendants(selected.id, positions) : 0
+  function openAddPerson() {
+    setAddKind('worker')
+    setAddFullName('')
+    setAddEmail('')
+    setAddPassword('')
+    setAddRole('party_chief')
+    setAddOrganizationId('')
+    setAddError(null)
+    setAddSuccessMsg(null)
+    setAddPersonOpen(true)
+  }
 
-  const activeWorkers = workers.filter((w) => !w.archived_at || workerValue(w.id) === editAssignee)
+  async function handleAddPerson(e: FormEvent) {
+    e.preventDefault()
+    setAddSaving(true)
+    setAddError(null)
+    setAddSuccessMsg(null)
+
+    if (addKind === 'profile') {
+      const result = await createUserFromScratch({
+        fullName: addFullName,
+        email: addEmail,
+        password: addPassword,
+        role: addRole,
+      })
+      setAddSaving(false)
+      if ('error' in result) {
+        setAddError(result.error)
+        return
+      }
+      setProfiles((prev) => [...prev, result.profile].sort((a, b) => a.full_name.localeCompare(b.full_name)))
+      setAddSuccessMsg(
+        'Пользователь создан. Сообщите ему email и пароль отдельно (лично/мессенджером) — здесь они не сохраняются. Назначьте должность в списке ниже.',
+      )
+      setAddFullName('')
+      setAddEmail('')
+      setAddPassword('')
+      return
+    }
+
+    const { data: newWorker, error: insertError } = await supabase
+      .from('workers')
+      .insert({
+        full_name: addFullName.trim(),
+        organization_id: addOrganizationId,
+        position_id: null,
+        reports_to_profile_id: null,
+        reports_to_worker_id: null,
+        assigned_foreman_id: null,
+      })
+      .select()
+      .single()
+    setAddSaving(false)
+    if (insertError || !newWorker) {
+      setAddError(insertError?.message ?? 'Не удалось создать работника')
+      return
+    }
+    setWorkers((prev) => [...prev, newWorker].sort((a, b) => a.full_name.localeCompare(b.full_name)))
+    setAddPersonOpen(false)
+  }
 
   return (
     <div>
@@ -299,19 +365,41 @@ export default function OrgChart() {
           <Network size={22} className="text-muted" /> Оргструктура
         </h1>
         {canEdit && (
-          <button
-            type="button"
-            onClick={() => setAddRootOpen(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
-          >
-            <Plus size={16} /> Добавить корневую должность
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={openAddPerson}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13.5 }}
+            >
+              <Plus size={15} /> Добавить человека
+            </button>
+            <Link
+              to="/users"
+              className="btn-outline"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13.5 }}
+            >
+              <UserPlus size={15} /> Все пользователи
+            </Link>
+            <Link
+              to="/settings/workers"
+              className="btn-outline"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13.5 }}
+            >
+              <UserPlus size={15} /> Все работники
+            </Link>
+          </div>
         )}
       </div>
       <p className="text-muted" style={{ marginBottom: 22 }}>
-        Иерархия должностей компании. Кликните на должность, чтобы назначить человека
-        {canEdit ? ', изменить или добавить подчинённую.' : '.'}
-        {' '}Оранжевая рамка — держатель должности реально отправляет сводки в системе.
+        Схема строится из должностей и руководителей, заданных в{' '}
+        <Link to="/users">пользователях</Link> и{' '}
+        <Link to="/settings/workers">работниках</Link> — правки здесь и там
+        синхронизированы. Кликните на карточку, чтобы изменить должность
+        или руководителя{canEdit ? '.' : ' (только просмотр).'}
+        {' '}Оранжевая рамка — ответственный, отправляет сводки в системе.
+        {' '}Схему можно таскать и приближать колесом мыши или кнопками в углу.
+        {' '}Человек без должности в схеме не отображается — таких людей
+        можно найти и назначить в разделе "Без назначенной должности" ниже.
       </p>
 
       {error && <p className="text-error">{error}</p>}
@@ -319,181 +407,178 @@ export default function OrgChart() {
       {loading ? (
         <div className="skeleton" style={{ height: 300, borderRadius: 'var(--radius-md)' }} />
       ) : roots.length === 0 ? (
-        <p className="text-muted">Оргструктура пока пуста.</p>
+        <p className="text-muted">
+          Пока никому не назначена должность — назначьте в разделе "Без назначенной должности" ниже.
+        </p>
       ) : (
-        <div className="org-tree-wrap">
+        <PanZoomViewport>
           <ul className="org-tree">
             {roots.map((r) => (
-              <OrgNode key={r.id} position={r} childrenByParent={childrenByParent} assigneeName={assigneeName} onSelect={openNode} />
+              <OrgNode key={r.key} person={r} childrenByParent={childrenByParent} onSelect={openNode} />
             ))}
           </ul>
+        </PanZoomViewport>
+      )}
+
+      {!loading && unassignedPeople.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h2 style={{ fontSize: 15, marginBottom: 6 }}>Без назначенной должности</h2>
+          <p className="text-muted" style={{ fontSize: 13, marginTop: 0, marginBottom: 10 }}>
+            Эти люди уже есть в системе, но не показаны в схеме выше — нажмите на карточку, чтобы назначить должность
+            и руководителя.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {unassignedPeople.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                className="card card-interactive"
+                onClick={() => openNode(p)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', color: 'var(--color-text)' }}
+              >
+                <UserCircle2 size={16} className="text-muted" />
+                <span>
+                  {p.fullName}
+                  {p.role && <span className="text-muted"> — {ROLE_LABELS[p.role]}</span>}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      <Modal open={addRootOpen} onClose={() => setAddRootOpen(false)} title="Новая корневая должность">
-        <form onSubmit={handleAddRoot} style={{ display: 'grid', gap: 10 }}>
-          <input
-            required
-            autoFocus
-            placeholder="Название должности"
-            value={rootTitle}
-            onChange={(e) => setRootTitle(e.target.value)}
-          />
-          {rootError && <p className="text-error" style={{ margin: 0 }}>{rootError}</p>}
-          <button type="submit" disabled={addingRoot}>
-            {addingRoot ? 'Добавляем…' : 'Добавить'}
-          </button>
-        </form>
-      </Modal>
-
-      <Modal open={selected != null} onClose={closeNode} title={selected?.title ?? ''}>
+      <Modal
+        open={selected != null}
+        onClose={closeNode}
+        title={selected ? (selected.positionId ? `${selected.positionName} — ${selected.fullName}` : `Назначить должность: ${selected.fullName}`) : ''}
+      >
         {selected && (
           <div style={{ display: 'grid', gap: 18 }}>
             {canEdit ? (
               <form onSubmit={handleSave} style={{ display: 'grid', gap: 10 }}>
                 <label>
-                  Название должности
-                  <input required value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-                </label>
-                <label>
-                  Назначенный человек
-                  <select value={editAssignee} onChange={(e) => setEditAssignee(e.target.value)}>
-                    <option value={NONE_VALUE}>— не назначено —</option>
-                    {profiles.length > 0 && (
-                      <optgroup label="Пользователи (вход в систему)">
-                        {profiles.map((u) => (
-                          <option key={u.id} value={profileValue(u.id)}>
-                            {u.full_name} — {ROLE_LABELS[u.role]}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {activeWorkers.length > 0 && (
-                      <optgroup label="Работники">
-                        {activeWorkers.map((w) => (
-                          <option key={w.id} value={workerValue(w.id)}>
-                            {w.full_name}
-                            {w.position ? ` — ${w.position}` : ''}
-                            {w.archived_at ? ' (архивирован)' : ''}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </select>
-                </label>
-                <label>
-                  Родительская должность
-                  <select value={editParentId} onChange={(e) => setEditParentId(e.target.value)}>
-                    <option value="">— без родителя (корень) —</option>
-                    {parentOptions.map((p) => (
+                  Должность
+                  <select value={editPositionId} onChange={(e) => setEditPositionId(e.target.value)}>
+                    <option value="">— не указана —</option>
+                    {positions.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.title}
+                        {p.name}
                       </option>
                     ))}
                   </select>
                 </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexDirection: 'row' }}>
-                  <input
-                    type="checkbox"
-                    checked={editSubmits}
-                    onChange={(e) => setEditSubmits(e.target.checked)}
-                    style={{ width: 'auto' }}
+                <label>
+                  Руководитель
+                  <PersonSelect
+                    profiles={profiles}
+                    workers={workers}
+                    value={editReportsTo}
+                    onChange={setEditReportsTo}
+                    excludeKeys={excludeKeys}
+                    noneLabel="— не назначен —"
                   />
-                  Держатель должности отправляет сводки в системе
                 </label>
                 {saveError && <p className="text-error" style={{ margin: 0 }}>{saveError}</p>}
                 <button type="submit" disabled={saving}>
                   {saving ? 'Сохраняем…' : 'Сохранить'}
                 </button>
+                {selected.positionId && (
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    disabled={saving}
+                    onClick={handleRemoveFromChart}
+                    style={{ fontSize: 13, color: 'var(--color-danger)' }}
+                  >
+                    Убрать из схемы (не удаляет человека)
+                  </button>
+                )}
               </form>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <UserCircle2 size={18} className="text-muted" />
-                {assigneeName(selected) ?? <span className="text-muted">Никто не назначен</span>}
-              </div>
-            )}
-
-            {canEdit && (
-              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
-                {addChildOpen ? (
-                  <form onSubmit={handleAddChild} style={{ display: 'grid', gap: 8 }}>
-                    <input
-                      required
-                      autoFocus
-                      placeholder="Название подчинённой должности"
-                      value={childTitle}
-                      onChange={(e) => setChildTitle(e.target.value)}
-                    />
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexDirection: 'row', fontSize: 13.5 }}>
-                      <input
-                        type="checkbox"
-                        checked={childSubmits}
-                        onChange={(e) => setChildSubmits(e.target.checked)}
-                        style={{ width: 'auto' }}
-                      />
-                      Отправляет сводки
-                    </label>
-                    {childError && <p className="text-error" style={{ fontSize: 13, margin: 0 }}>{childError}</p>}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="submit" disabled={addingChild} style={{ flex: 1 }}>
-                        {addingChild ? 'Добавляем…' : 'Добавить'}
-                      </button>
-                      <button type="button" className="btn-outline" onClick={() => setAddChildOpen(false)} style={{ flex: 1 }}>
-                        Отмена
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn-outline"
-                    onClick={() => setAddChildOpen(true)}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, width: '100%', marginBottom: 10 }}
-                  >
-                    <Plus size={14} /> Добавить подчинённую должность
-                  </button>
-                )}
-
-                {!confirmingDelete ? (
-                  <button
-                    type="button"
-                    className="btn-outline"
-                    onClick={() => setConfirmingDelete(true)}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, width: '100%', color: 'var(--color-danger)' }}
-                  >
-                    <Trash2 size={14} /> Удалить эту должность
-                  </button>
-                ) : (
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <p className="text-error" style={{ fontSize: 13, margin: 0 }}>
-                      Удалить безвозвратно{childCount > 0 ? ` вместе с ${childCount} подчинённой(ыми) должностью(ями)` : ''}?
-                    </p>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        type="button"
-                        className="btn-danger"
-                        disabled={deleting}
-                        onClick={handleDelete}
-                        style={{ flex: 1 }}
-                      >
-                        {deleting ? 'Удаляем…' : 'Да, удалить'}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-outline"
-                        disabled={deleting}
-                        onClick={() => setConfirmingDelete(false)}
-                        style={{ flex: 1 }}
-                      >
-                        Отмена
-                      </button>
-                    </div>
-                  </div>
-                )}
+                {selected.fullName}
+                {selected.role && ` — ${ROLE_LABELS[selected.role]}`}
               </div>
             )}
           </div>
         )}
+      </Modal>
+
+      <Modal open={addPersonOpen} onClose={() => setAddPersonOpen(false)} title="Добавить человека">
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+          <button
+            type="button"
+            className={addKind === 'worker' ? '' : 'btn-outline'}
+            onClick={() => setAddKind('worker')}
+            style={{ flex: 1, fontSize: 13 }}
+          >
+            Работник
+          </button>
+          <button
+            type="button"
+            className={addKind === 'profile' ? '' : 'btn-outline'}
+            onClick={() => setAddKind('profile')}
+            style={{ flex: 1, fontSize: 13 }}
+          >
+            Пользователь
+          </button>
+        </div>
+        <form onSubmit={handleAddPerson} style={{ display: 'grid', gap: 12 }}>
+          <label>
+            ФИО
+            <input required value={addFullName} onChange={(e) => setAddFullName(e.target.value)} />
+          </label>
+          {addKind === 'profile' ? (
+            <>
+              <label>
+                Email
+                <input type="email" required value={addEmail} onChange={(e) => setAddEmail(e.target.value)} />
+              </label>
+              <label>
+                Временный пароль
+                <input
+                  type="text"
+                  required
+                  minLength={6}
+                  value={addPassword}
+                  onChange={(e) => setAddPassword(e.target.value)}
+                />
+              </label>
+              <label>
+                Роль
+                <select value={addRole} onChange={(e) => setAddRole(e.target.value as UserRole)}>
+                  {ROLE_OPTIONS.map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABELS[r]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          ) : (
+            <label>
+              Организация
+              <select required value={addOrganizationId} onChange={(e) => setAddOrganizationId(e.target.value)}>
+                <option value="">— выбрать —</option>
+                {organizations.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {addError && <p className="text-error" style={{ margin: 0 }}>{addError}</p>}
+          {addSuccessMsg && <p className="text-success" style={{ margin: 0 }}>{addSuccessMsg}</p>}
+          <button type="submit" disabled={addSaving}>
+            {addSaving ? 'Добавляем…' : 'Добавить'}
+          </button>
+        </form>
+        <p className="text-muted" style={{ fontSize: 12.5, marginTop: 10, marginBottom: 0 }}>
+          Должность и руководителя можно будет назначить сразу после — новый человек появится в разделе "Без
+          назначенной должности".
+        </p>
       </Modal>
     </div>
   )

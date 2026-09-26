@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ChevronLeft, Layers, Plus, ChevronRight, Lock, Unlock, Scissors, FlaskConical, Pencil, FileText } from 'lucide-react'
+import Modal from '../../components/Modal'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
+import { riseIn } from '../../lib/motionVariants'
+import { drillingProgress, coreProgress, sawingProgress, samplingProgress } from '../../lib/taskProgress'
 import { TaskStatusBadge } from '../../components/StatusBadge'
 import ProgressBar from '../../components/ProgressBar'
 import DerrickIcon from '../../components/icons/DerrickIcon'
@@ -18,36 +22,9 @@ import type {
   Site,
 } from '../../types/database'
 
-// Прогресс по бурению = сумма подтверждённых метров; по керну/фото —
-// максимум "до" среди подтверждённых сводок (интервалы кумулятивные, не
-// складываются, см. дорожную карту).
-function drillingProgress(taskId: string, reports: Report[]) {
-  return reports
-    .filter((r) => r.drilling_task_id === taskId && r.approval_status === 'approved')
-    .reduce((s, r) => s + (r.drilling_meters ?? 0), 0)
-}
-function coreProgress(taskId: string, reports: Report[]) {
-  const rows = reports.filter(
-    (r) => r.core_description_task_id === taskId && r.approval_status === 'approved',
-  )
-  return {
-    core: rows.reduce((m, r) => Math.max(m, r.core_description_interval_to ?? 0), 0),
-    photo: rows.reduce((m, r) => Math.max(m, r.photofixation_interval_to ?? 0), 0),
-  }
-}
-
-function sawingProgress(taskId: string, reports: Report[]) {
-  return reports
-    .filter((r) => r.core_sawing_task_id === taskId && r.approval_status === 'approved')
-    .reduce((s, r) => s + (r.sawn_meters ?? 0), 0)
-}
-function samplingProgress(taskId: string, reports: Report[]) {
-  const rows = reports.filter((r) => r.sampling_task_id === taskId && r.approval_status === 'approved')
-  return {
-    taken: rows.reduce((s, r) => s + (r.samples_taken ?? 0), 0),
-    submitted: rows.reduce((s, r) => s + (r.samples_submitted ?? 0), 0),
-  }
-}
+// Формулы прогресса — общие с Dashboard.tsx, см. src/lib/taskProgress.ts
+// (вынесены туда 25.09.2026, фаза 3 редизайна: сводный прогресс участка
+// на дашборде считается теми же функциями, не копией).
 
 // Сколько сводок задания сейчас "требуют внимания" — на согласовании или
 // отклонены. Бригадиру и техдиру так видно, не заходя в каждое задание,
@@ -109,6 +86,15 @@ export default function SiteDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [togglingStatus, setTogglingStatus] = useState(false)
+
+  // Переименование участка (25.09.2026, по запросу заказчика) — раньше
+  // название задавалось только при создании и больше нигде не
+  // редактировалось. Тот же паттерн, что и переименование статей затрат/
+  // организаций бурения: карандаш → модалка → .update().
+  const [editOpen, setEditOpen] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!session || !siteId) return
@@ -182,6 +168,33 @@ export default function SiteDetail() {
     setSite({ ...site, status: nextStatus })
   }
 
+  function openEdit() {
+    if (!site) return
+    setEditName(site.name)
+    setEditError(null)
+    setEditOpen(true)
+  }
+
+  async function handleEditSave(e: FormEvent) {
+    e.preventDefault()
+    if (!site) return
+    setEditSaving(true)
+    setEditError(null)
+    const { data, error: updateError } = await supabase
+      .from('sites')
+      .update({ name: editName.trim() })
+      .eq('id', site.id)
+      .select()
+      .single()
+    setEditSaving(false)
+    if (updateError) {
+      setEditError(updateError.message)
+      return
+    }
+    setSite(data)
+    setEditOpen(false)
+  }
+
   if (authLoading) return <p>Загрузка…</p>
   if (!session) return <Navigate to="/login" replace />
   if (!siteId) return <p>Не указан участок.</p>
@@ -216,6 +229,28 @@ export default function SiteDetail() {
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
             <h1 style={{ margin: 0 }}>{site.name}</h1>
+            {isManagement(profile?.role) && (
+              <button
+                type="button"
+                onClick={openEdit}
+                title="Переименовать участок"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 28,
+                  height: 28,
+                  borderRadius: 'var(--radius-full)',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--color-text-muted)',
+                  padding: 0,
+                  flexShrink: 0,
+                }}
+              >
+                <Pencil size={14} />
+              </button>
+            )}
             <span className={`badge badge-${site.status === 'active' ? 'primary' : 'neutral'}`}>
               {site.status === 'active' ? 'активен' : 'закрыт'}
             </span>
@@ -233,6 +268,25 @@ export default function SiteDetail() {
             )}
           </div>
           <AttentionBadges submitted={siteAttention.submitted} rejected={siteAttention.rejected} />
+
+          <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Переименовать участок">
+            <form onSubmit={handleEditSave} style={{ display: 'grid', gap: 12 }}>
+              <label>
+                Название участка
+                <input
+                  autoFocus
+                  required
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+              </label>
+              {editError && <p className="text-error" style={{ margin: 0 }}>{editError}</p>}
+              <button type="submit" disabled={editSaving}>
+                {editSaving ? 'Сохраняем…' : 'Сохранить'}
+              </button>
+            </form>
+          </Modal>
 
           {isManagement(profile?.role) && (
             <div style={{ display: 'flex', gap: 8, margin: '16px 0 24px', flexWrap: 'wrap' }}>
@@ -315,9 +369,7 @@ export default function SiteDetail() {
                   <motion.div
                     key={t.id}
                     className="card"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.28, delay: Math.min(i, 8) * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                    {...riseIn(i, { duration: 0.28, step: 0.03 })}
                     style={{ padding: 14 }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
@@ -419,9 +471,7 @@ export default function SiteDetail() {
                     <motion.div
                       key={t.id}
                       className="card"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.28, delay: Math.min(i, 8) * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                      {...riseIn(i, { duration: 0.28, step: 0.03 })}
                       style={{ padding: 14 }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
@@ -478,9 +528,7 @@ export default function SiteDetail() {
                     <motion.div
                       key={t.id}
                       className="card"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.28, delay: Math.min(i, 8) * 0.03, ease: [0.16, 1, 0.3, 1] }}
+                      {...riseIn(i, { duration: 0.28, step: 0.03 })}
                       style={{ padding: 14 }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>

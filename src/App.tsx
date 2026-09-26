@@ -24,6 +24,7 @@ import CostCategoriesSettings from './routes/settings/CostCategoriesSettings'
 import OrgChart from './routes/org/OrgChart'
 import DrillingOrganizationsSettings from './routes/settings/DrillingOrganizationsSettings'
 import WorkersSettings from './routes/settings/WorkersSettings'
+import SettingsHub from './routes/settings/SettingsHub'
 
 // Каркас роутинга по экранам из ТЗ (раздел 5). Защита маршрутов по роли
 // (AuthGuard/RequireRole) добавится позже; пока каждый экран сам проверяет
@@ -60,6 +61,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/sites" element={<SitesList />} />
           <Route path="/sites/:siteId" element={<SiteDetail />} />
+          <Route path="/settings" element={<SettingsHub />} />
           <Route path="/users" element={<UsersList />} />
           <Route path="/settings/costs" element={<CostCategoriesSettings />} />
           <Route path="/org-chart" element={<OrgChart />} />

@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, FolderPlus, Pencil, Plus, Wallet } from 'luc
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
+import { riseIn } from '../../lib/motionVariants'
 import type { CostCategory, CostItem } from '../../types/database'
 import Modal from '../../components/Modal'
 
@@ -460,12 +461,7 @@ export default function CostCategoriesSettings() {
       ) : (
         <div style={{ display: 'grid', gap: 8, maxWidth: 480 }}>
           {categories.map((c, i) => (
-            <motion.div
-              key={c.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, delay: Math.min(i, 10) * 0.03, ease: [0.16, 1, 0.3, 1] }}
-            >
+            <motion.div key={c.id} {...riseIn(i, { duration: 0.25, cap: 10, step: 0.03 })}>
               <CategoryCard
                 category={c}
                 items={items.filter((it) => it.category_id === c.id)}

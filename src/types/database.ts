@@ -1,27 +1,29 @@
 import type { UserRole } from './roles'
 
+// Справочник названий должностей (25.09.2026) — отдельно от profiles.role
+// (роль = права доступа в системе, должность = название для оргструктуры/
+// учёта, не влияет на права). Управляется из "Пользователи".
+export interface Position {
+  id: string
+  name: string
+}
+
 export interface Profile {
   id: string
   full_name: string
   role: UserRole
+  // Должность и "кому подчиняется" (25.09.2026, см. CLAUDE.md — переход
+  // оргструктуры на person-centric модель) — ровно один из
+  // reports_to_profile_id/reports_to_worker_id заполнен или ни одного
+  // (человек может быть на вершине иерархии).
+  position_id: string | null
+  reports_to_profile_id: string | null
+  reports_to_worker_id: string | null
+  // Ссылка на строку workers, если логин выдан существующему работнику из
+  // реестра ("Выдать доступ", 25.09.2026, миграция 0018) — не переносит
+  // историю, только связывает "это тот же человек" для отображения.
+  person_id: string | null
   created_at: string
-}
-
-// Оргструктура компании (22.09.2026) — дерево должностей. "Мастер" может
-// встречаться несколько раз в разных ветках — это независимые штатные
-// единицы. Реальный человек назначается ЛИБО через assigned_worker_id
-// (справочник workers — для тех, у кого нет входа в систему), ЛИБО через
-// assigned_profile_id (реальный логин-пользователь — гендир/техдир/
-// бригадир и т.п.), не оба сразу (см. миграцию 0015, отзыв 24.09.2026:
-// дублировать логин-пользователя ещё и как работника было неудобно).
-export interface OrgPosition {
-  id: string
-  parent_id: string | null
-  title: string
-  sort_order: number
-  submits_reports: boolean
-  assigned_worker_id: string | null
-  assigned_profile_id: string | null
 }
 
 export type SiteStatus = 'active' | 'closed'
@@ -59,12 +61,20 @@ export interface DrillingRig {
 export interface Worker {
   id: string
   full_name: string
-  position: string | null
   organization_id: string
+  // Бригада для распределения по ЗАДАНИЯМ (task_worker_assignments) — НЕ
+  // то же самое, что "руководитель" в оргструктуре ниже: геолог может не
+  // входить ни в одну буровую бригаду, но иметь начальника в оргструктуре.
   assigned_foreman_id: string | null
+  // Должность и "кому подчиняется" (25.09.2026) — тот же смысл, что у
+  // Profile выше; "position" (свободный текст) заменена на position_id
+  // (справочник, см. Position) в миграции 0016.
+  position_id: string | null
+  reports_to_profile_id: string | null
+  reports_to_worker_id: string | null
   // NULL = активен, дата = когда заархивирован (23.09.2026) — мягкое
   // скрытие из активных списков назначения, история (task_worker_
-  // assignments/org_positions) не теряется.
+  // assignments) не теряется.
   archived_at: string | null
 }
 
@@ -81,6 +91,15 @@ export interface TaskWorkerAssignment {
   sampling_task_id: string | null
   role: WorkerRole
   worker_id: string
+  // Смена (25.09.2026, миграция 0019) — заполнена только для 'driller'/
+  // 'assistant_driller' (буровик/помбур), для 'responsible' всегда null —
+  // эта роль смены не различает.
+  shift_number: 1 | 2 | null
+  // Замена = закрыть старую строку (valid_to) + открыть новую, а не
+  // перезаписать — иначе история "кто раньше работал" терялась бы.
+  // valid_to = null означает "работает сейчас".
+  valid_from: string
+  valid_to: string | null
 }
 
 export interface CostCategory {

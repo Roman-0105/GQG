@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { round2 } from '../lib/taskProgress'
 
 interface Props {
   label: string
@@ -39,8 +40,8 @@ export default function ProgressBar({
       >
         <span>{label}</span>
         <span className="num" style={{ color: 'var(--color-text)' }}>
-          {approved}
-          {hasPlan ? ` / ${plan}` : ''} {unit}
+          {round2(approved)}
+          {hasPlan ? ` / ${round2(plan)}` : ''} {unit}
           {hasPlan && (
             <span style={{ color: 'var(--color-text-muted)' }}>
               {' '}

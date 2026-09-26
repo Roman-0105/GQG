@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { round2 } from '../lib/taskProgress'
 
 interface Props {
   projectedDepth: number | null
@@ -27,7 +28,7 @@ export default function WellboreProgress({
     return (
       <p className="text-muted" style={{ fontSize: 13.5 }}>
         Проектная глубина не указана — ствол скважины не отрисовать. Факт:{' '}
-        <span className="num">{approvedDepth}</span> м.
+        <span className="num">{round2(approvedDepth)}</span> м.
       </p>
     )
   }
@@ -134,7 +135,7 @@ export default function WellboreProgress({
         fontFamily="var(--font-mono)"
         fill="var(--color-text)"
       >
-        {approvedDepth}{pendingDepth > 0 ? `(+${pendingDepth})` : ''} / {projectedDepth} м
+        {round2(approvedDepth)}{pendingDepth > 0 ? `(+${round2(pendingDepth)})` : ''} / {round2(projectedDepth)} м
       </text>
     </svg>
   )

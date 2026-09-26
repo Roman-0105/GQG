@@ -11,52 +11,53 @@
 
 /* ==========================================================================
    Дизайн-токены
-   Палитра — намеренно не "тёплый AI-крем" (#F4F1EA) и не типовой SaaS-синий:
-   тёплый каменно-песочный фон + приглушённый мшисто-зелёный акцент
-   (ассоциация с керном/породой — предметная область бурения/геологии),
-   глина как редкий второстепенный акцент. Цвета — НЕ трогать без явного
-   запроса (см. CLAUDE.md).
+   Редизайн 25.09.2026 ("Направление А — полевой дневник, версия 2",
+   выбрано владельцем платформы из двух показанных вариантов — второй,
+   "Буровая консоль", тёмный индустриальный, был отклонён). Эволюция
+   прежней палитры (тёплый каменно-песочный + мшисто-зелёный), не полная
+   смена концепции: фон стал теплее (пергамент вместо кремового), зелёный
+   акцент — глубже (лесной, не приглушённо-мшистый), терракота вместо
+   блёклой глины — насыщеннее и увереннее. Домен (керн/порода) тот же,
+   исполнение — увереннее. Прежняя формулировка "цвета зафиксированы, не
+   менять без явного запроса" из CLAUDE.md была явно снята этим запросом.
 
-   Редизайн 2026-09-17: пара шрифтов вместо одного — Fraunces (тёплая
-   контрастная антиква, характер геологического полевого дневника) на
-   заголовках, Manrope на интерфейсе, JetBrains Mono на всех числах
-   (глубины, проценты, даты) — приборная точность там, где это буровая
-   инженерия. Все три самохостятся через @fontsource — офлайн-режим
-   не должен зависеть от Google Fonts CDN.
+   Пара шрифтов сохранена без изменений (Fraunces/Manrope/JetBrains Mono,
+   самохостятся через @fontsource — офлайн-режим) — менялись только сами
+   цвета/радиусы, шрифтовая пара уже была найдена удачной.
    ========================================================================== */
 :root {
-  --color-bg: #f5f2ec;
-  --color-surface: #ffffff;
-  --color-surface-muted: #faf8f4;
-  --color-border: #e3ddd0;
-  --color-border-strong: #cfc7b6;
+  --color-bg: #f3ecdd;
+  --color-surface: #fffaf0;
+  --color-surface-muted: #f8f0dc;
+  --color-border: #d8c9a8;
+  --color-border-strong: #c2ae82;
 
-  --color-text: #2b2a26;
-  --color-text-muted: #6f6a5e;
-  --color-text-faint: #9a947f;
+  --color-text: #2a2620;
+  --color-text-muted: #6b6152;
+  --color-text-faint: #9c8f74;
 
-  --color-primary: #3f6259;
-  --color-primary-hover: #34504a;
-  --color-primary-soft: #e4ebe6;
+  --color-primary: #2f4a3e;
+  --color-primary-hover: #243a30;
+  --color-primary-soft: #e3ebe3;
 
-  --color-accent: #a97a52;
-  --color-accent-soft: #f1e4d6;
+  --color-accent: #c1652f;
+  --color-accent-soft: #f4e0d0;
 
-  --color-success: #4f7d5a;
-  --color-success-soft: #e6efe4;
-  --color-danger: #a8503f;
-  --color-danger-soft: #f4e3de;
-  --color-warning: #a67a34;
-  --color-warning-soft: #f3e8d3;
+  --color-success: #4a6b3a;
+  --color-success-soft: #e2ecdd;
+  --color-danger: #a3452c;
+  --color-danger-soft: #f6e0d6;
+  --color-warning: #97672a;
+  --color-warning-soft: #f4e6cb;
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
   --radius-lg: 20px;
   --radius-full: 999px;
 
-  --shadow-sm: 0 1px 2px rgba(43, 42, 38, 0.07);
-  --shadow-md: 0 8px 24px -4px rgba(43, 42, 38, 0.12);
-  --shadow-lg: 0 20px 45px -12px rgba(43, 42, 38, 0.22);
+  --shadow-sm: 0 1px 2px rgba(42, 38, 32, 0.08);
+  --shadow-md: 0 8px 24px -4px rgba(42, 38, 32, 0.13);
+  --shadow-lg: 0 20px 45px -12px rgba(42, 38, 32, 0.24);
   --shadow-focus: 0 0 0 3px var(--color-primary-soft);
 
   --font-body: 'Manrope', system-ui, sans-serif;
@@ -91,7 +92,7 @@ body {
      радиальный узор поверх плоского цвета, ощущается как полевой блокнот,
      а не плоская SaaS-панель */
   background-image:
-    radial-gradient(circle at 1px 1px, rgba(43, 42, 38, 0.045) 1px, transparent 0);
+    radial-gradient(circle at 1px 1px, rgba(42, 38, 32, 0.05) 1px, transparent 0);
   background-size: 22px 22px;
   background-color: var(--color-bg);
 }
@@ -138,7 +139,7 @@ h3 {
 }
 
 h1 {
-  font-size: clamp(26px, 4vw, 32px);
+  font-size: clamp(28px, 4.5vw, 40px);
   font-weight: 600;
 }
 
@@ -649,6 +650,36 @@ li:last-child {
   }
 }
 
+/* Список пунктов, не поместившихся в нижний таб-бар — открывается по
+   кнопке "Ещё" (BottomTabBar.tsx), внутри общей Modal. Не завёрнуто в
+   @media, т.к. кнопка "Ещё" рендерится только на <768px, но модалка
+   технически доступна на любой ширине. */
+.tabbar-more-list {
+  display: grid;
+  gap: 4px;
+}
+
+.tabbar-more-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 10px;
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: 14.5px;
+}
+
+.tabbar-more-item:hover {
+  background: var(--color-surface-muted);
+  text-decoration: none;
+}
+
+.tabbar-more-item.is-active {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
 .page {
   flex: 1;
   min-width: 0;
@@ -890,7 +921,7 @@ button.btn-danger {
 }
 
 button.btn-danger:hover:not(:disabled) {
-  background: #8a4436;
+  background: color-mix(in srgb, var(--color-danger) 80%, black);
 }
 
 /* Спиннер для кнопок в состоянии загрузки */
@@ -935,24 +966,6 @@ button.btn-danger:hover:not(:disabled) {
   100% {
     background-position: -20% 0;
   }
-}
-
-/* ==========================================================================
-   Появление контента — плавный, единообразный въезд снизу
-   ========================================================================== */
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.rise-in {
-  animation: rise-in var(--dur-slow) var(--ease-out) both;
 }
 
 /* ==========================================================================
@@ -1098,14 +1111,21 @@ button.btn-danger:hover:not(:disabled) {
   color: var(--color-warning);
 }
 
-/* ---- оргструктура (OrgChart.tsx, 22.09.2026) — классическое "чистое
-   CSS" дерево на ul/li с линиями-коннекторами через ::before/::after,
-   без сторонних библиотек диаграмм. ---- */
-.org-tree-wrap {
-  overflow-x: auto;
-  padding: 12px 4px 24px;
-}
-
+/* ---- оргструктура (OrgChart.tsx) — классическое "чистое CSS" дерево
+   на ul/li с линиями-коннекторами через ::before/::after, без сторонних
+   библиотек диаграмм. Пробовали заменить на раскрывающийся список
+   (25.09.2026), но заказчику больше нравится исходный вид графа — вернули
+   как было. Мобильную адаптацию сначала пытались решить уменьшением
+   узлов под конкретный брейкпоинт (@media) — по итоговому отзыву
+   заказчика ("линии заходят на карточки, вся схема не видна") это не
+   помогало: с реальным составом штата (4+ ветки) дерево всё равно не
+   помещалось, только скроллбар другого размера. Заменено на
+   PanZoomViewport (src/components/PanZoomViewport.tsx) — дерево рисуется
+   ВСЕГДА в одном "естественном" масштабе (те же размеры узлов что и
+   раньше на десктопе), а под конкретный экран (телефон/десктоп/любой)
+   подстраивается CSS-transform: scale внутри viewport, с автоподгонкой
+   при загрузке — никакого отдельного мобильного @media для размеров
+   узлов больше не нужно. */
 .org-tree,
 .org-tree ul {
   display: flex;
@@ -1116,14 +1136,14 @@ button.btn-danger:hover:not(:disabled) {
 }
 
 .org-tree ul {
-  padding-top: 28px;
+  padding-top: 34px;
 }
 
 .org-tree li {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 16px;
   position: relative;
 }
 
@@ -1138,7 +1158,7 @@ button.btn-danger:hover:not(:disabled) {
   top: 0;
   left: 50%;
   width: 0;
-  height: 28px;
+  height: 34px;
   border-left: 2px solid var(--color-border-strong);
   transform: translateX(-1px);
 }
@@ -1150,7 +1170,7 @@ button.btn-danger:hover:not(:disabled) {
   position: absolute;
   top: 0;
   width: 50%;
-  height: 28px;
+  height: 34px;
   border-top: 2px solid var(--color-border-strong);
 }
 
@@ -1232,4 +1252,68 @@ button.btn-danger:hover:not(:disabled) {
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ---- pan/zoom viewport (PanZoomViewport.tsx) — используется для
+   оргструктуры вместо overflow-x:auto (см. запись выше). Курсор grab/
+   grabbing даёт понять, что холст можно таскать, ещё до первого drag. */
+.pan-zoom-viewport {
+  position: relative;
+  height: 520px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+/* Высота фиксирована в CSS, не пропом/инлайн-стилем — иначе media query
+   не смог бы её переопределить (инлайн-стиль всегда специфичнее обычного
+   правила). На телефоне 520px не оставляли места на кнопки масштаба в
+   пределах видимой области экрана без прокрутки страницы. */
+@media (max-width: 767px) {
+  .pan-zoom-viewport {
+    height: 420px;
+  }
+}
+
+.pan-zoom-viewport.is-dragging {
+  cursor: grabbing;
+}
+
+.pan-zoom-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.pan-zoom-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 2;
+}
+
+.pan-zoom-controls button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.pan-zoom-controls button:hover {
+  background: var(--color-surface-muted);
 }

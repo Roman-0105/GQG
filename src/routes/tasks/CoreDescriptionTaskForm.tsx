@@ -432,7 +432,7 @@ export default function CoreDescriptionTaskForm() {
               />
 
               <label>
-                Ответственный начальник партии (вносит сводки по этой скважине)
+                Ответственный (вносит сводки по этой скважине)
                 <select
                   required
                   value={assignedPartyChiefId}

@@ -1,14 +1,11 @@
 import {
   LayoutDashboard,
   Mountain,
-  Users,
   ClipboardCheck,
   FileBarChart,
   FileClock,
-  Wallet,
-  Building2,
-  HardHat,
   Network,
+  Settings,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { UserRole } from '../../types/roles'
@@ -42,10 +39,13 @@ export const NAV_ITEMS: NavItem[] = [
     badgeKey: 'pendingApprovals',
   },
   { to: '/reports/summary', label: 'Отчёты', icon: FileBarChart, show: isManagement },
-  { to: '/users', label: 'Пользователи', icon: Users, show: isManagement },
-  { to: '/settings/workers', label: 'Работники', icon: HardHat, show: isManagement },
-  { to: '/settings/organizations', label: 'Организации бурения', icon: Building2, show: isManagement },
-  { to: '/settings/costs', label: 'Статьи затрат', icon: Wallet, show: isManagement },
+  // Пользователи/Работники/Организации бурения/Статьи затрат — раньше 4
+  // отдельных пункта меню, из-за которых у management-роли набегало 9
+  // пунктов (см. отзыв 25.09.2026 про overflow "Ещё" в BottomTabBar).
+  // Свёрнуты в один хаб /settings (SettingsHub.tsx) — сами роуты
+  // (/users, /settings/workers, /settings/organizations, /settings/costs)
+  // НЕ переехали, только перестали быть пунктами верхнего уровня.
+  { to: '/settings', label: 'Настройки', icon: Settings, show: isManagement },
   { to: '/org-chart', label: 'Оргструктура', icon: Network, show: () => true },
 ]
 
@@ -57,5 +57,9 @@ export function isNavItemActive(pathname: string, to: string) {
   // для них нет (см. отзыв 17.09.2026: терялось ощущение "я всё ещё в
   // Участках", когда открыта карточка задания).
   if (to === '/sites' && pathname.startsWith('/tasks/')) return true
+  // /users исторически без префикса /settings (роуты не переименовывали
+  // при свёртке в хаб, см. запись 25.09.2026) — досчитываем вручную,
+  // остальные 3 хабовых роута уже покрыты startsWith('/settings/') выше.
+  if (to === '/settings' && pathname === '/users') return true
   return false
 }

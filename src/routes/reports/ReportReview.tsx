@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { CheckCircle2, XCircle, MessageSquare } from 'lucide-react'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { CheckCircle2, XCircle, MessageSquare, ChevronLeft } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
 import { loadReportSiteAndWellLabel } from '../../lib/reportLabel'
+import { round2 } from '../../lib/taskProgress'
 import type { CostItem, Report, ReportCost } from '../../types/database'
 
 interface EnrichedCost extends ReportCost {
@@ -122,6 +123,12 @@ export default function ReportReview() {
 
   return (
     <div style={{ maxWidth: 460 }}>
+      <Link
+        to="/reports/pending"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}
+      >
+        <ChevronLeft size={15} /> На согласование
+      </Link>
       <h1>Просмотр сводки</h1>
 
       {loading || !report ? (
@@ -147,14 +154,14 @@ export default function ReportReview() {
               )}
               {report.drilling_meters != null && (
                 <p style={{ margin: 0 }}>
-                  Метраж бурения: <span className="num">{report.drilling_meters} м</span>
+                  Метраж бурения: <span className="num">{round2(report.drilling_meters)} м</span>
                 </p>
               )}
               {report.core_description_interval_to != null && (
                 <p style={{ margin: 0 }}>
                   Описание керна:{' '}
                   <span className="num">
-                    {report.core_description_interval_from}–{report.core_description_interval_to} м
+                    {round2(report.core_description_interval_from ?? 0)}–{round2(report.core_description_interval_to)} м
                   </span>
                 </p>
               )}
@@ -162,13 +169,13 @@ export default function ReportReview() {
                 <p style={{ margin: 0 }}>
                   Фотофиксация:{' '}
                   <span className="num">
-                    {report.photofixation_interval_from}–{report.photofixation_interval_to} м
+                    {round2(report.photofixation_interval_from ?? 0)}–{round2(report.photofixation_interval_to)} м
                   </span>
                 </p>
               )}
               {report.sawn_meters != null && (
                 <p style={{ margin: 0 }}>
-                  Распилено: <span className="num">{report.sawn_meters} м</span>
+                  Распилено: <span className="num">{round2(report.sawn_meters)} м</span>
                 </p>
               )}
               {report.samples_taken != null && (
