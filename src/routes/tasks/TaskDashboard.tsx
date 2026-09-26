@@ -8,7 +8,6 @@ import {
   Minus,
   MessageSquare,
   Layers,
-  Percent,
   HardHat,
   Pencil,
   Scissors,
@@ -23,7 +22,7 @@ import { isManagement } from '../../types/roles'
 import { riseIn } from '../../lib/motionVariants'
 import { round2 } from '../../lib/taskProgress'
 import ProgressBar from '../../components/ProgressBar'
-import WellboreProgress from '../../components/WellboreProgress'
+import DrillingProgressPanel, { type DrillingChartRow } from '../../components/DrillingProgressPanel'
 import CrewAssignmentSection from '../../components/CrewAssignmentSection'
 import Modal from '../../components/Modal'
 import { TASK_TYPE_REPORT_COLUMN, TASK_TYPE_LABELS, type TaskType } from '../../types/taskType'
@@ -371,6 +370,11 @@ export default function TaskDashboard() {
   }
 
   let runningApproved = 0
+  // Отдельно от "подтверждено" (runningApproved) — "известно" (подтверждено
+  // + ещё на согласовании), нужно для графика проходки (25.09.2026, панель
+  // с накопленной линией факта): пока обычно совпадает с runningApproved,
+  // расходится только на "хвосте" из ещё не одобренных смен.
+  let runningKnown = 0
   const rowsRendered = dayRows.map((row) => {
     const cells = shiftsApply ? [cellValue(row.shift1), cellValue(row.shift2)] : [cellValue(row.noShift)]
 
@@ -378,6 +382,16 @@ export default function TaskDashboard() {
       ? round2(cells.reduce((s, c) => s + (c.status === 'approved' ? (c.meters ?? 0) : 0), 0))
       : 0
     runningApproved = round2(runningApproved + dayApproved)
+
+    const dayKnown = isAdditiveMeters
+      ? round2(
+          cells.reduce(
+            (s, c) => s + (c.status === 'approved' || c.status === 'submitted' ? (c.meters ?? 0) : 0),
+            0,
+          ),
+        )
+      : 0
+    runningKnown = round2(runningKnown + dayKnown)
 
     const daySamplesTaken = isSampling
       ? cells.reduce((s, c) => s + (c.status === 'approved' ? (c.samplesTaken ?? 0) : 0), 0)
@@ -388,13 +402,42 @@ export default function TaskDashboard() {
         ? round2(Math.min(plannedDailyMeters * (dayIndex(startDate, row.date) + 1), projectedDepth))
         : null
 
-    return { row, cells, dayApproved, runningApproved, daySamplesTaken, plannedCumulative }
+    return { row, cells, dayApproved, runningApproved, runningKnown, daySamplesTaken, plannedCumulative }
   })
 
   const latestPlanned = rowsRendered[rowsRendered.length - 1]?.plannedCumulative ?? null
   const pace = isDrilling && latestPlanned != null ? paceLabel(approvedAdditiveMeters - latestPlanned, latestPlanned) : null
   const overallPercent = isAdditiveMeters && projectedDepth ? (approvedAdditiveMeters / projectedDepth) * 100 : null
   const rowsForDisplay = [...rowsRendered].reverse()
+
+  // ---- панель "Проходка скважины" (25.09.2026, редизайн) — темп/прогноз/
+  //      счётчики и данные графика по сменам, см. DrillingProgressPanel.tsx ----
+  const daysElapsed = totalDays + 1
+  const paceRate = isDrilling && daysElapsed > 0 ? round2(approvedAdditiveMeters / daysElapsed) : 0
+  const forecastLabel =
+    isDrilling && projectedDepth != null
+      ? (() => {
+          const remaining = round2(projectedDepth - approvedAdditiveMeters)
+          if (remaining <= 0) return 'готово'
+          if (paceRate <= 0) return null
+          const daysNeeded = Math.ceil(remaining / paceRate)
+          const iso = addDays(todayIso(), daysNeeded)
+          return `≈ ${iso.slice(8, 10)}.${iso.slice(5, 7)}`
+        })()
+      : null
+  const shiftsCount = reports.length
+  const chartRows: DrillingChartRow[] = isDrilling
+    ? rowsRendered.map(({ row, cells, runningApproved: cumApproved, runningKnown: cumKnown, plannedCumulative }) => ({
+        date: row.date,
+        shift1: cells[0]?.meters ?? null,
+        shift1Approved: cells[0]?.status === 'approved',
+        shift2: cells[1]?.meters ?? null,
+        shift2Approved: cells[1]?.status === 'approved',
+        cumApproved,
+        cumKnown,
+        plannedCumulative,
+      }))
+    : []
 
   const PaceIcon = pace?.variant === 'success' ? TrendingUp : pace?.variant === 'danger' ? TrendingDown : Minus
   const paceColors: Record<'success' | 'danger' | 'neutral', { bg: string; fg: string }> = {
@@ -531,133 +574,100 @@ export default function TaskDashboard() {
       </Modal>
 
       {isDrilling ? (
-        <motion.div
-          className="card"
-          {...riseIn(0, { y: 10, duration: 0.35 })}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 260px) 1fr',
-            gap: 24,
-            padding: 24,
-            marginBottom: 24,
-            alignItems: 'center',
-          }}
-        >
-          <WellboreProgress
+        <motion.div {...riseIn(0, { y: 10, duration: 0.35 })}>
+          <DrillingProgressPanel
+            taskId={taskId}
             projectedDepth={projectedDepth}
             approvedDepth={approvedAdditiveMeters}
             pendingDepth={pendingAdditiveMeters}
-          />
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-              {overallPercent != null && (
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 'var(--radius-full)',
-                    fontWeight: 700,
-                    fontSize: 14,
-                    background: 'var(--color-primary-soft)',
-                    color: 'var(--color-primary)',
-                  }}
-                >
-                  <Percent size={15} />
-                  {overallPercent.toFixed(0)}% плана пробурено
-                </div>
-              )}
-              {pace && (
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 14px',
-                    borderRadius: 'var(--radius-full)',
-                    fontWeight: 700,
-                    fontSize: 14,
-                    background: paceColors[pace.variant].bg,
-                    color: paceColors[pace.variant].fg,
-                  }}
-                >
-                  <PaceIcon size={17} />
-                  {pace.text}
-                </div>
-              )}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 14, marginBottom: 14 }}>
-              <div>
-                <div className="eyebrow" style={{ marginBottom: 3 }}>
-                  Факт
-                </div>
-                <div className="num" style={{ fontSize: 22, fontWeight: 700 }}>
-                  {approvedAdditiveMeters.toFixed(2)} м
-                </div>
-              </div>
-              <div>
-                <div className="eyebrow" style={{ marginBottom: 3 }}>
-                  План
-                </div>
-                <div className="num" style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-muted)' }}>
-                  {projectedDepth ?? '—'} м
-                </div>
-              </div>
-              {pendingAdditiveMeters > 0 && (
-                <div>
-                  <div className="eyebrow" style={{ marginBottom: 3 }}>
-                    На согласовании
+            paceRate={paceRate}
+            forecastLabel={forecastLabel}
+            daysElapsed={daysElapsed}
+            shiftsCount={shiftsCount}
+            rows={chartRows}
+            headerRight={
+              <>
+                {pendingAdditiveMeters > 0 && (
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 14px',
+                      borderRadius: 'var(--radius-full)',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      background: 'var(--color-accent-soft)',
+                      color: 'var(--color-accent)',
+                    }}
+                  >
+                    на согласовании: +{pendingAdditiveMeters} м
                   </div>
-                  <div className="num" style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-accent)' }}>
-                    +{pendingAdditiveMeters} м
+                )}
+                {pace && (
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 14px',
+                      borderRadius: 'var(--radius-full)',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      background: paceColors[pace.variant].bg,
+                      color: paceColors[pace.variant].fg,
+                    }}
+                  >
+                    <PaceIcon size={16} />
+                    {pace.text}
                   </div>
-                </div>
-              )}
-            </div>
-
-            {drillingTask && isManagement(profile?.role) && (
-              <div style={{ fontSize: 13 }}>
-                {editingPlan ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <input
-                      type="number"
-                      step="any"
-                      autoFocus
-                      value={planDraft}
-                      onChange={(e) => setPlanDraft(e.target.value)}
-                      placeholder="м/сутки"
-                      style={{ width: 100, padding: '6px 8px' }}
-                    />
-                    <button type="button" onClick={savePlan} disabled={savingPlan} style={{ padding: '6px 10px', fontSize: 12.5 }}>
-                      {savingPlan ? '…' : 'Сохранить'}
-                    </button>
+                )}
+              </>
+            }
+            planEditor={
+              drillingTask && isManagement(profile?.role) ? (
+                <div style={{ fontSize: 13 }}>
+                  {editingPlan ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="number"
+                        step="any"
+                        autoFocus
+                        value={planDraft}
+                        onChange={(e) => setPlanDraft(e.target.value)}
+                        placeholder="м/сутки"
+                        style={{ width: 100, padding: '6px 8px' }}
+                      />
+                      <button type="button" onClick={savePlan} disabled={savingPlan} style={{ padding: '6px 10px', fontSize: 12.5 }}>
+                        {savingPlan ? '…' : 'Сохранить'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-outline"
+                        onClick={() => setEditingPlan(false)}
+                        style={{ padding: '6px 10px', fontSize: 12.5 }}
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
                       className="btn-outline"
-                      onClick={() => setEditingPlan(false)}
-                      style={{ padding: '6px 10px', fontSize: 12.5 }}
+                      onClick={() => {
+                        setPlanDraft(drillingTask.planned_daily_meters != null ? String(drillingTask.planned_daily_meters) : '')
+                        setEditingPlan(true)
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, padding: '6px 10px' }}
                     >
-                      Отмена
+                      <Pencil size={12} />
+                      {plannedDailyMeters != null ? `План: ${plannedDailyMeters} м/сутки` : 'Задать план бурения'}
                     </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn-outline"
-                    onClick={() => {
-                      setPlanDraft(drillingTask.planned_daily_meters != null ? String(drillingTask.planned_daily_meters) : '')
-                      setEditingPlan(true)
-                    }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, padding: '6px 10px' }}
-                  >
-                    <Pencil size={12} />
-                    {plannedDailyMeters != null ? `План: ${plannedDailyMeters} м/сутки` : 'Задать план бурения'}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+                  )}
+                </div>
+              ) : undefined
+            }
+          />
         </motion.div>
       ) : isCoreDescription ? (
         <div className="card" style={{ padding: 20, marginBottom: 24 }}>
