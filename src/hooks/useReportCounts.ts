@@ -4,6 +4,15 @@ import { useAuth } from '../context/AuthContext'
 import { isManagement } from '../types/roles'
 
 const POLL_INTERVAL_MS = 60_000
+const REPORTS_CHANGED_EVENT = 'gqg:reports-changed'
+
+// Вызывать после любого действия, меняющего статусы сводок (принять,
+// отклонить, отправить, удалить): счётчики в меню (Sidebar, BottomTabBar,
+// Dashboard — у каждого свой экземпляр хука) обновятся сразу, а не через
+// минуту по таймеру.
+export function notifyReportsChanged() {
+  window.dispatchEvent(new Event(REPORTS_CHANGED_EVENT))
+}
 
 // "Уведомления" в этой версии — не push, а счётчики, которые сами
 // обновляются при возврате на вкладку и раз в минуту (см. ТЗ, обсуждение
@@ -41,11 +50,13 @@ export function useReportCounts() {
     load()
     const interval = setInterval(load, POLL_INTERVAL_MS)
     window.addEventListener('focus', load)
+    window.addEventListener(REPORTS_CHANGED_EVENT, load)
 
     return () => {
       cancelled = true
       clearInterval(interval)
       window.removeEventListener('focus', load)
+      window.removeEventListener(REPORTS_CHANGED_EVENT, load)
     }
   }, [session, profile])
 

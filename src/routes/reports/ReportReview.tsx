@@ -3,6 +3,8 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { CheckCircle2, XCircle, MessageSquare, ChevronLeft } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
+import ReportGeologyExtras from '../../components/ReportGeologyExtras'
+import { notifyReportsChanged } from '../../hooks/useReportCounts'
 import { isManagement } from '../../types/roles'
 import { loadReportSiteAndWellLabel } from '../../lib/reportLabel'
 import { round2 } from '../../lib/taskProgress'
@@ -118,6 +120,7 @@ export default function ReportReview() {
       setError(updateError.message)
       return
     }
+    notifyReportsChanged()
     navigate('/reports/pending')
   }
 
@@ -188,6 +191,7 @@ export default function ReportReview() {
                   Проб сдано в лабораторию: <span className="num">{report.samples_submitted}</span>
                 </p>
               )}
+              <ReportGeologyExtras report={report} />
             </div>
           </div>
 

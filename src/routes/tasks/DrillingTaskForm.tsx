@@ -6,21 +6,16 @@ import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
 import type {
-  CoreDescriptionTask,
-  CoreSawingTask,
   DrillingOrganization,
   DrillingRig,
-  Profile,
-  SamplingTask,
   TaskStatus,
 } from '../../types/database'
+import { useAreaCandidates } from '../../hooks/useAreaCandidates'
+import AreaFilterHint from '../../components/AreaFilterHint'
 import DiameterIntervalsEditor, {
   emptyDiameterRow,
   type DiameterRow,
 } from '../../components/DiameterIntervalsEditor'
-import AttachedCoreDescriptionCard from '../../components/AttachedCoreDescriptionCard'
-import AttachedSawingCard from '../../components/AttachedSawingCard'
-import AttachedSamplingCard from '../../components/AttachedSamplingCard'
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'planned', label: 'Запланировано' },
@@ -40,7 +35,6 @@ export default function DrillingTaskForm() {
 
   const [organizations, setOrganizations] = useState<DrillingOrganization[]>([])
   const [rigs, setRigs] = useState<DrillingRig[]>([])
-  const [foremen, setForemen] = useState<Profile[]>([])
   const [loadingTask, setLoadingTask] = useState(isEditMode)
 
   const [wellNumber, setWellNumber] = useState('')
@@ -52,6 +46,7 @@ export default function DrillingTaskForm() {
   const [coordY, setCoordY] = useState('')
   const [elevation, setElevation] = useState('')
   const [foremanId, setForemanId] = useState('')
+  const areaPick = useAreaCandidates('drilling', foremanId ? [foremanId] : [])
   const [startDate, setStartDate] = useState('')
   const [projectedDepth, setProjectedDepth] = useState('')
   const [plannedDailyMeters, setPlannedDailyMeters] = useState('')
@@ -64,10 +59,6 @@ export default function DrillingTaskForm() {
   // Дополнительные работы, прицепленные к этому заданию на бурение (см.
   // отзыв 19.09.2026) — керн/распиловка/опробование той же скважины без
   // отдельного создания задания через участок.
-  const [geoCoreTask, setGeoCoreTask] = useState<CoreDescriptionTask | null>(null)
-  const [geotechCoreTask, setGeotechCoreTask] = useState<CoreDescriptionTask | null>(null)
-  const [sawingTask, setSawingTask] = useState<CoreSawingTask | null>(null)
-  const [samplingTask, setSamplingTask] = useState<SamplingTask | null>(null)
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -75,18 +66,12 @@ export default function DrillingTaskForm() {
   useEffect(() => {
     if (!session) return
     async function loadRefs() {
-      const [orgsRes, rigsRes, foremenRes] = await Promise.all([
+      const [orgsRes, rigsRes] = await Promise.all([
         supabase.from('drilling_organizations').select('*').order('name'),
         supabase.from('drilling_rigs').select('*').order('rig_number'),
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('role', 'party_chief')
-          .order('full_name'),
       ])
       if (orgsRes.data) setOrganizations(orgsRes.data)
       if (rigsRes.data) setRigs(rigsRes.data)
-      if (foremenRes.data) setForemen(foremenRes.data)
     }
     loadRefs()
   }, [session])
@@ -95,12 +80,9 @@ export default function DrillingTaskForm() {
     if (!session || !taskId) return
     async function loadTask() {
       setLoadingTask(true)
-      const [taskRes, diametersRes, coreRes, sawingRes, samplingRes] = await Promise.all([
+      const [taskRes, diametersRes] = await Promise.all([
         supabase.from('drilling_tasks').select('*').eq('id', taskId).single(),
         supabase.from('drilling_task_diameters').select('*').eq('drilling_task_id', taskId),
-        supabase.from('core_description_tasks').select('*').eq('drilling_task_id', taskId),
-        supabase.from('core_sawing_tasks').select('*').eq('drilling_task_id', taskId).maybeSingle(),
-        supabase.from('sampling_tasks').select('*').eq('drilling_task_id', taskId).maybeSingle(),
       ])
       if (taskRes.data) {
         const t = taskRes.data
@@ -130,10 +112,6 @@ export default function DrillingTaskForm() {
           })),
         )
       }
-      setGeoCoreTask(coreRes.data?.find((t) => t.documentation_type === 'geological') ?? null)
-      setGeotechCoreTask(coreRes.data?.find((t) => t.documentation_type === 'geotechnical') ?? null)
-      setSawingTask(sawingRes.data ?? null)
-      setSamplingTask(samplingRes.data ?? null)
       setLoadingTask(false)
     }
     loadTask()
@@ -231,11 +209,17 @@ export default function DrillingTaskForm() {
     }
 
     setSubmitting(false)
-    navigate(`/sites/${siteId}`)
+    // Новое задание — сразу предлагаем назначить геологические работы на этой
+    // скважине (мастер можно пропустить). Правка — возвращаемся на участок.
+    navigate(
+      isEditMode
+        ? `/sites/${siteId}`
+        : `/sites/${siteId}/tasks/geology/new?well=${task.id}&after=drilling`,
+    )
   }
 
   return (
-    <div style={{ maxWidth: isEditMode ? 980 : 460 }}>
+    <div style={{ maxWidth: isEditMode ? 1240 : 900 }}>
       <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}>
         <ChevronLeft size={15} /> Участок
       </Link>
@@ -246,7 +230,7 @@ export default function DrillingTaskForm() {
         <p>Загрузка задания…</p>
       ) : (
         <div style={isEditMode ? { display: 'flex', gap: 28, alignItems: 'flex-start', flexWrap: 'wrap' } : undefined}>
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 10, flex: '1 1 420px', minWidth: 300, maxWidth: 460 }}>
+        <form onSubmit={handleSubmit} className="task-form-grid" style={{ flex: '2 1 560px', minWidth: 300 }}>
           <label>
             Номер скважины
             <input
@@ -365,12 +349,13 @@ export default function DrillingTaskForm() {
               onChange={(e) => setForemanId(e.target.value)}
             >
               <option value="">— выбрать —</option>
-              {foremen.map((f) => (
+              {areaPick.candidates.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.full_name}
                 </option>
               ))}
             </select>
+            <AreaFilterHint pick={areaPick} what="мастера бурения" />
           </label>
 
           <label>
@@ -423,9 +408,11 @@ export default function DrillingTaskForm() {
             />
           </label>
 
-          <DiameterIntervalsEditor rows={diameters} onChange={setDiameters} />
+          <div className="span-2">
+            <DiameterIntervalsEditor rows={diameters} onChange={setDiameters} />
+          </div>
 
-          <label>
+          <label className="span-2">
             Описание задания для бригадира
             <textarea
               rows={3}
@@ -435,10 +422,11 @@ export default function DrillingTaskForm() {
             />
           </label>
 
-          {error && <p className="text-error">{error}</p>}
+          {error && <p className="text-error span-2">{error}</p>}
 
           <button
             type="submit"
+            className="span-2"
             disabled={submitting}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
           >
@@ -456,28 +444,15 @@ export default function DrillingTaskForm() {
                 отдельного задания. Скважина и бригадир наследуются автоматически.
               </p>
             </div>
-            <AttachedCoreDescriptionCard
-              siteId={siteId}
-              drillingTaskId={taskId}
-              documentationType="geological"
-              task={geoCoreTask}
-              onSaved={setGeoCoreTask}
-            />
-            <AttachedCoreDescriptionCard
-              siteId={siteId}
-              drillingTaskId={taskId}
-              documentationType="geotechnical"
-              task={geotechCoreTask}
-              onSaved={setGeotechCoreTask}
-            />
-            <AttachedSawingCard siteId={siteId} drillingTaskId={taskId} task={sawingTask} onSaved={setSawingTask} />
-            <AttachedSamplingCard
-              siteId={siteId}
-              drillingTaskId={taskId}
-              defaultForemanId={foremanId}
-              task={samplingTask}
-              onSaved={setSamplingTask}
-            />
+            <Link to={`/sites/${siteId}/tasks/geology/new?well=${taskId}`} style={{ display: 'block' }}>
+              <button type="button" style={{ width: '100%' }}>
+                Настроить геологические работы и ответственных
+              </button>
+            </Link>
+            <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+              Ответственных можно назначить несколько человек на каждую работу.
+              Геологи видят и заполняют только свои работы, но видят прогресс бурения.
+            </p>
           </div>
         )}
         </div>

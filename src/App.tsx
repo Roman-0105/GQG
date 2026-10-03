@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { AlertTriangle } from 'lucide-react'
 import { AuthProvider } from './context/AuthContext'
@@ -11,11 +12,13 @@ import DrillingTaskForm from './routes/tasks/DrillingTaskForm'
 import CoreDescriptionTaskForm from './routes/tasks/CoreDescriptionTaskForm'
 import CoreSawingTaskForm from './routes/tasks/CoreSawingTaskForm'
 import SamplingTaskForm from './routes/tasks/SamplingTaskForm'
+import GeologyTaskWizard from './routes/tasks/GeologyTaskWizard'
 import DailyReportForm from './routes/reports/DailyReportForm'
 import TaskReportsList from './routes/reports/TaskReportsList'
 import ReportDetail from './routes/reports/ReportDetail'
 import PendingApprovals from './routes/reports/PendingApprovals'
 import MyReports from './routes/reports/MyReports'
+import GeologyDayReport from './routes/reports/GeologyDayReport'
 import ReportReview from './routes/reports/ReportReview'
 import SummaryReport from './routes/reports/SummaryReport'
 import TaskDashboard from './routes/tasks/TaskDashboard'
@@ -25,6 +28,9 @@ import OrgChart from './routes/org/OrgChart'
 import DrillingOrganizationsSettings from './routes/settings/DrillingOrganizationsSettings'
 import WorkersSettings from './routes/settings/WorkersSettings'
 import SettingsHub from './routes/settings/SettingsHub'
+// Карта подгружается отдельным куском (Leaflet ~150 КБ), только когда её открывают
+const SiteMap = lazy(() => import('./routes/map/SiteMap'))
+import SampleTypesSettings from './routes/settings/SampleTypesSettings'
 
 // Каркас роутинга по экранам из ТЗ (раздел 5). Защита маршрутов по роли
 // (AuthGuard/RequireRole) добавится позже; пока каждый экран сам проверяет
@@ -62,11 +68,21 @@ function App() {
           <Route path="/sites" element={<SitesList />} />
           <Route path="/sites/:siteId" element={<SiteDetail />} />
           <Route path="/settings" element={<SettingsHub />} />
+          <Route
+            path="/map"
+            element={
+              <Suspense fallback={<p>Загрузка карты…</p>}>
+                <SiteMap />
+              </Suspense>
+            }
+          />
           <Route path="/users" element={<UsersList />} />
           <Route path="/settings/costs" element={<CostCategoriesSettings />} />
           <Route path="/org-chart" element={<OrgChart />} />
           <Route path="/settings/organizations" element={<DrillingOrganizationsSettings />} />
           <Route path="/settings/workers" element={<WorkersSettings />} />
+          <Route path="/settings/sample-types" element={<SampleTypesSettings />} />
+          <Route path="/sites/:siteId/tasks/geology/new" element={<GeologyTaskWizard />} />
           <Route
             path="/sites/:siteId/tasks/drilling/new"
             element={<DrillingTaskForm />}
@@ -120,6 +136,7 @@ function App() {
             element={<DailyReportForm />}
           />
           <Route path="/reports/mine" element={<MyReports />} />
+          <Route path="/reports/geology" element={<GeologyDayReport />} />
           <Route path="/reports/pending" element={<PendingApprovals />} />
           <Route path="/reports/:reportId/review" element={<ReportReview />} />
           <Route path="/reports/summary" element={<SummaryReport />} />

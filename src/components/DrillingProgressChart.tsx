@@ -9,8 +9,17 @@ export interface DrillingChartRow {
   plannedCumulative: number | null
 }
 
+export interface ChartClosure {
+  date: string
+  kind: 'depth_reached' | 'other'
+  label: string
+}
+
 interface Props {
   rows: DrillingChartRow[]
+  // Закрытие скважины: зелёная сплошная вертикаль при достижении глубины,
+  // красная пунктирная при любой другой причине (03.10.2026).
+  closure?: ChartClosure | null
 }
 
 const SLOT = 46
@@ -39,7 +48,7 @@ function toPoly(pts: (readonly [number, number])[]) {
 // Ширина фиксирована на смену (SLOT), не сжимается под контейнер — при
 // длинной истории график просто шире контейнера, обёртка скроллится
 // по горизонтали (см. родительский DrillingProgressPanel.tsx).
-export default function DrillingProgressChart({ rows }: Props) {
+export default function DrillingProgressChart({ rows, closure }: Props) {
   if (rows.length === 0) {
     return (
       <p className="text-muted" style={{ fontSize: 13 }}>
@@ -48,7 +57,14 @@ export default function DrillingProgressChart({ rows }: Props) {
     )
   }
 
-  const barMax = Math.max(1, ...rows.flatMap((r) => [r.shift1 ?? 0, r.shift2 ?? 0])) * 1.15
+  // Выброс (одна смена в разы больше остальных, например перенос исторического
+  // метража) не должен сплющивать остальные столбики: если максимум больше
+  // 2,2 второго по величине значения, шкала строится по второму, а выбивающийся
+  // столбик обрезается сверху и подписывается своим значением (03.10.2026).
+  const barValues = rows.flatMap((r) => [r.shift1 ?? 0, r.shift2 ?? 0]).sort((a, b) => b - a)
+  const hasOutlier = barValues.length > 2 && barValues[1] > 0 && barValues[0] > barValues[1] * 2.2
+  const barMax = Math.max(1, hasOutlier ? barValues[1] * 1.5 : barValues[0] ?? 1) * 1.15
+  const clip = (v: number) => Math.min(v, barMax)
   const cumMax = Math.max(1, ...rows.flatMap((r) => [r.cumKnown, r.plannedCumulative ?? 0])) * 1.08
 
   const width = MARGIN_L + rows.length * SLOT + MARGIN_R
@@ -70,6 +86,14 @@ export default function DrillingProgressChart({ rows }: Props) {
   const hasPlan = points.every((p) => p.plannedCumulative != null)
   const planPts = hasPlan ? points.map((p) => [p.cx, yCum(p.plannedCumulative ?? 0)] as const) : []
 
+  // Позиция линии закрытия: слот с этой датой, а если дата позже последней
+  // строки (закрыли без новых сводок) — край последнего слота.
+  const closureIndex = closure
+    ? Math.max(0, rows.findIndex((r) => r.date === closure.date) === -1 ? rows.length - 1 : rows.findIndex((r) => r.date === closure.date))
+    : -1
+  const closureX = closure ? MARGIN_L + closureIndex * SLOT + SLOT - 2 : 0
+  const closureColor = closure?.kind === 'depth_reached' ? 'var(--color-success)' : 'var(--color-danger)'
+
   const gridLines = [0, 1, 2, 3, 4].map((i) => {
     const y = TOP + PLOT_H - (i / 4) * PLOT_H
     return {
@@ -87,6 +111,13 @@ export default function DrillingProgressChart({ rows }: Props) {
         <LegendSwatch color="#6f9280" label="Смена 2" />
         <LegendLine color="var(--color-accent)" label="Накопл. факт" />
         {hasPlan && <LegendLine color="var(--color-text-faint)" dashed label="План" />}
+        {closure && (
+          <LegendLine
+            color={closureColor}
+            dashed={closure.kind !== 'depth_reached'}
+            label={closure.kind === 'depth_reached' ? 'Завершение бурения' : 'Закрытие скважины'}
+          />
+        )}
       </div>
       <div style={{ overflowX: 'auto' }}>
         <svg width={width} height={210} viewBox={`0 0 ${width} 210`} style={{ display: 'block' }}>
@@ -107,9 +138,9 @@ export default function DrillingProgressChart({ rows }: Props) {
               {p.shift1 != null && (
                 <rect
                   x={p.x0}
-                  y={yBar(p.shift1)}
+                  y={yBar(clip(p.shift1))}
                   width={BAR_W}
-                  height={Math.max(0, BOTTOM - yBar(p.shift1))}
+                  height={Math.max(0, BOTTOM - yBar(clip(p.shift1)))}
                   rx={2}
                   fill={p.shift1Approved ? 'var(--color-primary)' : 'var(--color-accent-soft)'}
                 />
@@ -117,12 +148,22 @@ export default function DrillingProgressChart({ rows }: Props) {
               {p.shift2 != null && (
                 <rect
                   x={p.x0 + BAR_W + 2}
-                  y={yBar(p.shift2)}
+                  y={yBar(clip(p.shift2))}
                   width={BAR_W}
-                  height={Math.max(0, BOTTOM - yBar(p.shift2))}
+                  height={Math.max(0, BOTTOM - yBar(clip(p.shift2)))}
                   rx={2}
                   fill={p.shift2Approved ? '#6f9280' : 'var(--color-accent-soft)'}
                 />
+              )}
+              {p.shift1 != null && p.shift1 > barMax && (
+                <text x={p.x0 + BAR_W / 2} y={TOP - 1} textAnchor="middle" fontSize={9} fontFamily="var(--font-mono)" fill="var(--color-primary)">
+                  ▲{Math.round(p.shift1)}
+                </text>
+              )}
+              {p.shift2 != null && p.shift2 > barMax && (
+                <text x={p.x0 + BAR_W + 2 + BAR_W / 2} y={TOP - 1} textAnchor="middle" fontSize={9} fontFamily="var(--font-mono)" fill="var(--color-primary)">
+                  ▲{Math.round(p.shift2)}
+                </text>
               )}
               <text x={p.cx} y={LABEL_Y} textAnchor="middle" fontSize={9.5} fontFamily="var(--font-mono)" fill="var(--color-text-faint)">
                 {shortDate(p.date)}
@@ -143,6 +184,29 @@ export default function DrillingProgressChart({ rows }: Props) {
               strokeDasharray="3 3"
               opacity={0.7}
             />
+          )}
+          {closure && (
+            <g>
+              <line
+                x1={closureX}
+                y1={TOP - 4}
+                x2={closureX}
+                y2={BOTTOM}
+                stroke={closureColor}
+                strokeWidth={2.2}
+                strokeDasharray={closure.kind === 'depth_reached' ? undefined : '5 4'}
+              />
+              <text
+                x={Math.min(closureX + 4, width - 4)}
+                y={TOP + 6}
+                textAnchor={closureX + 4 > width - 90 ? 'end' : 'start'}
+                fontSize={9.5}
+                fontFamily="var(--font-mono)"
+                fill={closureColor}
+              >
+                {closure.label}
+              </text>
+            </g>
           )}
           {approvedPts.map(([x, y], i) => (
             <circle

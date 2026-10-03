@@ -4,6 +4,8 @@ import {
   ClipboardCheck,
   FileBarChart,
   FileClock,
+  FlaskConical,
+  Map as MapIcon,
   Network,
   Settings,
 } from 'lucide-react'
@@ -17,6 +19,9 @@ export interface NavItem {
   icon: LucideIcon
   show: (role: UserRole | null | undefined) => boolean
   badgeKey?: 'pendingApprovals'
+  // Только для ПК: на телефоне (нижний таб-бар) пункт не показывается —
+  // полевому работнику он не нужен (решение 30.09.2026).
+  desktopOnly?: boolean
 }
 
 // Единый список пунктов навигации — источник и для верхнего меню (ПК), и
@@ -29,6 +34,13 @@ export const NAV_ITEMS: NavItem[] = [
     to: '/reports/mine',
     label: 'Мои сводки',
     icon: FileClock,
+    show: (role) => role === 'party_chief',
+  },
+  { to: '/map', label: 'Карта', icon: MapIcon, show: () => true },
+  {
+    to: '/reports/geology',
+    label: 'Геология',
+    icon: FlaskConical,
     show: (role) => role === 'party_chief',
   },
   {
@@ -46,7 +58,7 @@ export const NAV_ITEMS: NavItem[] = [
   // (/users, /settings/workers, /settings/organizations, /settings/costs)
   // НЕ переехали, только перестали быть пунктами верхнего уровня.
   { to: '/settings', label: 'Настройки', icon: Settings, show: isManagement },
-  { to: '/org-chart', label: 'Оргструктура', icon: Network, show: () => true },
+  { to: '/org-chart', label: 'Оргструктура', icon: Network, show: () => true, desktopOnly: true },
 ]
 
 export function isNavItemActive(pathname: string, to: string) {

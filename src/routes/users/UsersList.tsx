@@ -10,7 +10,8 @@ import { useAuth } from '../../context/AuthContext'
 import { isManagement, ROLE_LABELS, ROLE_OPTIONS, type UserRole } from '../../types/roles'
 import { riseIn } from '../../lib/motionVariants'
 import { buildPersonNodes, collectDescendantKeys, parsePersonValue, profileValue, reportsToValue } from '../../lib/personRef'
-import type { Position, Profile, Worker } from '../../types/database'
+import { WORK_AREA_LABELS } from '../../types/database'
+import type { Position, Profile, Worker, WorkArea } from '../../types/database'
 import Modal from '../../components/Modal'
 import PersonSelect from '../../components/PersonSelect'
 
@@ -46,6 +47,8 @@ function PositionsManagerModal({
   onPositionsChange: (positions: Position[]) => void
 }) {
   const [newName, setNewName] = useState('')
+  const [newArea, setNewArea] = useState<WorkArea>('other')
+  const [renameArea, setRenameArea] = useState<WorkArea>('other')
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
 
@@ -58,7 +61,7 @@ function PositionsManagerModal({
     e.preventDefault()
     setAdding(true)
     setAddError(null)
-    const { data, error } = await supabase.from('positions').insert({ name: newName.trim() }).select().single()
+    const { data, error } = await supabase.from('positions').insert({ name: newName.trim(), work_area: newArea }).select().single()
     setAdding(false)
     if (error) {
       setAddError(error.code === '23505' ? 'Такая должность уже есть в списке.' : error.message)
@@ -66,11 +69,13 @@ function PositionsManagerModal({
     }
     onPositionsChange([...positions, data].sort((a, b) => a.name.localeCompare(b.name)))
     setNewName('')
+    setNewArea('other')
   }
 
   function startRename(p: Position) {
     setRenamingId(p.id)
     setRenameValue(p.name)
+    setRenameArea(p.work_area ?? 'other')
     setRenameError(null)
   }
 
@@ -81,7 +86,7 @@ function PositionsManagerModal({
     setRenameError(null)
     const { data, error } = await supabase
       .from('positions')
-      .update({ name: renameValue.trim() })
+      .update({ name: renameValue.trim(), work_area: renameArea })
       .eq('id', renamingId)
       .select()
       .single()
@@ -102,6 +107,8 @@ function PositionsManagerModal({
         <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
           Названия должностей — общий список для Пользователей, Работников и
           Оргструктуры. Права доступа они не меняют (за это отвечает роль).
+          «Направление» нужно для списков выбора: геологов предлагают только
+          при назначении геологических работ, мастеров — на бурении.
         </p>
 
         {positions.length === 0 ? (
@@ -118,6 +125,11 @@ function PositionsManagerModal({
                     onChange={(e) => setRenameValue(e.target.value)}
                     style={{ flex: 1 }}
                   />
+                  <select value={renameArea} onChange={(e) => setRenameArea(e.target.value as WorkArea)} style={{ width: 'auto' }}>
+                    {(Object.keys(WORK_AREA_LABELS) as WorkArea[]).map((a) => (
+                      <option key={a} value={a}>{WORK_AREA_LABELS[a]}</option>
+                    ))}
+                  </select>
                   <button type="submit" disabled={renaming} style={{ fontSize: 13 }}>
                     {renaming ? 'Сохраняем…' : 'Сохранить'}
                   </button>
@@ -136,7 +148,12 @@ function PositionsManagerModal({
                   className="card"
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px' }}
                 >
-                  <span style={{ fontSize: 14 }}>{p.name}</span>
+                  <span style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {p.name}
+                    <span className={`badge badge-${p.work_area === 'other' || !p.work_area ? 'neutral' : 'primary'}`}>
+                      {WORK_AREA_LABELS[p.work_area ?? 'other']}
+                    </span>
+                  </span>
                   <button
                     type="button"
                     onClick={() => startRename(p)}
@@ -158,14 +175,19 @@ function PositionsManagerModal({
           </div>
         )}
 
-        <form onSubmit={handleAdd} style={{ display: 'flex', gap: 8 }}>
+        <form onSubmit={handleAdd} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input
             required
             placeholder="Новая должность"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            style={{ flex: 1 }}
+            style={{ flex: "1 1 180px", minWidth: 150 }}
           />
+          <select value={newArea} onChange={(e) => setNewArea(e.target.value as WorkArea)} style={{ width: 'auto' }}>
+            {(Object.keys(WORK_AREA_LABELS) as WorkArea[]).map((a) => (
+              <option key={a} value={a}>{WORK_AREA_LABELS[a]}</option>
+            ))}
+          </select>
           <button type="submit" disabled={adding} style={{ whiteSpace: 'nowrap' }}>
             {adding ? 'Добавляем…' : '+ Добавить'}
           </button>

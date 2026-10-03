@@ -3,9 +3,20 @@ import type { UserRole } from './roles'
 // Справочник названий должностей (25.09.2026) — отдельно от profiles.role
 // (роль = права доступа в системе, должность = название для оргструктуры/
 // учёта, не влияет на права). Управляется из "Пользователи".
+export type WorkArea = 'drilling' | 'geology' | 'other'
+
+export const WORK_AREA_LABELS: Record<WorkArea, string> = {
+  drilling: 'Бурение',
+  geology: 'Геология',
+  other: 'Прочее',
+}
+
 export interface Position {
   id: string
   name: string
+  // Направление должности (миграция 0022) — по нему фильтруются списки
+  // выбора ответственных.
+  work_area: WorkArea
 }
 
 export interface Profile {
@@ -29,6 +40,8 @@ export interface Profile {
 export type SiteStatus = 'active' | 'closed'
 
 export interface Site {
+  // Контур участка на карте: [[широта, долгота], ...], миграция 0024
+  boundary: [number, number][] | null
   id: string
   name: string
   status: SiteStatus
@@ -140,9 +153,21 @@ export interface DrillingTask {
   angle: number | null
   azimuth: number | null
   status: TaskStatus
+  // Закрытие скважины с причиной (миграция 0023)
+  closed_reason: ClosedReason | null
+  closed_note: string | null
+  closed_at: string | null
   description: string | null
   created_by: string
   created_at: string
+}
+
+export type ClosedReason = 'depth_reached' | 'accident' | 'other'
+
+export const CLOSED_REASON_LABELS: Record<ClosedReason, string> = {
+  depth_reached: 'По достижению проектной глубины',
+  accident: 'В связи с аварией',
+  other: 'Другое',
 }
 
 export type DocumentationType = 'geological' | 'geotechnical'
@@ -223,6 +248,8 @@ export interface Report {
   edit_unlocked: boolean
   review_comment: string | null
   shift_notes: string | null
+  documentation_finished: boolean
+  sampling_layout_done: boolean
   created_at: string
   updated_at: string
 }
@@ -233,4 +260,28 @@ export interface ReportCost {
   cost_item_id: string
   quantity: number | null
   amount: number | null
+}
+
+// Справочник видов проб (миграция 0021) и пробы в сводке по видам.
+export interface SampleType {
+  id: string
+  name: string
+  created_at: string
+}
+
+export interface ReportSample {
+  id: string
+  report_id: string
+  sample_type_id: string
+  quantity: number
+}
+
+// Несколько ответственных на геологическое задание (миграция 0021).
+export interface TaskAssignee {
+  id: string
+  core_description_task_id: string | null
+  core_sawing_task_id: string | null
+  sampling_task_id: string | null
+  profile_id: string
+  created_at: string
 }

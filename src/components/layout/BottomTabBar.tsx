@@ -29,7 +29,7 @@ export default function BottomTabBar() {
 
   if (!session || !profile) return null
 
-  const allItems = NAV_ITEMS.filter((item) => item.show(profile.role))
+  const allItems = NAV_ITEMS.filter((item) => item.show(profile.role) && !item.desktopOnly)
   const overflow = allItems.length > MAX_TABS
   const primaryItems = overflow ? allItems.slice(0, MAX_TABS - 1) : allItems
   const moreItems = overflow ? allItems.slice(MAX_TABS - 1) : []

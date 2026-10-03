@@ -5,7 +5,9 @@ import { FlaskConical, ChevronLeft } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
-import type { DrillingOrganization, DrillingTask, Profile } from '../../types/database'
+import { useAreaCandidates } from '../../hooks/useAreaCandidates'
+import AreaFilterHint from '../../components/AreaFilterHint'
+import type { DrillingOrganization, DrillingTask } from '../../types/database'
 
 type WellSource = 'own' | 'external'
 
@@ -28,8 +30,8 @@ export default function SamplingTaskForm() {
   const [extWellNumber, setExtWellNumber] = useState('')
   const [extOrgId, setExtOrgId] = useState('')
 
-  const [partyChiefs, setPartyChiefs] = useState<Profile[]>([])
   const [assignedPartyChiefId, setAssignedPartyChiefId] = useState('')
+  const areaPick = useAreaCandidates('geology', assignedPartyChiefId ? [assignedPartyChiefId] : [])
   const [description, setDescription] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
@@ -38,14 +40,12 @@ export default function SamplingTaskForm() {
   useEffect(() => {
     if (!session || !siteId) return
     async function loadRefs() {
-      const [tasksRes, orgsRes, chiefsRes] = await Promise.all([
+      const [tasksRes, orgsRes] = await Promise.all([
         supabase.from('drilling_tasks').select('*').eq('site_id', siteId).order('well_number'),
         supabase.from('drilling_organizations').select('*').order('name'),
-        supabase.from('profiles').select('*').eq('role', 'party_chief').order('full_name'),
       ])
       if (tasksRes.data) setOwnDrillingTasks(tasksRes.data)
       if (orgsRes.data) setOrganizations(orgsRes.data)
-      if (chiefsRes.data) setPartyChiefs(chiefsRes.data)
     }
     loadRefs()
   }, [session, siteId])
@@ -173,12 +173,13 @@ export default function SamplingTaskForm() {
               onChange={(e) => setAssignedPartyChiefId(e.target.value)}
             >
               <option value="">— выбрать —</option>
-              {partyChiefs.map((p) => (
+              {areaPick.candidates.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.full_name}
                 </option>
               ))}
             </select>
+            <AreaFilterHint pick={areaPick} what="геологи" />
           </label>
 
           <label>

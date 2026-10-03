@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ClipboardCheck, ChevronDown, ChevronRight, PartyPopper, X } from 'lucide-react'
+import { CheckCheck, ClipboardCheck, ChevronDown, ChevronRight, PartyPopper, X } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
 import { riseIn } from '../../lib/motionVariants'
+import { notifyReportsChanged } from '../../hooks/useReportCounts'
 import type { Report } from '../../types/database'
 
 type SubtaskKey = 'drilling' | 'core-geological' | 'core-geotechnical' | 'sawing' | 'sampling'
@@ -108,6 +109,11 @@ export default function PendingApprovals() {
   const [filterSiteId, setFilterSiteId] = useState('')
   const [filterWellKey, setFilterWellKey] = useState('')
   const [filterForemanId, setFilterForemanId] = useState('')
+  // Массовое принятие: confirmKey — какая из кнопок «Принять все» ждёт
+  // подтверждения (двухшаговое, как удаление сводок), bulkBusy — идёт запрос.
+  const [confirmKey, setConfirmKey] = useState<string | null>(null)
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkMsg, setBulkMsg] = useState<string | null>(null)
 
   useEffect(() => {
     if (!session || !isManagement(profile?.role)) return
@@ -284,6 +290,76 @@ export default function PendingApprovals() {
   const filtersActive = Boolean(filterSiteId || filterWellKey || filterForemanId)
   const grouped = groupReports(filtered)
 
+  async function approveMany(ids: string[]) {
+    if (!profile || ids.length === 0) return
+    setBulkBusy(true)
+    setError(null)
+    setBulkMsg(null)
+    const { data, error: updError } = await supabase
+      .from('reports')
+      .update({
+        approval_status: 'approved',
+        approved_by: profile.id,
+        approved_at: new Date().toISOString(),
+        edit_unlocked: false,
+        review_comment: null,
+      })
+      .in('id', ids)
+      .eq('approval_status', 'submitted')
+      .select('id')
+    setBulkBusy(false)
+    setConfirmKey(null)
+    if (updError) {
+      setError(updError.message)
+      return
+    }
+    const doneIds = new Set((data ?? []).map((r: { id: string }) => r.id))
+    setReports((prev) => prev.filter((r) => !doneIds.has(r.id)))
+    notifyReportsChanged()
+    setBulkMsg(
+      doneIds.size === ids.length
+        ? `Принято сводок: ${doneIds.size}.`
+        : `Принято ${doneIds.size} из ${ids.length}: остальные уже изменены кем-то ещё.`,
+    )
+  }
+
+  function bulkButton(key: string, ids: string[], label: string) {
+    if (ids.length === 0) return null
+    if (confirmKey === key) {
+      return (
+        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            disabled={bulkBusy}
+            onClick={() => approveMany(ids)}
+            style={{ fontSize: 12.5, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          >
+            <CheckCheck size={14} /> {bulkBusy ? 'Принимаем…' : `Принять ${ids.length}?`}
+          </button>
+          <button
+            type="button"
+            className="btn-outline"
+            disabled={bulkBusy}
+            onClick={() => setConfirmKey(null)}
+            style={{ fontSize: 12.5, padding: '5px 10px' }}
+          >
+            Отмена
+          </button>
+        </span>
+      )
+    }
+    return (
+      <button
+        type="button"
+        className="btn-outline"
+        onClick={() => setConfirmKey(key)}
+        style={{ fontSize: 12.5, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+      >
+        <CheckCheck size={14} /> {label} ({ids.length})
+      </button>
+    )
+  }
+
   function resetFilters() {
     setFilterSiteId('')
     setFilterWellKey('')
@@ -351,6 +427,13 @@ export default function PendingApprovals() {
       )}
 
       {error && <p className="text-error">{error}</p>}
+      {bulkMsg && <p className="text-success" style={{ fontWeight: 600 }}>{bulkMsg}</p>}
+
+      {!loading && filtered.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          {bulkButton('all', filtered.map((r) => r.id), filtersActive ? 'Принять все показанные' : 'Принять все')}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ display: 'grid', gap: 8 }}>
@@ -419,12 +502,28 @@ export default function PendingApprovals() {
                         >
                           <span style={{ fontWeight: 600, fontSize: 14 }}>{well.label}</span>
                           <span className="badge badge-neutral num">{well.count}</span>
+                          <span style={{ marginLeft: 'auto' }}>
+                            {bulkButton(
+                              `well-${well.key}`,
+                              well.subtasks.flatMap((st) => st.reports.map((r) => r.id)),
+                              'Принять все по заданию',
+                            )}
+                          </span>
                         </div>
                         <div style={{ display: 'grid', gap: 10 }}>
                           {well.subtasks.map((subtask) => (
                             <div key={subtask.key}>
-                              <div className="eyebrow" style={{ marginBottom: 5 }}>
-                                {subtask.label}
+                              <div className="eyebrow" style={{ marginBottom: 5, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span>{subtask.label}</span>
+                                {well.subtasks.length > 1 && (
+                                  <span style={{ marginLeft: 'auto' }}>
+                                    {bulkButton(
+                                      `sub-${well.key}-${subtask.key}`,
+                                      subtask.reports.map((r) => r.id),
+                                      'Принять все',
+                                    )}
+                                  </span>
+                                )}
                               </div>
                               <div style={{ display: 'grid', gap: 6 }}>
                                 {subtask.reports.map((r) => (

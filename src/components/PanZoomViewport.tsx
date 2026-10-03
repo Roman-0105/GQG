@@ -4,6 +4,12 @@ import { Plus, Minus, Maximize } from 'lucide-react'
 
 const MIN_SCALE = 0.25
 const MAX_SCALE = 2
+// Читаемый минимум для АВТОподгонки (30.09.2026): широкое дерево с многими
+// корнями при полной подгонке становилось микроскопическим. Автоматически
+// не уменьшаем ниже этого значения, а прижимаем схему к левому верхнему
+// краю — остальное достаётся перетаскиванием. Кнопка «Показать всю схему»
+// по-прежнему подгоняет ВСЮ схему целиком (strict).
+const READABLE_SCALE = 0.55
 
 // Универсальный pan/zoom-контейнер (25.09.2026, по прямому запросу
 // владельца платформы — "избавимся от ползунков прокрутки" в оргструктуре)
@@ -30,7 +36,7 @@ export default function PanZoomViewport({ children }: { children: ReactNode }) {
   const dragState = useRef<{ startX: number; startY: number; panX: number; panY: number; moved: boolean } | null>(null)
   const suppressNextClick = useRef(false)
 
-  function fitToView() {
+  function fitToView(strict = false) {
     const viewport = viewportRef.current
     const canvas = canvasRef.current
     if (!viewport || !canvas) return
@@ -47,11 +53,12 @@ export default function PanZoomViewport({ children }: { children: ReactNode }) {
     if (contentW === 0 || contentH === 0) return
 
     const fit = Math.min(viewportW / contentW, viewportH / contentH, 1) * 0.92
-    const nextScale = Math.min(Math.max(fit, MIN_SCALE), MAX_SCALE)
+    const nextScale = Math.min(Math.max(fit, strict ? MIN_SCALE : READABLE_SCALE), MAX_SCALE)
     setScale(nextScale)
+    const overflowX = contentW * nextScale > viewportW
     setPan({
-      x: (viewportW - contentW * nextScale) / 2,
-      y: (viewportH - contentH * nextScale) / 2,
+      x: overflowX ? 12 : (viewportW - contentW * nextScale) / 2,
+      y: Math.max(12, (viewportH - contentH * nextScale) / 2),
     })
   }
 
@@ -168,7 +175,7 @@ export default function PanZoomViewport({ children }: { children: ReactNode }) {
         <button type="button" onClick={() => zoomBy(1 / 1.25)} title="Отдалить" aria-label="Отдалить">
           <Minus size={15} />
         </button>
-        <button type="button" onClick={fitToView} title="Показать всю схему" aria-label="Показать всю схему">
+        <button type="button" onClick={() => fitToView(true)} title="Показать всю схему" aria-label="Показать всю схему">
           <Maximize size={14} />
         </button>
       </div>

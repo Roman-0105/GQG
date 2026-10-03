@@ -3,10 +3,12 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeft, MessageSquare, MessageCircle, Check, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
+import ReportGeologyExtras from '../../components/ReportGeologyExtras'
 import { isManagement } from '../../types/roles'
 import { ApprovalBadge } from '../../components/StatusBadge'
 import { buildDrillingShiftMessage } from '../../lib/whatsappMessage'
 import { loadReportSiteAndWellLabel } from '../../lib/reportLabel'
+import { notifyReportsChanged } from '../../hooks/useReportCounts'
 import { round2 } from '../../lib/taskProgress'
 import type { TaskType } from '../../types/taskType'
 import type { CostItem, DrillingTask, Report, ReportCost } from '../../types/database'
@@ -201,6 +203,7 @@ export default function ReportDetail() {
       setConfirmingDelete(false)
       return
     }
+    notifyReportsChanged()
     navigate(`/tasks/${taskType}/${taskId}/reports`)
   }
 
@@ -278,6 +281,7 @@ export default function ReportDetail() {
                   Проб сдано в лабораторию: <span className="num">{report.samples_submitted}</span>
                 </p>
               )}
+              <ReportGeologyExtras report={report} />
             </div>
           </div>
 

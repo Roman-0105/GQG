@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
 import WellboreProgress from './WellboreProgress'
-import DrillingProgressChart, { type DrillingChartRow } from './DrillingProgressChart'
+import DrillingProgressChart, { type ChartClosure, type DrillingChartRow } from './DrillingProgressChart'
 import DrillingCrewStrip from './DrillingCrewStrip'
 import { round2 } from '../lib/taskProgress'
 
@@ -17,6 +17,11 @@ interface Props {
   daysElapsed: number
   shiftsCount: number
   rows: DrillingChartRow[]
+  closure?: ChartClosure | null
+  // Компактный режим (карточка скважины на карте): без графика по сменам и
+  // списка бригады, только круг, ствол и показатели. shiftsCount < 0 — число
+  // смен неизвестно (чужая скважина), строка скрывается.
+  compact?: boolean
   headerRight?: ReactNode
   planEditor?: ReactNode
 }
@@ -39,6 +44,8 @@ export default function DrillingProgressPanel({
   daysElapsed,
   shiftsCount,
   rows,
+  closure,
+  compact = false,
   headerRight,
   planEditor,
 }: Props) {
@@ -56,10 +63,10 @@ export default function DrillingProgressPanel({
     : 0
 
   return (
-    <div className="card" style={{ padding: 24, marginBottom: 24 }}>
+    <div className={compact ? undefined : 'card'} style={compact ? { padding: 0 } : { padding: 24, marginBottom: 24 }}>
       <div
         style={{
-          display: 'flex',
+          display: compact ? 'none' : 'flex',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
           flexWrap: 'wrap',
@@ -118,7 +125,7 @@ export default function DrillingProgressPanel({
               <StatRow label="Темп" value={`${paceRate.toFixed(1)} м/сут`} />
               <StatRow label="Прогноз" value={forecastLabel ?? '—'} />
               <StatRow label="С начала" value={`${daysElapsed} дн.`} />
-              <StatRow label="Смен" value={String(shiftsCount)} />
+              {shiftsCount >= 0 && <StatRow label="Смен" value={String(shiftsCount)} />}
             </div>
           </div>
         )}
@@ -127,6 +134,7 @@ export default function DrillingProgressPanel({
           <WellboreProgress projectedDepth={projectedDepth} approvedDepth={approvedDepth} pendingDepth={pendingDepth} />
         </div>
 
+        {!compact && (
         <div style={{ flex: 1, minWidth: 260 }}>
           <button
             type="button"
@@ -154,13 +162,14 @@ export default function DrillingProgressPanel({
 
           {expanded && (
             <div style={{ marginTop: 14 }}>
-              <DrillingProgressChart rows={rows} />
+              <DrillingProgressChart rows={rows} closure={closure} />
               <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 14, paddingTop: 14 }}>
                 <DrillingCrewStrip taskId={taskId} />
               </div>
             </div>
           )}
         </div>
+        )}
       </div>
 
       {planEditor && <div style={{ marginTop: 16 }}>{planEditor}</div>}

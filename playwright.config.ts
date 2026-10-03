@@ -1,5 +1,13 @@
 import { defineConfig, devices } from '@playwright/test'
 
+// Тестовые логины лежат в .env.test.local (в .gitignore, в репозиторий не
+// попадает). Node 20.12+ читает такой файл встроенным loadEnvFile.
+try {
+  process.loadEnvFile('.env.test.local')
+} catch {
+  // файла нет — авторизованные тесты просто пропустятся
+}
+
 // Playwright (25.09.2026, по запросу владельца платформы) — базовая
 // защитная сетка перед редизайном: dev-сервер поднимается автоматически
 // (webServer), base — с учётом vite.config.ts base:'/GQG/', иначе все

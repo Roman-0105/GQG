@@ -1,6 +1,6 @@
 import { Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Users, HardHat, Building2, Wallet, ChevronRight, Settings as SettingsIcon } from 'lucide-react'
+import { Users, HardHat, Building2, Wallet, FlaskConical, ChevronRight, Settings as SettingsIcon } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
@@ -38,6 +38,12 @@ const ITEMS: { to: string; label: string; description: string; icon: LucideIcon 
     label: 'Статьи затрат',
     description: 'Категории и виды затрат для сводок',
     icon: Wallet,
+  },
+  {
+    to: '/settings/sample-types',
+    label: 'Виды проб',
+    description: 'Справочник видов проб для сводок геологов',
+    icon: FlaskConical,
   },
 ]
 

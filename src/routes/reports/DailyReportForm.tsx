@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import { ChevronLeft, MessageCircle, Check } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
+import { notifyReportsChanged } from '../../hooks/useReportCounts'
 import { buildDrillingShiftMessage } from '../../lib/whatsappMessage'
 import { round2 } from '../../lib/taskProgress'
 import { TASK_TYPE_REPORT_COLUMN, type TaskType } from '../../types/taskType'
@@ -16,7 +17,6 @@ import type {
   SamplingTask,
 } from '../../types/database'
 import CostRowsEditor, {
-  emptyCostRow,
   type CostRow,
 } from '../../components/CostRowsEditor'
 
@@ -105,7 +105,8 @@ export default function DailyReportForm() {
 
   const [categories, setCategories] = useState<CostCategory[]>([])
   const [costItems, setCostItems] = useState<CostItem[]>([])
-  const [costRows, setCostRows] = useState<CostRow[]>([emptyCostRow()])
+  // Затрат по умолчанию нет — строка появляется только по кнопке «+ статья затрат»
+  const [costRows, setCostRows] = useState<CostRow[]>([])
 
   const [shiftNotes, setShiftNotes] = useState('')
   const [reportDate, setReportDate] = useState(todayIso())
@@ -166,6 +167,14 @@ export default function DailyReportForm() {
   // не влияет — там принципиально только подтверждённые метры (см. выше).
   const [knownMeters, setKnownMeters] = useState(0)
   const [copied, setCopied] = useState(false)
+  // Пошаговая форма для сводки по бурению (03.10.2026): 0 — смена и забой,
+  // 1 — что сделано, 2 — затраты и отправка. Остальные виды сводок — одной
+  // страницей, как раньше. Все поля остаются в DOM (скрыты), поэтому
+  // введённые значения не теряются при переключении шагов.
+  const [step, setStep] = useState<0 | 1 | 2>(0)
+  // Текст для WhatsApp, собранный В МОМЕНТ успешной отправки (до сброса формы) —
+  // чтобы мастер мог скопировать его уже после отправки (30.09.2026).
+  const [sentMessage, setSentMessage] = useState<string | null>(null)
   // Дата+смена последней успешно ОТПРАВЛЕННОЙ в этом сеансе сводки — пока
   // форма стоит на той же дате/смене, кнопки отправки заблокированы, чтобы
   // случайный повторный клик не создал вторую строку reports на то же
@@ -317,15 +326,15 @@ export default function DailyReportForm() {
         setDrillingFrom(String(knownSum))
         knownSumAtLoad = knownSum
 
-        const [coreRes, sawingRes, samplingRes] = await Promise.all([
-          supabase.from('core_description_tasks').select('*').eq('drilling_task_id', taskId),
-          supabase.from('core_sawing_tasks').select('*').eq('drilling_task_id', taskId).maybeSingle(),
-          supabase.from('sampling_tasks').select('*').eq('drilling_task_id', taskId).maybeSingle(),
-        ])
-        geo = coreRes.data?.find((t) => t.documentation_type === 'geological') ?? null
-        geotech = coreRes.data?.find((t) => t.documentation_type === 'geotechnical') ?? null
-        saw = sawingRes.data ?? null
-        sample = samplingRes.data ?? null
+        // Геологические работы (керн, распиловка, опробование) в сводку
+        // мастера бурения больше не подмешиваются (03.10.2026): мастер заполняет
+        // только бурение, а геологи вносят свою часть отдельно — на экране
+        // «Геология» (GeologyDayReport). Поэтому прицепленные задачи здесь
+        // намеренно не загружаются, и блоки в форме не показываются.
+        geo = null
+        geotech = null
+        saw = null
+        sample = null
         setAttachedGeoCore(geo)
         setAttachedGeotechCore(geotech)
         setAttachedSawing(saw)
@@ -808,7 +817,10 @@ export default function DailyReportForm() {
         // на начало следующей — та же логика, что и у coreFrom/photoFrom.
         setDrillingFrom(drillingTo)
       }
+      if (taskType === 'drilling') setSentMessage(buildWhatsAppMessage())
+      notifyReportsChanged()
       setLastSubmitted({ date: reportDate, shift: shiftNumber })
+      setStep(0)
       setSuccessMsg('Сводка отправлена на согласование. Можно сразу заполнять следующую смену.')
       setHoursWorked('')
       setDrillingTo('')
@@ -820,7 +832,7 @@ export default function DailyReportForm() {
       setSamplesTaken('')
       setSamplesSubmitted('')
       setShiftNotes('')
-      setCostRows([emptyCostRow()])
+      setCostRows([])
       setGeoCoreFrom('0')
       setGeoCoreTo('')
       setGeoPhotoFrom('0')
@@ -841,7 +853,7 @@ export default function DailyReportForm() {
     }
   }
 
-  async function handleCopyWhatsApp() {
+  function buildWhatsAppMessage() {
     const meters = drillingFrom !== '' && drillingTo !== '' ? round2(Number(drillingTo) - Number(drillingFrom)) : 0
     const coreDescriptions = []
     if (attachedGeoCore && geoCoreTo) {
@@ -875,13 +887,27 @@ export default function DailyReportForm() {
       samplesTaken: canFillAttachedSampling && samplesTaken ? Number(samplesTaken) : null,
       samplesSubmitted: canFillAttachedSampling && samplesSubmitted ? Number(samplesSubmitted) : null,
     })
+    return message
+  }
+
+  async function copyText(text: string) {
     try {
-      await navigator.clipboard.writeText(message)
+      await navigator.clipboard.writeText(text)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
       setError('Не удалось скопировать — скопируйте текст вручную.')
     }
+  }
+
+  // Скрывает шаги, кроме текущего, только для сводки по бурению
+  function stepStyle(n: 0 | 1 | 2): React.CSSProperties {
+    if (taskType !== 'drilling') return { display: 'contents' }
+    return step === n ? { display: 'grid', gap: 10 } : { display: 'none' }
+  }
+
+  function handleCopyWhatsApp() {
+    return copyText(buildWhatsAppMessage())
   }
 
   return (
@@ -915,7 +941,18 @@ export default function DailyReportForm() {
       {loadingTask ? (
         <p>Загрузка задания…</p>
       ) : (
-        <form style={{ display: 'grid', gap: 10 }}>
+        <form style={{ display: 'grid', gap: 10 }} onSubmit={(e) => e.preventDefault()}>
+          {taskType === 'drilling' && (
+            <ol className="wizard-steps" aria-label="Шаги сводки">
+              {['Смена и забой', 'Что сделано', 'Затраты и отправка'].map((label, i) => (
+                <li key={label} className={i === step ? 'is-current' : i < step ? 'is-done' : undefined}>
+                  <span>{i < step ? '✓' : i + 1}</span>
+                  {label}
+                </li>
+              ))}
+            </ol>
+          )}
+          <div style={stepStyle(0)}>
           <label>
             Дата
             <input
@@ -1004,6 +1041,22 @@ export default function DailyReportForm() {
               )}
             </fieldset>
           )}
+
+          {taskType === 'drilling' && (
+            <div className="wizard-nav">
+              <button
+                type="button"
+                disabled={drillingTo === ''}
+                onClick={() => setStep(1)}
+              >
+                Далее
+              </button>
+              {drillingTo === '' && (
+                <span className="text-muted" style={{ fontSize: 12.5 }}>Укажите забой «до», чтобы продолжить</span>
+              )}
+            </div>
+          )}
+          </div>
 
           {taskType === 'core-description' && (
             <>
@@ -1228,6 +1281,7 @@ export default function DailyReportForm() {
             </>
           )}
 
+          <div style={stepStyle(1)}>
           <label>
             Что сделано за смену
             <textarea
@@ -1250,6 +1304,19 @@ export default function DailyReportForm() {
             </button>
           )}
 
+          {taskType === 'drilling' && (
+            <div className="wizard-nav">
+              <button type="button" className="btn-outline" onClick={() => setStep(0)}>
+                Назад
+              </button>
+              <button type="button" onClick={() => setStep(2)}>
+                Далее
+              </button>
+            </div>
+          )}
+          </div>
+
+          <div style={stepStyle(2)}>
           <CostRowsEditor
             rows={costRows}
             categories={categories}
@@ -1258,7 +1325,21 @@ export default function DailyReportForm() {
           />
 
           {error && <p className="text-error">{error}</p>}
-          {successMsg && <p className="text-success">{successMsg}</p>}
+          {successMsg && (
+            <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, borderColor: 'var(--color-success)' }}>
+              <p className="text-success" style={{ margin: 0, fontWeight: 600 }}>{successMsg}</p>
+              {sentMessage && (
+                <button
+                  type="button"
+                  onClick={() => copyText(sentMessage)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 44 }}
+                >
+                  {copied ? <Check size={16} /> : <MessageCircle size={16} />}
+                  {copied ? 'Скопировано' : 'Скопировать для WhatsApp'}
+                </button>
+              )}
+            </div>
+          )}
 
           {(() => {
             // Пока форма стоит на той же дате/смене, что уже была успешно
@@ -1300,6 +1381,14 @@ export default function DailyReportForm() {
               </div>
             )
           })()}
+          {taskType === 'drilling' && (
+            <div className="wizard-nav">
+              <button type="button" className="btn-outline" onClick={() => setStep(1)}>
+                Назад
+              </button>
+            </div>
+          )}
+          </div>
         </form>
       )}
     </div>

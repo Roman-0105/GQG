@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import { ROLE_LABELS, isManagement } from '../types/roles'
 import { useReportCounts } from '../hooks/useReportCounts'
 import { riseIn } from '../lib/motionVariants'
-import { coreProgress, sawingProgress, samplingProgress } from '../lib/taskProgress'
+import { coreProgress, sawingProgress, samplingProgress, fetchForeignDrillingProgress } from '../lib/taskProgress'
 import ProgressBar from '../components/ProgressBar'
 import CircularProgress from '../components/CircularProgress'
 import type { CoreDescriptionTask, CoreSawingTask, DrillingTask, Report, SamplingTask, Site } from '../types/database'
@@ -142,6 +142,17 @@ export default function Dashboard() {
         entry.approved += r.drilling_meters ?? 0
         progress.set(r.site_id, entry)
       }
+      // Скважины, сводок по которым я не вижу (геолог на чужой скважине) —
+      // подтягиваем только итог через RPC, иначе прогресс показывался бы нулевым.
+      if (!isManagement(profile!.role)) {
+        const foreignWells = drillingTasks.filter((t) => t.foreman_id !== profile!.id)
+        const foreign = await fetchForeignDrillingProgress(foreignWells.map((t) => t.id))
+        for (const t of foreignWells) {
+          const entry = progress.get(t.site_id) ?? { approved: 0, plan: 0 }
+          entry.approved += foreign[t.id] ?? 0
+          progress.set(t.site_id, entry)
+        }
+      }
 
       // Керн/распиловка/опробование — те же формулы, что на дашборде
       // задания и на карточке участка (src/lib/taskProgress.ts), просто
@@ -206,7 +217,9 @@ export default function Dashboard() {
         const todayReports = (reportsRes.data ?? []).filter((r) => r.report_date === today)
         const reminders: ReminderItem[] = []
 
-        for (const t of drillingTasks.filter((t) => t.status === 'in_progress')) {
+        // Только мои скважины: геологу тоже видны скважины, где у него есть
+        // геологические работы, но сводки по бурению он не вносит.
+        for (const t of drillingTasks.filter((t) => t.status === 'in_progress' && t.foreman_id === profile!.id)) {
           for (const shift of [1, 2]) {
             const has = todayReports.some(
               (r) => r.drilling_task_id === t.id && r.shift_number === shift,

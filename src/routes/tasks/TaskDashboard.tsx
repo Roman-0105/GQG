@@ -14,6 +14,8 @@ import {
   FlaskConical,
   Plus,
   Users,
+  Lock,
+  Unlock,
 } from 'lucide-react'
 import DerrickIcon from '../../components/icons/DerrickIcon'
 import { supabase } from '../../lib/supabaseClient'
@@ -26,7 +28,9 @@ import DrillingProgressPanel, { type DrillingChartRow } from '../../components/D
 import CrewAssignmentSection from '../../components/CrewAssignmentSection'
 import Modal from '../../components/Modal'
 import { TASK_TYPE_REPORT_COLUMN, TASK_TYPE_LABELS, type TaskType } from '../../types/taskType'
+import { CLOSED_REASON_LABELS } from '../../types/database'
 import type {
+  ClosedReason,
   CoreDescriptionTask,
   CoreSawingTask,
   DrillingTask,
@@ -96,6 +100,11 @@ export default function TaskDashboard() {
   const { taskType, taskId } = useParams<{ taskType: TaskType; taskId: string }>()
   const { session, profile, loading: authLoading } = useAuth()
 
+  // Таблица "По дням": на телефоне свёрнута по умолчанию (полевому работнику
+  // нужны забой и прогресс, а не вся история), на ПК развёрнута.
+  const [daysOpen, setDaysOpen] = useState(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches,
+  )
   const [drillingTask, setDrillingTask] = useState<DrillingTask | null>(null)
   const [coreTask, setCoreTask] = useState<CoreDescriptionTask | null>(null)
   const [sawingTask, setSawingTask] = useState<CoreSawingTask | null>(null)
@@ -115,6 +124,13 @@ export default function TaskDashboard() {
   const [attachedSawing, setAttachedSawing] = useState<CoreSawingTask | null>(null)
   const [attachedSampling, setAttachedSampling] = useState<SamplingTask | null>(null)
   const [crewOpen, setCrewOpen] = useState(false)
+  // Закрытие скважины (03.10.2026)
+  const [closeOpen, setCloseOpen] = useState(false)
+  const [closeReason, setCloseReason] = useState<ClosedReason>('depth_reached')
+  const [closeNote, setCloseNote] = useState('')
+  const [closeDate, setCloseDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [closeBusy, setCloseBusy] = useState(false)
+  const [closeError, setCloseError] = useState<string | null>(null)
 
   const [planDraft, setPlanDraft] = useState('')
   const [editingPlan, setEditingPlan] = useState(false)
@@ -319,9 +335,29 @@ export default function TaskDashboard() {
   //      не сумма), но сама таблица по сменам всё равно полезна ----
   const startDate =
     (isDrilling ? drillingTask?.start_date : undefined) ?? reports[0]?.report_date ?? todayIso()
-  const endDate = reports.length > 0 ? reports[reports.length - 1].report_date : todayIso()
-  const lastDate = endDate > todayIso() ? endDate : todayIso()
-  const totalDays = Math.max(0, dayIndex(startDate, lastDate))
+  const lastReportDate = reports.reduce<string | null>(
+    (max, r) => (max == null || r.report_date > max ? r.report_date : max),
+    null,
+  )
+  // Таблица "По дням" растёт вместе с календарём ТОЛЬКО пока скважина в
+  // работе. Для запланированной / приостановленной / завершённой строки
+  // после последней сводки не добавляются (30.09.2026, по запросу
+  // владельца) — иначе набегают пустые "0 м" и страница на телефоне
+  // растягивается на тысячи пикселей. У заданий без своего статуса
+  // (керн/распиловка/опробование) берём статус связанной скважины.
+  const effectiveStatus =
+    drillingTask?.status ?? linkedDrillingTask?.status ?? 'in_progress'
+  const isActiveStatus = effectiveStatus === 'in_progress'
+  const lastDate = isActiveStatus
+    ? lastReportDate && lastReportDate > todayIso()
+      ? lastReportDate
+      : todayIso()
+    : (() => {
+        const base = lastReportDate ?? startDate
+        const closedAt = drillingTask?.closed_at
+        return closedAt && closedAt > base ? closedAt : base
+      })()
+  const totalDays = !isActiveStatus && lastReportDate == null ? -1 : Math.max(0, dayIndex(startDate, lastDate))
 
   const byKey = new Map<string, Report[]>()
   for (const r of reports) {
@@ -406,7 +442,15 @@ export default function TaskDashboard() {
   })
 
   const latestPlanned = rowsRendered[rowsRendered.length - 1]?.plannedCumulative ?? null
-  const pace = isDrilling && latestPlanned != null ? paceLabel(approvedAdditiveMeters - latestPlanned, latestPlanned) : null
+  // Если проектная глубина уже достигнута, "опережаем на N м" вводит в заблуждение
+  // (сравнение с календарным планом на сегодня) — показываем "план выполнен".
+  const planDone = projectedDepth != null && approvedAdditiveMeters >= projectedDepth
+  const pace =
+    isDrilling && planDone
+      ? { text: 'план выполнен', variant: 'success' as const }
+      : isDrilling && latestPlanned != null
+        ? paceLabel(approvedAdditiveMeters - latestPlanned, latestPlanned)
+        : null
   const overallPercent = isAdditiveMeters && projectedDepth ? (approvedAdditiveMeters / projectedDepth) * 100 : null
   const rowsForDisplay = [...rowsRendered].reverse()
 
@@ -438,6 +482,84 @@ export default function TaskDashboard() {
         plannedCumulative,
       }))
     : []
+
+  async function handleCloseWell() {
+    if (!drillingTask) return
+    if (closeReason === 'other' && !closeNote.trim()) {
+      setCloseError('Укажите причину закрытия.')
+      return
+    }
+    if (!closeDate) {
+      setCloseError('Укажите дату закрытия.')
+      return
+    }
+    if (closeDate > todayIso()) {
+      setCloseError('Дата закрытия не может быть в будущем.')
+      return
+    }
+    if (drillingTask.start_date && closeDate < drillingTask.start_date) {
+      setCloseError('Дата закрытия раньше начала бурения.')
+      return
+    }
+    setCloseBusy(true)
+    setCloseError(null)
+    const { data, error: updError } = await supabase
+      .from('drilling_tasks')
+      .update({
+        status: 'completed',
+        closed_reason: closeReason,
+        closed_note: closeNote.trim() || null,
+        closed_at: closeDate,
+      })
+      .eq('id', drillingTask.id)
+      .select()
+    setCloseBusy(false)
+    if (updError) {
+      setCloseError(
+        updError.message.includes('closed_')
+          ? 'Не применена миграция 0023 (поля закрытия скважины). Примените её в Supabase SQL Editor.'
+          : updError.message,
+      )
+      return
+    }
+    if (!data || data.length === 0) {
+      setCloseError('Не удалось закрыть скважину: нет прав на изменение.')
+      return
+    }
+    setDrillingTask(data[0] as DrillingTask)
+    setCloseOpen(false)
+    setCloseNote('')
+  }
+
+  async function handleReopenWell() {
+    if (!drillingTask) return
+    setCloseBusy(true)
+    const { data, error: updError } = await supabase
+      .from('drilling_tasks')
+      .update({ status: 'in_progress', closed_reason: null, closed_note: null, closed_at: null })
+      .eq('id', drillingTask.id)
+      .select()
+    setCloseBusy(false)
+    if (updError || !data || data.length === 0) {
+      setError(updError?.message ?? 'Не удалось возобновить скважину.')
+      return
+    }
+    setDrillingTask(data[0] as DrillingTask)
+  }
+
+  const closure =
+    isDrilling && drillingTask?.closed_reason
+      ? {
+          date: drillingTask.closed_at ?? todayIso(),
+          kind: drillingTask.closed_reason === 'depth_reached' ? ('depth_reached' as const) : ('other' as const),
+          label:
+            drillingTask.closed_reason === 'depth_reached'
+              ? 'Глубина достигнута'
+              : drillingTask.closed_reason === 'accident'
+                ? 'Авария'
+                : 'Закрыта',
+        }
+      : null
 
   const PaceIcon = pace?.variant === 'success' ? TrendingUp : pace?.variant === 'danger' ? TrendingDown : Minus
   const paceColors: Record<'success' | 'danger' | 'neutral', { bg: string; fg: string }> = {
@@ -471,7 +593,7 @@ export default function TaskDashboard() {
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
         <span
           style={{
             width: 38,
@@ -496,6 +618,20 @@ export default function TaskDashboard() {
         >
           <Users size={15} /> Состав бригады
         </button>
+        {isDrilling && drillingTask && isManagement(profile?.role) && !drillingTask.closed_reason && (
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={() => {
+              setCloseError(null)
+              setCloseDate(todayIso())
+              setCloseOpen(true)
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            <Lock size={15} /> Закрыть скважину
+          </button>
+        )}
       </div>
       <p className="eyebrow" style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         {TASK_TYPE_LABELS[taskType]}
@@ -510,6 +646,90 @@ export default function TaskDashboard() {
           </span>
         )}
       </p>
+
+      {isDrilling && drillingTask?.closed_reason && (
+        <div
+          className="card"
+          style={{
+            padding: 12,
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            borderColor: drillingTask.closed_reason === 'depth_reached' ? 'var(--color-success)' : 'var(--color-danger)',
+          }}
+        >
+          <Lock size={16} color={drillingTask.closed_reason === 'depth_reached' ? 'var(--color-success)' : 'var(--color-danger)'} />
+          <span style={{ flex: 1, minWidth: 200 }}>
+            <b>Скважина закрыта</b>
+            {drillingTask.closed_at && <span className="text-muted"> · {drillingTask.closed_at.slice(8, 10)}.{drillingTask.closed_at.slice(5, 7)}.{drillingTask.closed_at.slice(0, 4)}</span>}
+            <br />
+            <span className="text-muted" style={{ fontSize: 13.5 }}>
+              {CLOSED_REASON_LABELS[drillingTask.closed_reason]}
+              {drillingTask.closed_note ? `: ${drillingTask.closed_note}` : ''}
+            </span>
+          </span>
+          {isManagement(profile?.role) && (
+            <button
+              type="button"
+              className="btn-outline"
+              disabled={closeBusy}
+              onClick={handleReopenWell}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
+            >
+              <Unlock size={14} /> {closeBusy ? 'Возобновляем…' : 'Возобновить'}
+            </button>
+          )}
+        </div>
+      )}
+
+      <Modal open={closeOpen} onClose={() => setCloseOpen(false)} title="Закрыть скважину">
+        <div style={{ display: 'grid', gap: 12 }}>
+          <p className="text-muted" style={{ margin: 0, fontSize: 13.5 }}>
+            Укажите причину. Новые дни в таблицу «По дням» после закрытия не добавляются, на графике отметится линия закрытия.
+          </p>
+          {(['depth_reached', 'accident', 'other'] as ClosedReason[]).map((r) => (
+            <label key={r} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 40, cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="closeReason"
+                checked={closeReason === r}
+                onChange={() => setCloseReason(r)}
+                style={{ width: 20, height: 20, flexShrink: 0 }}
+              />
+              {CLOSED_REASON_LABELS[r]}
+            </label>
+          ))}
+          <label>
+            Дата закрытия
+            <input
+              type="date"
+              value={closeDate}
+              max={todayIso()}
+              min={drillingTask?.start_date ?? undefined}
+              onChange={(e) => setCloseDate(e.target.value)}
+            />
+          </label>
+          {(closeReason === 'other' || closeReason === 'accident') && (
+            <textarea
+              rows={3}
+              placeholder={closeReason === 'other' ? 'Причина закрытия (обязательно)' : 'Комментарий к аварии (необязательно)'}
+              value={closeNote}
+              onChange={(e) => setCloseNote(e.target.value)}
+            />
+          )}
+          {closeError && <p className="text-error" style={{ margin: 0 }}>{closeError}</p>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={handleCloseWell} disabled={closeBusy}>
+              {closeBusy ? 'Закрываем…' : 'Закрыть скважину'}
+            </button>
+            <button type="button" className="btn-outline" onClick={() => setCloseOpen(false)}>
+              Отмена
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {description && (
         <p className="card" style={{ padding: 12, fontSize: 14, marginBottom: 20 }}>
@@ -585,6 +805,7 @@ export default function TaskDashboard() {
             daysElapsed={daysElapsed}
             shiftsCount={shiftsCount}
             rows={chartRows}
+            closure={closure}
             headerRight={
               <>
                 {pendingAdditiveMeters > 0 && (
@@ -710,14 +931,25 @@ export default function TaskDashboard() {
       )}
 
       <>
-          <h2>По дням {shiftsApply ? `(${shiftColumnLabel(0).toLowerCase()} / ${shiftColumnLabel(1).toLowerCase()})` : ''}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0 }}>По дням {shiftsApply ? `(${shiftColumnLabel(0).toLowerCase()} / ${shiftColumnLabel(1).toLowerCase()})` : ''}</h2>
+            <button type="button" className="btn-outline" onClick={() => setDaysOpen((v) => !v)} style={{ minHeight: 40 }}>
+              {daysOpen ? 'Свернуть таблицу' : 'Показать таблицу'}
+            </button>
+          </div>
+          {!isActiveStatus && (
+            <p className="text-muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
+              Скважина не в работе — новые дни в таблицу не добавляются.
+            </p>
+          )}
           {isDrilling && plannedDailyMeters == null && (
             <p className="text-muted" style={{ fontSize: 13, marginTop: -8, marginBottom: 12 }}>
               План бурения не задан — колонки «накопл. план» и «отклонение» пустые.
               {isManagement(profile?.role) ? ' Задайте его в блоке выше.' : ' Уточните у техдира.'}
             </p>
           )}
-          <div className="card" style={{ overflow: 'hidden' }}>
+          {daysOpen && (
+          <div className="card" style={{ overflow: 'hidden', marginTop: 10 }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 480 }}>
                 <thead>
@@ -761,7 +993,7 @@ export default function TaskDashboard() {
                         }}
                       >
                         <td className="num" style={{ padding: '9px 12px', whiteSpace: 'nowrap', fontWeight: isToday ? 700 : 400 }}>
-                          {row.date}
+                          {`${row.date.slice(8, 10)}.${row.date.slice(5, 7)}.${row.date.slice(0, 4)}`}
                         </td>
                         {cells.map((c, i) => (
                           <td key={i} style={{ padding: '9px 12px' }}>
@@ -817,6 +1049,7 @@ export default function TaskDashboard() {
               </table>
             </div>
           </div>
+          )}
       </>
 
       {rowsRendered.some(({ cells }) => cells.some((c) => c.notes)) && (

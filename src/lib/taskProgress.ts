@@ -1,3 +1,4 @@
+import { supabase } from './supabaseClient'
 import type { Report } from '../types/database'
 
 // Округление до сотых (25.09.2026, по жалобе владельца на "7.149999999999977
@@ -48,4 +49,20 @@ export function samplingProgress(taskId: string, reports: Report[]) {
     taken: rows.reduce((s, r) => s + (r.samples_taken ?? 0), 0),
     submitted: rows.reduce((s, r) => s + (r.samples_submitted ?? 0), 0),
   }
+}
+
+// Прогресс бурения скважин, сводки которых текущий пользователь видеть не
+// может (геолог на чужой скважине): RPC drilling_task_progress (миграция
+// 0021) отдаёт только итоговую сумму подтверждённых метров, без самих сводок
+// (там комментарии и затраты). Возвращает {id скважины: подтверждено, м}.
+export async function fetchForeignDrillingProgress(wellIds: string[]): Promise<Record<string, number>> {
+  const out: Record<string, number> = {}
+  await Promise.all(
+    wellIds.map(async (id) => {
+      const { data } = await supabase.rpc('drilling_task_progress', { p_drilling_task_id: id })
+      const row = Array.isArray(data) ? data[0] : data
+      if (row && row.approved != null) out[id] = round2(Number(row.approved))
+    }),
+  )
+  return out
 }

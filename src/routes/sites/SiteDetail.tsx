@@ -2,14 +2,15 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ChevronLeft, Layers, Plus, ChevronRight, Lock, Unlock, Scissors, FlaskConical, Pencil, FileText } from 'lucide-react'
+import { ChevronLeft, Layers, Plus, ChevronRight, Lock, Unlock, Scissors, FlaskConical, Pencil, FileText, History } from 'lucide-react'
 import Modal from '../../components/Modal'
+import SiteOverview from '../../components/SiteOverview'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
 import { riseIn } from '../../lib/motionVariants'
-import { drillingProgress, coreProgress, sawingProgress, samplingProgress } from '../../lib/taskProgress'
+import { drillingProgress, coreProgress, sawingProgress, samplingProgress, fetchForeignDrillingProgress } from '../../lib/taskProgress'
 import { TaskStatusBadge } from '../../components/StatusBadge'
 import ProgressBar from '../../components/ProgressBar'
 import DerrickIcon from '../../components/icons/DerrickIcon'
@@ -86,6 +87,22 @@ export default function SiteDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [togglingStatus, setTogglingStatus] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  // Прогресс бурения чужих скважин (геолог) — через RPC, см. taskProgress.ts
+  const [foreignProgress, setForeignProgress] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    if (!profile || isManagement(profile.role)) return
+    const foreignIds = drillingTasks.filter((t) => t.foreman_id !== profile.id).map((t) => t.id)
+    if (foreignIds.length === 0) return
+    let cancelled = false
+    fetchForeignDrillingProgress(foreignIds).then((res) => {
+      if (!cancelled) setForeignProgress(res)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [drillingTasks, profile])
 
   // Переименование участка (25.09.2026, по запросу заказчика) — раньше
   // название задавалось только при создании и больше нигде не
@@ -289,29 +306,38 @@ export default function SiteDetail() {
           </Modal>
 
           {isManagement(profile?.role) && (
-            <div style={{ display: 'flex', gap: 8, margin: '16px 0 24px', flexWrap: 'wrap' }}>
-              <Link to={`/sites/${siteId}/tasks/drilling/new`}>
-                <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Plus size={15} /> Задание: бурение
-                </button>
-              </Link>
-              <Link to={`/sites/${siteId}/tasks/core-description/new`}>
-                <button type="button" className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Plus size={15} /> Задание: описание керна
-                </button>
-              </Link>
-              <Link to={`/sites/${siteId}/tasks/core-sawing/new`}>
-                <button type="button" className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Plus size={15} /> Задание: распиловка керна
-                </button>
-              </Link>
-              <Link to={`/sites/${siteId}/tasks/sampling/new`}>
-                <button type="button" className="btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Plus size={15} /> Задание: опробование
-                </button>
-              </Link>
+            <div style={{ margin: '16px 0 24px' }}>
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <Plus size={16} /> Задание
+              </button>
             </div>
           )}
+
+          <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Новое задание">
+            <div style={{ display: 'grid', gap: 10 }}>
+              <p className="text-muted" style={{ margin: 0 }}>Что нужно сделать на участке?</p>
+              <Link to={`/sites/${siteId}/tasks/drilling/new`} className="card card-interactive" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, color: 'var(--color-text)' }}>
+                <DerrickIcon size={22} />
+                <span style={{ display: 'grid' }}>
+                  <b>Бурение</b>
+                  <span className="text-muted" style={{ fontSize: 13 }}>Новая скважина, затем можно сразу назначить геологию</span>
+                </span>
+              </Link>
+              <Link to={`/sites/${siteId}/tasks/geology/new`} className="card card-interactive" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, color: 'var(--color-text)' }}>
+                <Layers size={22} />
+                <span style={{ display: 'grid' }}>
+                  <b>Геология</b>
+                  <span className="text-muted" style={{ fontSize: 13 }}>Документация керна, распиловка, опробование на существующей скважине</span>
+                </span>
+              </Link>
+            </div>
+          </Modal>
+
+          {isManagement(profile?.role) && <SiteOverview drillingTasks={drillingTasks} reports={reports} />}
 
           <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <DerrickIcon size={18} className="text-muted" /> Бурение скважин
@@ -378,15 +404,22 @@ export default function SiteDetail() {
                         style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15.5, flexWrap: 'wrap' }}
                       >
                         Скважина №{t.well_number}
-                        <TaskStatusBadge status={t.status} />
+                        <TaskStatusBadge status={t.status} closedReason={t.closed_reason} />
                       </Link>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        {profile?.role === 'party_chief' && (
-                          <Link to={`/tasks/drilling/${t.id}/reports`}>
-                            <button type="button" style={{ fontSize: 12.5, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <FileText size={13} /> Сводка
-                            </button>
-                          </Link>
+                        {profile?.role === 'party_chief' && t.foreman_id === profile.id && (
+                          <>
+                            {/* Полевой режим (30.09.2026): новая сводка — одним касанием
+                                прямо с карточки скважины, история — отдельной иконкой. */}
+                            <Link to={`/tasks/drilling/${t.id}/reports/new`}>
+                              <button type="button" style={{ fontSize: 13.5, padding: '8px 12px', minHeight: 40, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <Plus size={15} /> Сводка
+                              </button>
+                            </Link>
+                            <Link to={`/tasks/drilling/${t.id}/reports`} title="История сводок" aria-label="История сводок" style={{ display: 'flex', padding: 8 }}>
+                              <History size={18} className="text-faint" />
+                            </Link>
+                          </>
                         )}
                         {isManagement(profile?.role) && (
                           <Link to={`/sites/${siteId}/tasks/drilling/${t.id}/edit`} title="Редактировать задание">
@@ -403,7 +436,7 @@ export default function SiteDetail() {
                       <div style={{ marginTop: 8 }}>
                         <ProgressBar
                           label="Метраж бурения"
-                          approved={drillingProgress(t.id, reports)}
+                          approved={foreignProgress[t.id] ?? drillingProgress(t.id, reports)}
                           plan={t.projected_depth}
                         />
                       </div>

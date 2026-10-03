@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { ApprovalStatus, TaskStatus } from '../types/database'
+import type { ApprovalStatus, ClosedReason, TaskStatus } from '../types/database'
 
 type Variant = 'neutral' | 'primary' | 'success' | 'danger' | 'warning'
 
@@ -22,7 +22,18 @@ export function ApprovalBadge({ status }: { status: ApprovalStatus }) {
   return <Badge variant={variant}>{label}</Badge>
 }
 
-export function TaskStatusBadge({ status }: { status: TaskStatus }) {
+// Скважина, закрытая с причиной, показывается как «Закрыта»: зелёным при
+// достижении проектной глубины, красным при любой другой причине.
+export function TaskStatusBadge({
+  status,
+  closedReason,
+}: {
+  status: TaskStatus
+  closedReason?: ClosedReason | null
+}) {
+  if (status === 'completed' && closedReason) {
+    return <Badge variant={closedReason === 'depth_reached' ? 'success' : 'danger'}>Закрыта</Badge>
+  }
   const { label, variant } = TASK_STATUS_CONFIG[status]
   return <Badge variant={variant}>{label}</Badge>
 }

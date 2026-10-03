@@ -5,7 +5,9 @@ import { Layers, ChevronLeft } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
-import type { DocumentationType, DrillingOrganization, DrillingTask, Profile } from '../../types/database'
+import type { DocumentationType, DrillingOrganization, DrillingTask } from '../../types/database'
+import { useAreaCandidates } from '../../hooks/useAreaCandidates'
+import AreaFilterHint from '../../components/AreaFilterHint'
 import DiameterIntervalsEditor, {
   emptyDiameterRow,
   type DiameterRow,
@@ -44,8 +46,8 @@ export default function CoreDescriptionTaskForm() {
   const [extDiameters, setExtDiameters] = useState<DiameterRow[]>([
     emptyDiameterRow(),
   ])
-  const [partyChiefs, setPartyChiefs] = useState<Profile[]>([])
   const [assignedPartyChiefId, setAssignedPartyChiefId] = useState('')
+  const areaPick = useAreaCandidates('geology', assignedPartyChiefId ? [assignedPartyChiefId] : [])
   const [description, setDescription] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
@@ -54,22 +56,16 @@ export default function CoreDescriptionTaskForm() {
   useEffect(() => {
     if (!session || !siteId) return
     async function loadRefs() {
-      const [tasksRes, orgsRes, chiefsRes] = await Promise.all([
+      const [tasksRes, orgsRes] = await Promise.all([
         supabase
           .from('drilling_tasks')
           .select('*')
           .eq('site_id', siteId)
           .order('well_number'),
         supabase.from('drilling_organizations').select('*').order('name'),
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('role', 'party_chief')
-          .order('full_name'),
       ])
       if (tasksRes.data) setOwnDrillingTasks(tasksRes.data)
       if (orgsRes.data) setOrganizations(orgsRes.data)
-      if (chiefsRes.data) setPartyChiefs(chiefsRes.data)
     }
     loadRefs()
   }, [session, siteId])
@@ -439,12 +435,13 @@ export default function CoreDescriptionTaskForm() {
                   onChange={(e) => setAssignedPartyChiefId(e.target.value)}
                 >
                   <option value="">— выбрать —</option>
-                  {partyChiefs.map((p) => (
+                  {areaPick.candidates.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.full_name}
                     </option>
                   ))}
                 </select>
+                <AreaFilterHint pick={areaPick} what="геологи" />
               </label>
             </>
           )}

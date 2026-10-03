@@ -26,9 +26,11 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function firstOfMonthIso() {
+// По умолчанию — последние 30 дней: в начале месяца «с 1-го числа» давало
+// пустой отчёт, хотя свежие данные за прошлый месяц есть.
+function defaultFromIso() {
   const d = new Date()
-  d.setDate(1)
+  d.setDate(d.getDate() - 30)
   return d.toISOString().slice(0, 10)
 }
 
@@ -46,13 +48,14 @@ export default function SummaryReport() {
   const [siteCoreTasks, setSiteCoreTasks] = useState<CoreDescriptionTask[]>([])
   const [selectedTask, setSelectedTask] = useState<TaskFilterValue>('')
 
-  const [dateFrom, setDateFrom] = useState(firstOfMonthIso())
+  const [dateFrom, setDateFrom] = useState(defaultFromIso())
   const [dateTo, setDateTo] = useState(todayIso())
 
   const [reports, setReports] = useState<EnrichedReport[]>([])
   const [costTotals, setCostTotals] = useState<
     { categoryName: string; unit: string | null; quantity: number; amount: number }[]
   >([])
+  const [sampleTotals, setSampleTotals] = useState<{ name: string; quantity: number }[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -187,6 +190,25 @@ export default function SummaryReport() {
     }))
     setReports(enriched)
 
+    // Пробы по видам (справочник видов проб, миграция 0021)
+    if (reportsList.length > 0) {
+      const { data: sampleRows } = await supabase
+        .from('report_samples')
+        .select('quantity, sample_types(name)')
+        .in(
+          'report_id',
+          reportsList.map((r) => r.id),
+        )
+      const byType = new Map<string, number>()
+      for (const row of (sampleRows ?? []) as unknown as { quantity: number; sample_types: { name: string } | null }[]) {
+        const name = row.sample_types?.name ?? '—'
+        byType.set(name, (byType.get(name) ?? 0) + row.quantity)
+      }
+      setSampleTotals([...byType.entries()].map(([name, quantity]) => ({ name, quantity })).sort((a, b) => a.name.localeCompare(b.name)))
+    } else {
+      setSampleTotals([])
+    }
+
     // Агрегация затрат по видам затрат (внутри категории)
     type CostRow = {
       quantity: number | null
@@ -318,7 +340,7 @@ export default function SummaryReport() {
     <div>
       <h1>Сводный отчёт</h1>
       <p className="text-muted" style={{ marginBottom: 20 }}>
-        Учитываются только одобренные сводки (approval_status = approved).
+        Учитываются только согласованные сводки.
       </p>
 
       <div className="card" style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap', padding: 16 }}>
@@ -440,6 +462,24 @@ export default function SummaryReport() {
                 ))}
               </ul>
             </div>
+          )}
+
+          {sampleTotals.length > 0 && (
+            <>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FlaskConical size={18} className="text-muted" /> Пробы по видам
+              </h2>
+              <div className="card" style={{ padding: 4, marginBottom: 24 }}>
+                <ul>
+                  {sampleTotals.map((t) => (
+                    <li key={t.name} style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{t.name}</span>
+                      <span className="num text-muted">{t.quantity}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </>
           )}
 
           <button
