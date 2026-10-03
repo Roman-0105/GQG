@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { TASK_TYPE_REPORT_COLUMN, type TaskType } from '../types/taskType'
-import type { TaskWorkerAssignment, Worker, WorkerRole } from '../types/database'
+import type { Position, TaskWorkerAssignment, Worker, WorkerRole } from '../types/database'
 
 const ROLE_SLOTS: Record<TaskType, { value: WorkerRole; label: string }[]> = {
   drilling: [
@@ -58,6 +58,10 @@ export default function CrewAssignmentSection({ taskType, taskId, foremanId, can
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  // Должности — чтобы в списках буровиков/помбуров предлагать только работников
+  // с соответствующей ролью в бригаде (миграция 0025, 03.10.2026).
+  const [positions, setPositions] = useState<Position[]>([])
+  const [showAllWorkers, setShowAllWorkers] = useState(false)
 
   const taskColumn = TASK_TYPE_REPORT_COLUMN[taskType]
   const roles = ROLE_SLOTS[taskType]
@@ -66,13 +70,15 @@ export default function CrewAssignmentSection({ taskType, taskId, foremanId, can
     let cancelled = false
     async function load() {
       setLoading(true)
-      const [assignmentsRes, workersRes] = await Promise.all([
+      const [assignmentsRes, workersRes, positionsRes] = await Promise.all([
         supabase.from('task_worker_assignments').select('*').eq(taskColumn, taskId),
         foremanId
           ? supabase.from('workers').select('*').eq('assigned_foreman_id', foremanId).order('full_name')
           : Promise.resolve({ data: [] as Worker[] }),
+        supabase.from('positions').select('*'),
       ])
       if (cancelled) return
+      setPositions((positionsRes.data ?? []) as Position[])
       setAssignments(assignmentsRes.data ?? [])
       setBrigadeWorkers(workersRes.data ?? [])
       setLoading(false)
@@ -118,6 +124,12 @@ export default function CrewAssignmentSection({ taskType, taskId, foremanId, can
 
   const workerName = (id: string) => brigadeWorkers.find((w) => w.id === id)?.full_name ?? '—'
 
+  // Для буровика и помбура — только работники с должностью нужной роли в
+  // бригаде; «Показать всех» снимает фильтр.
+  const crewRoleByPosition = new Map(positions.map((p) => [p.id, p.crew_role]))
+  const matchesRole = (w: Worker, role: WorkerRole) =>
+    showAllWorkers || (w.position_id != null && crewRoleByPosition.get(w.position_id) === role)
+
   if (loading) return null
 
   const active = assignments.filter((a) => !a.valid_to)
@@ -133,6 +145,20 @@ export default function CrewAssignmentSection({ taskType, taskId, foremanId, can
         <p className="text-muted" style={{ fontSize: 13 }}>
           У бригадира пока нет работников в списке — добавьте на странице{' '}
           <Link to="/settings/workers">«Работники»</Link>.
+        </p>
+      )}
+      {canEdit && roles.some((r) => SHIFT_AWARE_ROLES.has(r.value)) && brigadeWorkers.length > 0 && (
+        <p className="text-muted" style={{ fontSize: 12.5, margin: '0 0 10px' }}>
+          {showAllWorkers
+            ? 'Показаны все работники бригады. '
+            : 'В списках только работники с должностью «Буровик» / «Помощник бурильщика» (роль задаётся в «Управление должностями»). '}
+          <button
+            type="button"
+            onClick={() => setShowAllWorkers((v) => !v)}
+            style={{ background: 'transparent', border: 'none', padding: 0, color: 'var(--color-primary)', fontSize: 12.5 }}
+          >
+            {showAllWorkers ? 'Показать только по должности' : 'Показать всех'}
+          </button>
         </p>
       )}
       <div style={{ display: 'grid', gap: 14 }}>
@@ -167,7 +193,7 @@ export default function CrewAssignmentSection({ taskType, taskId, foremanId, can
                 {SHIFTS.map((shift) => {
                   const shiftRows = rows.filter((r) => r.shift_number === shift)
                   const availableToAdd = brigadeWorkers.filter(
-                    (w) => !w.archived_at && !shiftRows.some((r) => r.worker_id === w.id),
+                    (w) => !w.archived_at && matchesRole(w, role.value) && !shiftRows.some((r) => r.worker_id === w.id),
                   )
                   return (
                     <RoleSlot

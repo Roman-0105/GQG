@@ -315,7 +315,7 @@ export default function GeologyTaskWizard() {
 
       {justCreatedWell && (
         <p className="text-success" style={{ marginTop: -6 }}>
-          Скважина создана. Теперь можно сразу назначить геологические работы — или пропустить этот шаг.
+          Скважина создана. Можно сразу назначить геологические работы — или нажать «Без геологии» и вернуться на участок (геологию можно назначить позже).
         </p>
       )}
 
@@ -478,6 +478,11 @@ export default function GeologyTaskWizard() {
                 </button>
                 <button type="button" disabled={enabledWorks.length === 0 || missingAssignee.length > 0} onClick={() => setStep(2)}>
                   Далее
+                </button>
+                {/* Скважина уже создана — геологию можно не назначать (или сделать позже
+                    из правки задания / «+ Задание → Геология»). */}
+                <button type="button" className="btn-outline" onClick={() => navigate(`/sites/${siteId}`)}>
+                  {justCreatedWell ? 'Без геологии — готово' : 'Закрыть'}
                 </button>
               </div>
               {missingAssignee.length > 0 && (

@@ -5,6 +5,13 @@ import type { UserRole } from './roles'
 // учёта, не влияет на права). Управляется из "Пользователи".
 export type WorkArea = 'drilling' | 'geology' | 'other'
 
+export type CrewRole = 'driller' | 'assistant_driller'
+
+export const CREW_ROLE_LABELS: Record<CrewRole, string> = {
+  driller: 'Буровик',
+  assistant_driller: 'Помощник бурильщика',
+}
+
 export const WORK_AREA_LABELS: Record<WorkArea, string> = {
   drilling: 'Бурение',
   geology: 'Геология',
@@ -17,6 +24,9 @@ export interface Position {
   // Направление должности (миграция 0022) — по нему фильтруются списки
   // выбора ответственных.
   work_area: WorkArea
+  // Роль в буровой бригаде (миграция 0025): по ней фильтруются списки
+  // буровиков и помбуров в «Составе бригады».
+  crew_role: CrewRole | null
 }
 
 export interface Profile {

@@ -10,8 +10,8 @@ import { useAuth } from '../../context/AuthContext'
 import { isManagement, ROLE_LABELS, ROLE_OPTIONS, type UserRole } from '../../types/roles'
 import { riseIn } from '../../lib/motionVariants'
 import { buildPersonNodes, collectDescendantKeys, parsePersonValue, profileValue, reportsToValue } from '../../lib/personRef'
-import { WORK_AREA_LABELS } from '../../types/database'
-import type { Position, Profile, Worker, WorkArea } from '../../types/database'
+import { CREW_ROLE_LABELS, WORK_AREA_LABELS } from '../../types/database'
+import type { CrewRole, Position, Profile, Worker, WorkArea } from '../../types/database'
 import Modal from '../../components/Modal'
 import PersonSelect from '../../components/PersonSelect'
 
@@ -49,6 +49,8 @@ function PositionsManagerModal({
   const [newName, setNewName] = useState('')
   const [newArea, setNewArea] = useState<WorkArea>('other')
   const [renameArea, setRenameArea] = useState<WorkArea>('other')
+  const [newCrewRole, setNewCrewRole] = useState<CrewRole | ''>('')
+  const [renameCrewRole, setRenameCrewRole] = useState<CrewRole | ''>('')
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
 
@@ -61,7 +63,7 @@ function PositionsManagerModal({
     e.preventDefault()
     setAdding(true)
     setAddError(null)
-    const { data, error } = await supabase.from('positions').insert({ name: newName.trim(), work_area: newArea }).select().single()
+    const { data, error } = await supabase.from('positions').insert({ name: newName.trim(), work_area: newArea, crew_role: newCrewRole || null }).select().single()
     setAdding(false)
     if (error) {
       setAddError(error.code === '23505' ? 'Такая должность уже есть в списке.' : error.message)
@@ -70,12 +72,14 @@ function PositionsManagerModal({
     onPositionsChange([...positions, data].sort((a, b) => a.name.localeCompare(b.name)))
     setNewName('')
     setNewArea('other')
+    setNewCrewRole('')
   }
 
   function startRename(p: Position) {
     setRenamingId(p.id)
     setRenameValue(p.name)
     setRenameArea(p.work_area ?? 'other')
+    setRenameCrewRole(p.crew_role ?? '')
     setRenameError(null)
   }
 
@@ -86,7 +90,7 @@ function PositionsManagerModal({
     setRenameError(null)
     const { data, error } = await supabase
       .from('positions')
-      .update({ name: renameValue.trim(), work_area: renameArea })
+      .update({ name: renameValue.trim(), work_area: renameArea, crew_role: renameCrewRole || null })
       .eq('id', renamingId)
       .select()
       .single()
@@ -109,6 +113,8 @@ function PositionsManagerModal({
           Оргструктуры. Права доступа они не меняют (за это отвечает роль).
           «Направление» нужно для списков выбора: геологов предлагают только
           при назначении геологических работ, мастеров — на бурении.
+          «Роль в бригаде» (буровик / помощник бурильщика) — для состава бригады:
+          в списках предлагаются только работники с нужной должностью.
         </p>
 
         {positions.length === 0 ? (
@@ -128,6 +134,12 @@ function PositionsManagerModal({
                   <select value={renameArea} onChange={(e) => setRenameArea(e.target.value as WorkArea)} style={{ width: 'auto' }}>
                     {(Object.keys(WORK_AREA_LABELS) as WorkArea[]).map((a) => (
                       <option key={a} value={a}>{WORK_AREA_LABELS[a]}</option>
+                    ))}
+                  </select>
+                  <select value={renameCrewRole} onChange={(e) => setRenameCrewRole(e.target.value as CrewRole | '')} style={{ width: 'auto' }} title="Роль в составе бригады">
+                    <option value="">Не в бригаде</option>
+                    {(Object.keys(CREW_ROLE_LABELS) as CrewRole[]).map((r) => (
+                      <option key={r} value={r}>{CREW_ROLE_LABELS[r]}</option>
                     ))}
                   </select>
                   <button type="submit" disabled={renaming} style={{ fontSize: 13 }}>
@@ -153,6 +165,7 @@ function PositionsManagerModal({
                     <span className={`badge badge-${p.work_area === 'other' || !p.work_area ? 'neutral' : 'primary'}`}>
                       {WORK_AREA_LABELS[p.work_area ?? 'other']}
                     </span>
+                    {p.crew_role && <span className="badge badge-primary">{CREW_ROLE_LABELS[p.crew_role]}</span>}
                   </span>
                   <button
                     type="button"
@@ -186,6 +199,12 @@ function PositionsManagerModal({
           <select value={newArea} onChange={(e) => setNewArea(e.target.value as WorkArea)} style={{ width: 'auto' }}>
             {(Object.keys(WORK_AREA_LABELS) as WorkArea[]).map((a) => (
               <option key={a} value={a}>{WORK_AREA_LABELS[a]}</option>
+            ))}
+          </select>
+          <select value={newCrewRole} onChange={(e) => setNewCrewRole(e.target.value as CrewRole | '')} style={{ width: 'auto' }} title="Роль в составе бригады">
+            <option value="">Не в бригаде</option>
+            {(Object.keys(CREW_ROLE_LABELS) as CrewRole[]).map((r) => (
+              <option key={r} value={r}>{CREW_ROLE_LABELS[r]}</option>
             ))}
           </select>
           <button type="submit" disabled={adding} style={{ whiteSpace: 'nowrap' }}>

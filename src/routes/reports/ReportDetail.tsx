@@ -114,7 +114,7 @@ export default function ReportDetail() {
           setDrillingRigNumber(rig?.rig_number ?? null)
         }
 
-        // Забой на момент ЭТОЙ смены — сумма подтверждённых метров по
+        // Забой на момент ЭТОЙ смены — сумма подтверждённых и отправленных на согласование метров по
         // заданию строго ДО неё хронологически (по дате и номеру смены),
         // плюс метраж самой этой смены. Не просто "все approved на
         // сегодня" — так исторический просмотр остаётся верным даже для
@@ -123,7 +123,7 @@ export default function ReportDetail() {
           .from('reports')
           .select('*')
           .eq('drilling_task_id', taskId)
-          .eq('approval_status', 'approved')
+          .in('approval_status', ['approved', 'submitted'])
         const priorSum = (allReports ?? [])
           .filter((other) => {
             if (other.id === r.id) return false

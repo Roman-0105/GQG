@@ -880,7 +880,10 @@ export default function DailyReportForm() {
       reportDate,
       shiftNumber: shiftsApply && shiftNumber ? Number(shiftNumber) : null,
       meters,
-      bottomHole: round2(priorApprovedMeters + meters),
+      // Глубина = забой «до» из формы. Он уже учитывает и согласованные, и ещё
+      // не согласованные смены (см. drillingFrom/knownMeters), поэтому сообщение
+      // не зависит от того, приняты ли предыдущие сводки (03.10.2026).
+      bottomHole: drillingTo !== '' ? round2(Number(drillingTo)) : round2(Number(drillingFrom || 0)),
       shiftNotes,
       coreDescriptions,
       sawnMeters: attachedSawing && sawnMeters ? Number(sawnMeters) : null,
