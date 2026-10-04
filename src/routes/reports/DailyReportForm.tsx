@@ -124,6 +124,9 @@ export default function DailyReportForm() {
   // меняется, меняется только форма ввода.
   const [drillingFrom, setDrillingFrom] = useState('0')
   const [drillingTo, setDrillingTo] = useState('')
+  // Проходка за смену вводится на шаге 1 вместо/вместе с «до»: «до» = «от» + проходка
+  // считается сразу (03.10.2026). Храним строкой, чтобы не терять «5.» при наборе.
+  const [metersInput, setMetersInput] = useState('')
   const [coreFrom, setCoreFrom] = useState('0')
   const [coreTo, setCoreTo] = useState('')
   const [photoFrom, setPhotoFrom] = useState('0')
@@ -175,6 +178,10 @@ export default function DailyReportForm() {
   // Текст для WhatsApp, собранный В МОМЕНТ успешной отправки (до сброса формы) —
   // чтобы мастер мог скопировать его уже после отправки (30.09.2026).
   const [sentMessage, setSentMessage] = useState<string | null>(null)
+  // Дата и смена, для которых собран sentMessage: панель «отправлено» показывается
+  // только пока форма стоит на них и ещё не заполняется заново, иначе при вводе
+  // новой смены копировался бы текст ПРЕДЫДУЩЕЙ (03.10.2026).
+  const [sentFor, setSentFor] = useState<{ date: string; shift: string } | null>(null)
   // Дата+смена последней успешно ОТПРАВЛЕННОЙ в этом сеансе сводки — пока
   // форма стоит на той же дате/смене, кнопки отправки заблокированы, чтобы
   // случайный повторный клик не создал вторую строку reports на то же
@@ -404,6 +411,7 @@ export default function DailyReportForm() {
           setDrillingTo(
             r.drilling_meters != null ? String(round2(knownSumAtLoad + r.drilling_meters)) : '',
           )
+          setMetersInput(r.drilling_meters != null ? String(round2(r.drilling_meters)) : '')
           setCoreFrom(
             r.core_description_interval_from != null
               ? String(r.core_description_interval_from)
@@ -817,13 +825,17 @@ export default function DailyReportForm() {
         // на начало следующей — та же логика, что и у coreFrom/photoFrom.
         setDrillingFrom(drillingTo)
       }
-      if (taskType === 'drilling') setSentMessage(buildWhatsAppMessage())
+      if (taskType === 'drilling') {
+        setSentMessage(buildWhatsAppMessage())
+        setSentFor({ date: reportDate, shift: shiftNumber })
+      }
       notifyReportsChanged()
       setLastSubmitted({ date: reportDate, shift: shiftNumber })
-      setStep(0)
+      setStep(2)
       setSuccessMsg('Сводка отправлена на согласование. Можно сразу заполнять следующую смену.')
       setHoursWorked('')
       setDrillingTo('')
+      setMetersInput('')
       setCoreFrom('0')
       setCoreTo('')
       setPhotoFrom('0')
@@ -902,6 +914,13 @@ export default function DailyReportForm() {
       setError('Не удалось скопировать — скопируйте текст вручную.')
     }
   }
+
+  const showSent =
+    Boolean(successMsg) &&
+    sentFor !== null &&
+    sentFor.date === reportDate &&
+    sentFor.shift === shiftNumber &&
+    drillingTo === ''
 
   // Скрывает шаги, кроме текущего, только для сводки по бурению
   function stepStyle(n: 0 | 1 | 2): React.CSSProperties {
@@ -1020,11 +1039,44 @@ export default function DailyReportForm() {
               <input
                 type="number"
                 step="any"
-                placeholder="до"
-                value={drillingTo}
-                onChange={(e) => setDrillingTo(e.target.value)}
-                style={{ width: 90 }}
+                inputMode="decimal"
+                placeholder="проходка"
+                aria-label="Проходка за смену, м"
+                title="Проходка за смену, м — «до» посчитается само"
+                value={metersInput}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setMetersInput(v)
+                  setDrillingTo(v === '' ? '' : String(round2(Number(drillingFrom || 0) + Number(v))))
+                }}
+                style={{ width: 100 }}
               />
+              <input
+                type="number"
+                step="any"
+                inputMode="decimal"
+                placeholder="до"
+                aria-label="Забой на конец смены, м"
+                value={drillingTo}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setDrillingTo(v)
+                  setMetersInput(v === '' ? '' : String(round2(Number(v) - Number(drillingFrom || 0))))
+                }}
+                style={{ width: 100 }}
+              />
+              <div className="text-muted" style={{ fontSize: 12.5, marginTop: 6 }}>
+                «от» + проходка = «до». Введите проходку или забой — второе посчитается само.
+              </div>
+              {drillingTo !== '' && (
+                <div style={{ marginTop: 6, fontWeight: 600 }}>
+                  Глубина скважины:{' '}
+                  <span className="num">{round2(Number(drillingTo))} м</span>{' '}
+                  <span className="text-muted" style={{ fontWeight: 400 }}>
+                    (проходка {round2(Number(drillingTo) - Number(drillingFrom || 0))} м) — это попадёт в сообщение для WhatsApp
+                  </span>
+                </div>
+              )}
               {knownMeters !== priorApprovedMeters && (
                 <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
                   <span
@@ -1296,18 +1348,6 @@ export default function DailyReportForm() {
           </label>
 
           {taskType === 'drilling' && (
-            <button
-              type="button"
-              className="btn-outline"
-              onClick={handleCopyWhatsApp}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
-            >
-              {copied ? <Check size={16} /> : <MessageCircle size={16} />}
-              {copied ? 'Скопировано' : 'Скопировать для WhatsApp'}
-            </button>
-          )}
-
-          {taskType === 'drilling' && (
             <div className="wizard-nav">
               <button type="button" className="btn-outline" onClick={() => setStep(0)}>
                 Назад
@@ -1327,8 +1367,26 @@ export default function DailyReportForm() {
             onChange={setCostRows}
           />
 
+          {/* Копирование для WhatsApp — только на шаге 3. До отправки текст собирается
+              из введённых значений; после отправки форма очищается, поэтому ниже
+              копируется текст, сохранённый в момент отправки (оба одной функцией,
+              глубина = забой «до»). */}
+          {taskType === 'drilling' && !showSent && (
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={handleCopyWhatsApp}
+              disabled={drillingTo === ''}
+              title={drillingTo === '' ? 'Укажите забой «до» на первом шаге' : undefined}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 44 }}
+            >
+              {copied ? <Check size={16} /> : <MessageCircle size={16} />}
+              {copied ? 'Скопировано' : 'Скопировать для WhatsApp'}
+            </button>
+          )}
+
           {error && <p className="text-error">{error}</p>}
-          {successMsg && (
+          {showSent && (
             <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, borderColor: 'var(--color-success)' }}>
               <p className="text-success" style={{ margin: 0, fontWeight: 600 }}>{successMsg}</p>
               {sentMessage && (
@@ -1341,6 +1399,18 @@ export default function DailyReportForm() {
                   {copied ? 'Скопировано' : 'Скопировать для WhatsApp'}
                 </button>
               )}
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={() => {
+                  setSuccessMsg(null)
+                  setSentMessage(null)
+                  setStep(0)
+                }}
+                style={{ minHeight: 44 }}
+              >
+                Заполнить следующую смену
+              </button>
             </div>
           )}
 

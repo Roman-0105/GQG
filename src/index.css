@@ -1576,3 +1576,304 @@ button.btn-danger:hover:not(:disabled) {
     display: none;
   }
 }
+
+/* ---- Карта: раскладка «карта + правая панель» (04.10.2026) ---- */
+.map-layout {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1000px) {
+  .map-layout {
+    grid-template-columns: minmax(0, 1fr) 420px;
+    align-items: start;
+  }
+}
+.map-wrap {
+  height: calc(100vh - 230px);
+  min-height: 460px;
+}
+.map-side {
+  min-width: 0;
+}
+@media (min-width: 1000px) {
+  .map-side {
+    max-height: calc(100vh - 230px);
+    min-height: 460px;
+    overflow-y: auto;
+  }
+}
+@media (max-width: 999px) {
+  .map-wrap {
+    height: 58vh;
+    min-height: 360px;
+  }
+}
+/* карточка скважины — обычный блок в правой панели */
+.map-card {
+  position: static;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  box-shadow: none;
+}
+/* на телефоне — нижняя шторка поверх карты, над таб-баром */
+@media (max-width: 767px) {
+  .map-card {
+    position: fixed;
+    z-index: 900;
+    left: 8px;
+    right: 8px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    max-height: 68vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  }
+}
+.map-legend-inline {
+  display: none;
+}
+@media (max-width: 999px) {
+  .map-legend {
+    display: none;
+  }
+  .map-legend-inline {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+  }
+  .map-legend-inline span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .map-legend-inline i {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+  }
+}
+.map-overview {
+  padding: 14px;
+}
+.map-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.map-kpis > div {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+}
+.map-kpis b {
+  font-size: 20px;
+  line-height: 1.2;
+}
+.map-kpis span {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+.map-well-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.map-well-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px;
+  text-align: left;
+  background: transparent;
+  color: var(--color-text);
+  border: none;
+  border-radius: var(--radius-sm);
+}
+.map-well-row:hover {
+  background: var(--color-surface-muted);
+}
+.map-well-row > i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: block;
+}
+.map-well-row > i.is-live {
+  animation: map-live-dot 1.8s ease-out infinite;
+}
+@keyframes map-live-dot {
+  0% {
+    box-shadow: 0 0 0 0 rgba(193, 101, 47, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 9px rgba(193, 101, 47, 0);
+  }
+}
+.map-well-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.map-well-row-main .text-muted {
+  font-size: 12.5px;
+}
+.map-well-bar {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+.map-well-bar > span {
+  display: block;
+  height: 100%;
+}
+/* точки скважин: пульсирующие кольца у «в работе» */
+.map-well-icon {
+  background: transparent;
+  border: none;
+}
+.map-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+.map-dot.is-selected {
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35);
+}
+.map-pulse {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: var(--c, #c1652f);
+  opacity: 0.55;
+  animation: map-pulse 2.2s ease-out infinite;
+  pointer-events: none;
+}
+.map-pulse-2 {
+  animation-delay: 1.1s;
+}
+@keyframes map-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(3.4);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-pulse,
+  .map-well-row > i.is-live {
+    animation: none;
+  }
+  .map-pulse {
+    transform: scale(1.8);
+    opacity: 0.3;
+  }
+}
+
+/* ==========================================================================
+   Масштабирование и размеры (04.10.2026, по замечанию владельца)
+   ========================================================================== */
+
+/* Рабочая область шире на больших экранах; карта — на всю ширину. */
+.page {
+  max-width: 1360px;
+}
+.page.page-wide {
+  max-width: none;
+}
+
+/* Карта и правая панель растут вместе с окном: панель — 30% ширины, но не уже
+   380 и не шире 640px; высота карты — почти весь экран. */
+@media (min-width: 1000px) {
+  .map-layout {
+    grid-template-columns: minmax(0, 1fr) clamp(380px, 30vw, 640px);
+  }
+  .map-wrap {
+    height: calc(100vh - 205px);
+    min-height: 520px;
+  }
+  .map-side {
+    max-height: calc(100vh - 205px);
+    min-height: 520px;
+  }
+}
+
+/* Кнопки компактнее на ПК и планшете. На телефоне размеры остаются крупными —
+   по ним попадают пальцем (минимум 44px, см. аудит 03.10.2026). */
+@media (min-width: 768px) {
+  button {
+    font-size: 13px;
+    padding: 6px 12px;
+    min-height: 0 !important;
+  }
+  button.icon-btn {
+    padding: 5px 8px;
+  }
+  .icon-btn-round {
+    width: 30px;
+    height: 30px;
+  }
+  .map-segment button {
+    padding: 6px 11px;
+  }
+  .map-toolbar select,
+  .map-toolbar button {
+    font-size: 13px;
+  }
+  .wizard-nav button {
+    padding: 6px 14px;
+  }
+}
+
+/* Список скважин на странице участка: по две в ряд на широком экране (04.10.2026) */
+.well-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .well-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.map-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.map-toggle input {
+  width: 16px;
+  height: 16px;
+}

@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, X } from 'lucide-react'
 import DrillingProgressPanel from './DrillingProgressPanel'
+import DrillingProgressChart from './DrillingProgressChart'
+import type { DrillingChartRow } from './DrillingProgressChart'
 import { TaskStatusBadge } from './StatusBadge'
 import { round2 } from '../lib/taskProgress'
 import { CLOSED_REASON_LABELS } from '../types/database'
@@ -36,6 +38,8 @@ export default function WellMapCard({
   orgName,
   rigNumber,
   foremanName,
+  chartRows = [],
+  createdByName = null,
   onClose,
 }: {
   well: DrillingTask
@@ -43,6 +47,10 @@ export default function WellMapCard({
   orgName: string | null
   rigNumber: string | null
   foremanName: string | null
+  // Данные графика по сменам (пусто — скрыт, например у чужой скважины)
+  chartRows?: DrillingChartRow[]
+  // Кто создал/запланировал скважину (виден руководству)
+  createdByName?: string | null
   onClose: () => void
 }) {
   const today = todayIso()
@@ -64,6 +72,18 @@ export default function WellMapCard({
   if (orgName) rows.push(['Организация', orgName])
   if (rigNumber) rows.push(['Станок', `№${rigNumber}`])
   if (foremanName) rows.push(['Бригадир', foremanName])
+  const isPlanned = well.status === 'planned'
+  if (isPlanned) {
+    if (well.projected_depth != null) rows.push(['Проектная глубина', `${well.projected_depth} м`])
+    if (well.coord_wgs84_lat != null && well.coord_wgs84_lon != null) {
+      rows.push(['WGS-84', `${well.coord_wgs84_lat}; ${well.coord_wgs84_lon}`])
+    }
+    if (well.coord_local_x != null && well.coord_local_y != null) {
+      rows.push(['Местные X; Y', `${well.coord_local_x}; ${well.coord_local_y}`])
+    }
+    if (well.wellhead_elevation != null) rows.push(['Отметка устья', `${well.wellhead_elevation} м`])
+    rows.push(['Запланирована', `${fmtDate(well.created_at.slice(0, 10))}${createdByName ? ` · ${createdByName}` : ''}`])
+  }
   if (well.start_date) rows.push(['Начало', fmtDate(well.start_date)])
   if (well.angle != null || well.azimuth != null) {
     rows.push(['Угол / азимут', `${well.angle ?? '—'}° / ${well.azimuth ?? '—'}°`])
@@ -103,6 +123,11 @@ export default function WellMapCard({
         </p>
       )}
 
+      {isPlanned ? (
+        <p className="text-muted" style={{ fontSize: 13, margin: '10px 0 12px' }}>
+          Бурение ещё не начато: станок, бригадир и дата начала не назначены.
+        </p>
+      ) : (
       <div style={{ margin: '10px 0 12px' }}>
         <DrillingProgressPanel
           compact
@@ -117,6 +142,26 @@ export default function WellMapCard({
           rows={[]}
         />
       </div>
+      )}
+
+      {chartRows.length > 0 && (
+        <div style={{ margin: '0 0 14px' }}>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>Проходка по сменам</div>
+          <DrillingProgressChart
+            rows={chartRows}
+            closure={
+              well.closed_reason
+                ? {
+                    date: well.closed_at ?? chartRows[chartRows.length - 1].date,
+                    kind: well.closed_reason === 'depth_reached' ? 'depth_reached' : 'other',
+                    label:
+                      well.closed_reason === 'depth_reached' ? 'Глубина достигнута' : well.closed_reason === 'accident' ? 'Авария' : 'Закрыта',
+                  }
+                : null
+            }
+          />
+        </div>
+      )}
 
       <Link to={`/tasks/drilling/${well.id}/dashboard`}>
         <button type="button" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 44 }}>

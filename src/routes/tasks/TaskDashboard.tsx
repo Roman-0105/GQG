@@ -618,6 +618,18 @@ export default function TaskDashboard() {
         >
           <Users size={15} /> Состав бригады
         </button>
+        {/* Редактирование задания — руководству, для всех четырёх видов заданий */}
+        {isManagement(profile?.role) && siteId && (
+          <Link to={`/sites/${siteId}/tasks/${taskType}/${taskId}/edit`} style={{ flexShrink: 0 }}>
+            <button
+              type="button"
+              className="btn-outline"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap' }}
+            >
+              <Pencil size={15} /> Редактировать
+            </button>
+          </Link>
+        )}
         {isDrilling && drillingTask && isManagement(profile?.role) && !drillingTask.closed_reason && (
           <button
             type="button"

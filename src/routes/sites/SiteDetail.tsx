@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ChevronLeft, Layers, Plus, ChevronRight, Lock, Unlock, Scissors, FlaskConical, Pencil, FileText, History } from 'lucide-react'
+import { ChevronLeft, Layers, Plus, ChevronRight, Lock, Unlock, Scissors, FlaskConical, Pencil, FileText, History, CalendarClock, Play, Table2 } from 'lucide-react'
 import Modal from '../../components/Modal'
 import SiteOverview from '../../components/SiteOverview'
+import StartDrillingModal from '../../components/StartDrillingModal'
+import type { DrillingTask as DrillingTaskRow } from '../../types/database'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
@@ -88,8 +90,26 @@ export default function SiteDetail() {
   const [error, setError] = useState<string | null>(null)
   const [togglingStatus, setTogglingStatus] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+  // Фильтр скважин по состоянию (в адресе ?filter=…) и запуск бурения запланированной
+  const [searchParams, setSearchParams] = useSearchParams()
+  const statusFilter = (searchParams.get('filter') ?? 'all') as 'all' | 'planned' | 'in_progress' | 'suspended' | 'completed'
+  const [startingWell, setStartingWell] = useState<DrillingTaskRow | null>(null)
+  const [authorNames, setAuthorNames] = useState<Record<string, string>>({})
   // Прогресс бурения чужих скважин (геолог) — через RPC, см. taskProgress.ts
   const [foreignProgress, setForeignProgress] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    if (!profile || !isManagement(profile.role)) return
+    const ids = [...new Set(drillingTasks.map((t) => t.created_by))]
+    if (ids.length === 0) return
+    supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', ids)
+      .then(({ data }) =>
+        setAuthorNames(Object.fromEntries(((data ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]))),
+      )
+  }, [drillingTasks, profile])
 
   useEffect(() => {
     if (!profile || isManagement(profile.role)) return
@@ -327,6 +347,20 @@ export default function SiteDetail() {
                   <span className="text-muted" style={{ fontSize: 13 }}>Новая скважина, затем можно сразу назначить геологию</span>
                 </span>
               </Link>
+              <Link to={`/sites/${siteId}/tasks/drilling/plan`} className="card card-interactive" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, color: 'var(--color-text)' }}>
+                <CalendarClock size={22} />
+                <span style={{ display: 'grid' }}>
+                  <b>Запланировать скважину</b>
+                  <span className="text-muted" style={{ fontSize: 13 }}>Номер, координаты, глубина, угол — без станка, бригадира и даты</span>
+                </span>
+              </Link>
+              <Link to={`/sites/${siteId}/tasks/drilling/plan-bulk`} className="card card-interactive" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, color: 'var(--color-text)' }}>
+                <Table2 size={22} />
+                <span style={{ display: 'grid' }}>
+                  <b>Запланировать списком</b>
+                  <span className="text-muted" style={{ fontSize: 13 }}>Много скважин сразу: вставка из Excel или CSV</span>
+                </span>
+              </Link>
               <Link to={`/sites/${siteId}/tasks/geology/new`} className="card card-interactive" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, color: 'var(--color-text)' }}>
                 <Layers size={22} />
                 <span style={{ display: 'grid' }}>
@@ -337,16 +371,60 @@ export default function SiteDetail() {
             </div>
           </Modal>
 
+          {startingWell && (
+            <StartDrillingModal
+              well={startingWell}
+              open
+              onClose={() => setStartingWell(null)}
+              onStarted={(updated) => {
+                setDrillingTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+                setStartingWell(null)
+              }}
+            />
+          )}
+
           {isManagement(profile?.role) && <SiteOverview drillingTasks={drillingTasks} reports={reports} />}
 
           <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <DerrickIcon size={18} className="text-muted" /> Бурение скважин
           </h2>
+          {drillingTasks.length > 0 && (
+            <div className="map-segment" role="group" aria-label="Фильтр скважин" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
+              {(
+                [
+                  ['all', 'Все'],
+                  ['planned', 'Запланированные'],
+                  ['in_progress', 'В работе'],
+                  ['suspended', 'Приостановленные'],
+                  ['completed', 'Закрытые'],
+                ] as const
+              ).map(([key, label]) => {
+                const count = key === 'all' ? drillingTasks.length : drillingTasks.filter((t) => t.status === key).length
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    className={statusFilter === key ? 'is-active' : ''}
+                    onClick={() => {
+                      const next = new URLSearchParams(searchParams)
+                      if (key === 'all') next.delete('filter')
+                      else next.set('filter', key)
+                      setSearchParams(next, { replace: true })
+                    }}
+                  >
+                    {label} <span className="num" style={{ opacity: 0.75 }}>{count}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
           {drillingTasks.length === 0 ? (
             <p className="text-muted">Пока нет заданий на бурение.</p>
+          ) : drillingTasks.filter((t) => statusFilter === 'all' || t.status === statusFilter).length === 0 ? (
+            <p className="text-muted">Скважин в этом состоянии нет.</p>
           ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
-              {drillingTasks.map((t, i) => {
+            <div className="well-grid">
+              {drillingTasks.filter((t) => statusFilter === 'all' || t.status === statusFilter).map((t, i) => {
                 const attention = attentionCounts(t.id, 'drilling_task_id', reports)
                 // Керн/распиловка/опробование, прицепленные ИМЕННО к этой
                 // скважине (drilling_task_id совпадает) — показываем
@@ -432,7 +510,39 @@ export default function SiteDetail() {
                       </div>
                     </div>
                     <AttentionBadges submitted={attention.submitted} rejected={attention.rejected} />
-                    {t.projected_depth != null && (
+                    {t.status === 'planned' && (
+                      <div style={{ marginTop: 6, display: 'grid', gap: 8 }}>
+                        <dl className="map-card-facts">
+                          {t.projected_depth != null && (
+                            <div><dt>Проектная глубина</dt><dd className="num">{t.projected_depth} м</dd></div>
+                          )}
+                          {t.coord_wgs84_lat != null && t.coord_wgs84_lon != null && (
+                            <div><dt>WGS-84</dt><dd className="num">{t.coord_wgs84_lat}; {t.coord_wgs84_lon}</dd></div>
+                          )}
+                          {t.angle != null && (
+                            <div><dt>Угол / азимут</dt><dd className="num">{t.angle}° / {t.azimuth ?? '—'}°</dd></div>
+                          )}
+                          <div>
+                            <dt>Запланирована</dt>
+                            <dd>
+                              {t.created_at.slice(8, 10)}.{t.created_at.slice(5, 7)}.{t.created_at.slice(0, 4)}
+                              {authorNames[t.created_by] ? ` · ${authorNames[t.created_by]}` : ''}
+                            </dd>
+                          </div>
+                        </dl>
+                        {t.description && (
+                          <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+                            {t.description.length > 140 ? `${t.description.slice(0, 140)}…` : t.description}
+                          </p>
+                        )}
+                        {isManagement(profile?.role) && (
+                          <button type="button" onClick={() => setStartingWell(t)} style={{ display: 'flex', alignItems: 'center', gap: 6, justifySelf: 'start' }}>
+                            <Play size={14} /> Запустить бурение
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {t.status !== 'planned' && t.projected_depth != null && (
                       <div style={{ marginTop: 8 }}>
                         <ProgressBar
                           label="Метраж бурения"

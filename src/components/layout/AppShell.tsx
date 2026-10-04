@@ -18,7 +18,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <div className="app-shell">
       <Sidebar />
       <MobileHeader />
-      <main className="page">
+      <main className={`page${pathname === '/map' ? ' page-wide' : ''}`}>
         <AnimatePresence mode="wait">
           <motion.div
             key={pathname}

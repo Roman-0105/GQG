@@ -121,7 +121,9 @@ export default function SiteOverview({
   })
 
   const inProgress = wells.filter((w) => w.task.status === 'in_progress')
-  const totalPlan = drillingTasks.reduce((s, t) => s + (t.projected_depth ?? 0), 0)
+  const plannedCount = wells.filter((w) => w.task.status === 'planned').length
+  // План и «пробурено» считаем по скважинам, которые уже запущены (не запланированным)
+  const totalPlan = drillingTasks.filter((t) => t.status !== 'planned').reduce((s, t) => s + (t.projected_depth ?? 0), 0)
   const totalKnown = round2(wells.reduce((s, w) => s + w.known, 0))
 
   // Последние 14 дней: метраж по дням (подтверждённые + на согласовании).
@@ -164,7 +166,7 @@ export default function SiteOverview({
       icon: CheckCircle2,
       label: 'Скважин в работе',
       value: `${inProgress.length}`,
-      sub: `из ${drillingTasks.length}`,
+      sub: plannedCount > 0 ? `из ${drillingTasks.length} · запланировано ${plannedCount}` : `из ${drillingTasks.length}`,
     },
     {
       icon: Clock,

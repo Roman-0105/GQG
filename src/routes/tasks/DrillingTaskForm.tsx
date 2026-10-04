@@ -138,13 +138,13 @@ export default function DrillingTaskForm() {
       site_id: siteId,
       well_number: wellNumber,
       drilling_rig_id: drillingRigId || null,
-      drilling_org_id: drillingOrgId,
+      drilling_org_id: drillingOrgId || null,
       coord_wgs84_lat: coordLat ? Number(coordLat) : null,
       coord_wgs84_lon: coordLon ? Number(coordLon) : null,
       coord_local_x: coordX ? Number(coordX) : null,
       coord_local_y: coordY ? Number(coordY) : null,
       wellhead_elevation: elevation ? Number(elevation) : null,
-      foreman_id: foremanId,
+      foreman_id: foremanId || null,
       start_date: startDate || null,
       projected_depth: projectedDepth ? Number(projectedDepth) : null,
       planned_daily_meters: plannedDailyMeters
@@ -242,7 +242,7 @@ export default function DrillingTaskForm() {
           <label>
             Организация бурения
             <select
-              required
+              required={!(isEditMode && status === 'planned')}
               value={drillingOrgId}
               onChange={(e) => {
                 setDrillingOrgId(e.target.value)
@@ -344,7 +344,7 @@ export default function DrillingTaskForm() {
           <label>
             Бригадир
             <select
-              required
+              required={!(isEditMode && status === 'planned')}
               value={foremanId}
               onChange={(e) => setForemanId(e.target.value)}
             >

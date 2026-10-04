@@ -23,6 +23,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3",
+    "read-excel-file": "^9.3.10",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

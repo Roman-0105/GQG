@@ -150,13 +150,13 @@ export interface DrillingTask {
   site_id: string
   well_number: string
   drilling_rig_id: string | null
-  drilling_org_id: string
+  drilling_org_id: string | null
   coord_wgs84_lat: number | null
   coord_wgs84_lon: number | null
   coord_local_x: number | null
   coord_local_y: number | null
   wellhead_elevation: number | null
-  foreman_id: string
+  foreman_id: string | null
   start_date: string | null
   projected_depth: number | null
   planned_daily_meters: number | null

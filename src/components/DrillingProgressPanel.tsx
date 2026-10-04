@@ -78,9 +78,9 @@ export default function DrillingProgressPanel({
         {headerRight && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{headerRight}</div>}
       </div>
 
-      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: compact ? 12 : 24, flexWrap: compact ? 'nowrap' : 'wrap', alignItems: 'flex-start' }}>
         {projectedDepth != null && (
-          <div style={{ width: 190, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
+          <div style={{ width: compact ? 168 : 190, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
             <svg width={130} height={130} viewBox="0 0 130 130">
               <circle cx={65} cy={65} r={gaugeR} fill="none" stroke="var(--color-surface-muted)" strokeWidth={13} />
               <circle
@@ -130,7 +130,7 @@ export default function DrillingProgressPanel({
           </div>
         )}
 
-        <div style={{ flexShrink: 0 }}>
+        <div style={{ flexShrink: compact ? 1 : 0, minWidth: 0, width: compact ? 170 : undefined }}>
           <WellboreProgress projectedDepth={projectedDepth} approvedDepth={approvedDepth} pendingDepth={pendingDepth} />
         </div>
 

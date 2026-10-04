@@ -13,6 +13,8 @@ import CoreDescriptionTaskForm from './routes/tasks/CoreDescriptionTaskForm'
 import CoreSawingTaskForm from './routes/tasks/CoreSawingTaskForm'
 import SamplingTaskForm from './routes/tasks/SamplingTaskForm'
 import GeologyTaskWizard from './routes/tasks/GeologyTaskWizard'
+import PlanWellForm from './routes/tasks/PlanWellForm'
+import PlanWellsBulk from './routes/tasks/PlanWellsBulk'
 import DailyReportForm from './routes/reports/DailyReportForm'
 import TaskReportsList from './routes/reports/TaskReportsList'
 import ReportDetail from './routes/reports/ReportDetail'
@@ -83,6 +85,8 @@ function App() {
           <Route path="/settings/workers" element={<WorkersSettings />} />
           <Route path="/settings/sample-types" element={<SampleTypesSettings />} />
           <Route path="/sites/:siteId/tasks/geology/new" element={<GeologyTaskWizard />} />
+          <Route path="/sites/:siteId/tasks/drilling/plan" element={<PlanWellForm />} />
+          <Route path="/sites/:siteId/tasks/drilling/plan-bulk" element={<PlanWellsBulk />} />
           <Route
             path="/sites/:siteId/tasks/drilling/new"
             element={<DrillingTaskForm />}
