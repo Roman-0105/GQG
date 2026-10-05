@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Mountain, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useReportCounts } from '../../hooks/useReportCounts'
+import { useIsNarrowDesktop } from '../../hooks/useMediaQuery'
 import { NAV_ITEMS, isNavItemActive } from './navItems'
+import BrandMark from '../BrandMark'
 import UserMenu from './UserMenu'
 
 const COLLAPSE_KEY = 'gqs-sidebar-collapsed'
 
-function readCollapsed() {
+// null — пользователь ещё не выбирал вручную: тогда меню само сворачивается до иконок
+// на планшете и узком ноутбуке (768–1199px), как в гайде Контура.
+function readCollapsed(): boolean | null {
   try {
-    return localStorage.getItem(COLLAPSE_KEY) === '1'
+    const v = localStorage.getItem(COLLAPSE_KEY)
+    return v === '1' ? true : v === '0' ? false : null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -25,24 +30,25 @@ export default function Sidebar() {
   const { pathname } = useLocation()
   const { session, profile } = useAuth()
   const { pendingApprovals } = useReportCounts()
-  const [collapsed, setCollapsed] = useState(readCollapsed)
+  const [manual, setManual] = useState<boolean | null>(readCollapsed)
+  const narrow = useIsNarrowDesktop()
+  const collapsed = manual ?? narrow
 
   useEffect(() => {
+    if (manual === null) return
     try {
-      localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0')
+      localStorage.setItem(COLLAPSE_KEY, manual ? '1' : '0')
     } catch {
       // приватный режим/запрещённое хранилище — просто не запоминаем выбор
     }
-  }, [collapsed])
+  }, [manual])
 
   if (!session || !profile) {
     return (
       <aside className="sidebar">
         <div className="sidebar-header">
           <Link to="/" className="brand">
-            <span className="brand-mark">
-              <Mountain size={16} strokeWidth={2.5} />
-            </span>
+            <BrandMark />
             GQG
           </Link>
         </div>
@@ -56,15 +62,13 @@ export default function Sidebar() {
     <aside className={`sidebar${collapsed ? ' is-collapsed' : ''}`}>
       <div className="sidebar-header">
         <Link to="/" className="brand">
-          <span className="brand-mark">
-            <Mountain size={16} strokeWidth={2.5} />
-          </span>
+          <BrandMark />
           {!collapsed && 'GQG'}
         </Link>
         <button
           type="button"
           className="sidebar-collapse-btn"
-          onClick={() => setCollapsed((v) => !v)}
+          onClick={() => setManual(!collapsed)}
           title={collapsed ? 'Развернуть меню' : 'Свернуть меню'}
         >
           {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}

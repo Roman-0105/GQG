@@ -9,6 +9,10 @@
 @import '@fontsource/jetbrains-mono/500.css';
 @import '@fontsource/jetbrains-mono/600.css';
 
+/* Палитра обновлена 05.10.2026 под логотип GEO QUEST GROUP: глубокий синий
+   (#0b3a5a, из логотипа #022c45) + кремовый фон (из логотипа #edebde); оранжевый
+   акцент оставлен — как каска на логотипе. Зелёный — только для смысла «успех /
+   закрыта по глубине». */
 /* ==========================================================================
    Дизайн-токены
    Редизайн 25.09.2026 ("Направление А — полевой дневник, версия 2",
@@ -26,28 +30,28 @@
    цвета/радиусы, шрифтовая пара уже была найдена удачной.
    ========================================================================== */
 :root {
-  --color-bg: #f3ecdd;
-  --color-surface: #fffaf0;
-  --color-surface-muted: #f8f0dc;
-  --color-border: #d8c9a8;
-  --color-border-strong: #c2ae82;
+  --color-bg: #f1efe4;
+  --color-surface: #fbfaf4;
+  --color-surface-muted: #ebe8da;
+  --color-border: #d3cfbb;
+  --color-border-strong: #b3ae95;
 
-  --color-text: #2a2620;
-  --color-text-muted: #6b6152;
-  --color-text-faint: #9c8f74;
+  --color-text: #17222e;
+  --color-text-muted: #54606b;
+  --color-text-faint: #88909a;
 
-  --color-primary: #2f4a3e;
-  --color-primary-hover: #243a30;
-  --color-primary-soft: #e3ebe3;
+  --color-primary: #0b3a5a;
+  --color-primary-hover: #072c46;
+  --color-primary-soft: #dce7ee;
 
-  --color-accent: #c1652f;
-  --color-accent-soft: #f4e0d0;
+  --color-accent: #c9691f;
+  --color-accent-soft: #f6e2cf;
 
-  --color-success: #4a6b3a;
-  --color-success-soft: #e2ecdd;
-  --color-danger: #a3452c;
-  --color-danger-soft: #f6e0d6;
-  --color-warning: #97672a;
+  --color-success: #3c7a52;
+  --color-success-soft: #dfede4;
+  --color-danger: #b03a2e;
+  --color-danger-soft: #f7e0dc;
+  --color-warning: #a8741f;
   --color-warning-soft: #f4e6cb;
 
   --radius-sm: 10px;
@@ -55,9 +59,9 @@
   --radius-lg: 20px;
   --radius-full: 999px;
 
-  --shadow-sm: 0 1px 2px rgba(42, 38, 32, 0.08);
-  --shadow-md: 0 8px 24px -4px rgba(42, 38, 32, 0.13);
-  --shadow-lg: 0 20px 45px -12px rgba(42, 38, 32, 0.24);
+  --shadow-sm: 0 1px 2px rgba(8, 34, 56, 0.09);
+  --shadow-md: 0 8px 24px -4px rgba(8, 34, 56, 0.15);
+  --shadow-lg: 0 20px 45px -12px rgba(8, 34, 56, 0.28);
   --shadow-focus: 0 0 0 3px var(--color-primary-soft);
 
   --font-body: 'Manrope', system-ui, sans-serif;
@@ -92,7 +96,7 @@ body {
      радиальный узор поверх плоского цвета, ощущается как полевой блокнот,
      а не плоская SaaS-панель */
   background-image:
-    radial-gradient(circle at 1px 1px, rgba(42, 38, 32, 0.05) 1px, transparent 0);
+    radial-gradient(circle at 1px 1px, rgba(8, 34, 56, 0.05) 1px, transparent 0);
   background-size: 22px 22px;
   background-color: var(--color-bg);
 }
@@ -232,16 +236,20 @@ li:last-child {
 }
 
 .brand-mark {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  background: linear-gradient(155deg, var(--color-primary), var(--color-primary-hover));
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
   flex-shrink: 0;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 0 0 1px var(--color-border), var(--shadow-sm);
+  overflow: hidden;
+}
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 /* ---- левый тулбар (ПК, >=768px) ---- */
@@ -1888,4 +1896,423 @@ button.btn-danger:hover:not(:disabled) {
   max-height: 290px;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+/* ==========================================================================
+   Заставка загрузки и экран входа (05.10.2026, под логотип GEO QUEST GROUP)
+   ========================================================================== */
+.auth-splash {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+}
+.auth-splash-logo {
+  position: relative;
+  width: 104px;
+  height: 104px;
+}
+.auth-splash-logo img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: block;
+  animation: auth-breathe 1.8s ease-in-out infinite;
+  box-shadow: 0 10px 30px -8px rgba(8, 34, 56, 0.35);
+}
+.auth-splash-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--color-primary);
+  opacity: 0;
+  animation: auth-ring 1.8s ease-out infinite;
+}
+.auth-splash-ring-2 {
+  animation-delay: 0.9s;
+}
+@keyframes auth-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+@keyframes auth-ring {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+
+.login {
+  min-height: 100svh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+}
+.login-brand {
+  position: relative;
+  overflow: hidden;
+  color: #eef2f5;
+  background: linear-gradient(160deg, #05223a 0%, #0a3a5c 55%, #0f4c76 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px clamp(28px, 5vw, 72px);
+}
+.login-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.login-rose {
+  transform-origin: 300px 300px;
+  animation: login-spin 160s linear infinite;
+  stroke: rgba(237, 235, 222, 0.14);
+  stroke-width: 1.2;
+}
+.login-star {
+  fill: rgba(237, 235, 222, 0.045);
+  stroke: rgba(237, 235, 222, 0.2);
+}
+.login-contours path {
+  stroke: rgba(237, 235, 222, 0.12);
+  stroke-width: 1.4;
+  stroke-dasharray: 5 11;
+  animation: login-flow 36s linear infinite;
+}
+.login-contours path:nth-child(even) {
+  animation-direction: reverse;
+  animation-duration: 48s;
+}
+@keyframes login-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes login-flow {
+  to { stroke-dashoffset: -320; }
+}
+.login-brand-inner {
+  position: relative;
+  max-width: 520px;
+  display: grid;
+  gap: 26px;
+  justify-items: start;
+}
+.login-logo {
+  position: relative;
+  width: clamp(150px, 16vw, 220px);
+  aspect-ratio: 1;
+  animation: login-float 7s ease-in-out infinite;
+}
+.login-logo img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 50%;
+  box-shadow: 0 24px 50px -14px rgba(0, 0, 0, 0.55), 0 0 0 4px rgba(237, 235, 222, 0.18);
+}
+.login-logo-halo {
+  position: absolute;
+  inset: -14%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 105, 31, 0.28) 0%, rgba(201, 105, 31, 0) 68%);
+  animation: login-halo 4.5s ease-in-out infinite;
+}
+@keyframes login-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes login-halo {
+  0%, 100% { transform: scale(0.96); opacity: 0.7; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+.login-brand-text h2 {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: clamp(24px, 2.6vw, 34px);
+  line-height: 1.2;
+  color: #fff;
+}
+.login-brand-text p {
+  margin: 0;
+  color: rgba(238, 242, 245, 0.8);
+  font-size: 15.5px;
+}
+.login-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.login-points li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14.5px;
+  color: rgba(238, 242, 245, 0.92);
+}
+.login-points li svg {
+  flex-shrink: 0;
+  color: #f0a15e;
+}
+.login-brand-foot {
+  position: absolute;
+  left: clamp(28px, 5vw, 72px);
+  bottom: 22px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(238, 242, 245, 0.55);
+}
+
+.login-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  background: var(--color-bg);
+}
+.login-shake {
+  width: 100%;
+  max-width: 420px;
+}
+.login-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 32px 30px;
+  box-shadow: var(--shadow-lg);
+}
+.login-field {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.login-input {
+  position: relative;
+  display: block;
+}
+.login-input > svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-faint);
+  pointer-events: none;
+  transition: color var(--dur-base) var(--ease-out);
+}
+.login-input:focus-within > svg {
+  color: var(--color-primary);
+}
+.login-input input {
+  padding-left: 38px;
+  padding-right: 42px;
+  font-weight: 500;
+  transition: border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+}
+.login-eye {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  min-height: 0 !important;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--color-text-faint);
+  border-radius: var(--radius-sm);
+}
+.login-eye:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+  color: var(--color-primary);
+  box-shadow: none;
+}
+.login-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-warning);
+}
+.login-error {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-soft);
+  font-size: 13.5px;
+}
+.login-submit {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 16px !important;
+  font-size: 14.5px !important;
+  min-height: 44px !important;
+}
+.login-submit::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.25) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+.login-submit:hover:not(:disabled)::after {
+  transform: translateX(120%);
+  transition: transform 0.7s var(--ease-out);
+}
+
+/* Телефон: компактная фирменная шапка сверху, форма карточкой поверх неё */
+@media (max-width: 899px) {
+  .login {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+  .login-brand {
+    padding: calc(28px + env(safe-area-inset-top, 0px)) 24px 74px;
+    align-items: center;
+    text-align: center;
+  }
+  .login-brand-inner {
+    gap: 12px;
+    justify-items: center;
+  }
+  .login-logo {
+    width: 104px;
+  }
+  .login-brand-text h2 {
+    font-size: 19px;
+  }
+  .login-brand-text p,
+  .login-points,
+  .login-brand-foot {
+    display: none;
+  }
+  .login-main {
+    padding: 0 16px 28px;
+    align-items: flex-start;
+    margin-top: -48px;
+    position: relative;
+  }
+  .login-card {
+    padding: 26px 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-rose,
+  .login-contours path,
+  .login-logo,
+  .login-logo-halo,
+  .auth-splash-logo img,
+  .auth-splash-ring {
+    animation: none !important;
+  }
+}
+/* форма внутри карточки входа — без собственной рамки/фона (карточка уже есть) */
+.login-card form {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* ==========================================================================
+   Правила гайда Контура, адаптированные под наш стиль (05.10.2026)
+   — шкала на модуле 8px, плоские блоки (тени только у слоёв над страницей),
+   рамки 1px, заголовки по брейкпоинтам, нижняя шторка вместо окна на телефоне,
+   фокус-рамка только при работе с клавиатуры.
+   ========================================================================== */
+:root {
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-8: 64px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+}
+
+/* Заголовки: Mobile -> Tablet -> Desktop (у Контура 32/40 -> 40/48) */
+h1 { font-size: 30px; line-height: 38px; }
+h2 { font-size: 20px; line-height: 28px; }
+h3 { font-size: 16px; line-height: 24px; }
+@media (min-width: 768px) {
+  h1 { font-size: 34px; line-height: 42px; }
+  h2 { font-size: 22px; line-height: 30px; }
+}
+@media (min-width: 1200px) {
+  h1 { font-size: 40px; line-height: 48px; }
+  h2 { font-size: 24px; line-height: 32px; }
+  h3 { font-size: 17px; }
+}
+/* Поля страницы: Mobile 16 -> Tablet 24 -> Desktop 32 */
+@media (min-width: 768px) { .page { padding-left: var(--space-3); padding-right: var(--space-3); } }
+@media (min-width: 1200px) { .page { padding-left: var(--space-4); padding-right: var(--space-4); } }
+
+/* Плоский дизайн: тени только у слоёв выше страницы (модалки, меню, карточка на карте) */
+.card,
+form,
+.attached-task-card,
+.site-card,
+.org-node-btn,
+button:hover:not(:disabled) {
+  box-shadow: none;
+}
+.card-interactive:hover,
+.site-card:hover {
+  transform: none;
+  box-shadow: none;
+  background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
+  border-color: var(--color-border-strong);
+}
+
+/* Фокус-рамка — только для клавиатуры */
+button:focus-visible,
+a:focus-visible,
+[role='button']:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Модальное окно: отступы 24/32 на ПК; на телефоне — нижняя шторка */
+.modal-panel {
+  padding: var(--space-3) var(--space-4);
+  max-width: 460px;
+}
+.modal-backdrop.is-sheet {
+  align-items: flex-end;
+  padding: 0;
+}
+.modal-panel.is-sheet {
+  max-width: none;
+  max-height: 90svh;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-bottom: none;
+  padding: 8px var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  overscroll-behavior: contain;
+}
+.sheet-handle {
+  width: 40px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--color-border-strong);
+  margin: 0 auto 12px;
+  touch-action: none;
+  cursor: grab;
 }

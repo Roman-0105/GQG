@@ -6,6 +6,7 @@ import { ChevronLeft, Layers, Plus, ChevronRight, Lock, Unlock, Scissors, FlaskC
 import Modal from '../../components/Modal'
 import SiteOverview from '../../components/SiteOverview'
 import StartDrillingModal from '../../components/StartDrillingModal'
+import { useIsMobile } from '../../hooks/useMediaQuery'
 import type { DrillingTask as DrillingTaskRow } from '../../types/database'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
@@ -94,6 +95,7 @@ export default function SiteDetail() {
   const [searchParams, setSearchParams] = useSearchParams()
   const statusFilter = (searchParams.get('filter') ?? 'all') as 'all' | 'planned' | 'in_progress' | 'suspended' | 'completed'
   const [startingWell, setStartingWell] = useState<DrillingTaskRow | null>(null)
+  const isMobile = useIsMobile()
   const [authorNames, setAuthorNames] = useState<Record<string, string>>({})
   // Прогресс бурения чужих скважин (геолог) — через RPC, см. taskProgress.ts
   const [foreignProgress, setForeignProgress] = useState<Record<string, number>>({})
@@ -388,7 +390,35 @@ export default function SiteDetail() {
           <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <DerrickIcon size={18} className="text-muted" /> Бурение скважин
           </h2>
-          {drillingTasks.length > 0 && (
+          {drillingTasks.length > 0 && isMobile && (
+            // На телефоне пять сегментов превращаются в один выпадающий список
+            <select
+              aria-label="Фильтр скважин"
+              value={statusFilter}
+              style={{ marginBottom: 12 }}
+              onChange={(e) => {
+                const next = new URLSearchParams(searchParams)
+                if (e.target.value === 'all') next.delete('filter')
+                else next.set('filter', e.target.value)
+                setSearchParams(next, { replace: true })
+              }}
+            >
+              {(
+                [
+                  ['all', 'Все'],
+                  ['planned', 'Запланированные'],
+                  ['in_progress', 'В работе'],
+                  ['suspended', 'Приостановленные'],
+                  ['completed', 'Закрытые'],
+                ] as const
+              ).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label} ({key === 'all' ? drillingTasks.length : drillingTasks.filter((t) => t.status === key).length})
+                </option>
+              ))}
+            </select>
+          )}
+          {drillingTasks.length > 0 && !isMobile && (
             <div className="map-segment" role="group" aria-label="Фильтр скважин" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
               {(
                 [

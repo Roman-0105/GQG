@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Mountain } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { NAV_ITEMS, isNavItemActive } from './navItems'
+import BrandMark from '../BrandMark'
 import UserMenu from './UserMenu'
 
 // Мобильная шапка: заголовок текущего раздела (по совпадению с NAV_ITEMS)
@@ -17,9 +17,7 @@ export default function MobileHeader() {
     return (
       <header className="mobile-header">
         <Link to="/" className="brand" style={{ marginRight: 0 }}>
-          <span className="brand-mark">
-            <Mountain size={15} strokeWidth={2.5} />
-          </span>
+          <BrandMark size={30} />
           GQG
         </Link>
       </header>

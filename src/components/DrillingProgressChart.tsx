@@ -108,7 +108,7 @@ export default function DrillingProgressChart({ rows, closure }: Props) {
     <div>
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
         <LegendSwatch color="var(--color-primary)" label="Смена 1" />
-        <LegendSwatch color="#6f9280" label="Смена 2" />
+        <LegendSwatch color="#6f96b8" label="Смена 2" />
         <LegendLine color="var(--color-accent)" label="Накопл. факт" />
         {hasPlan && <LegendLine color="var(--color-text-faint)" dashed label="План" />}
         {closure && (
@@ -152,7 +152,7 @@ export default function DrillingProgressChart({ rows, closure }: Props) {
                   width={BAR_W}
                   height={Math.max(0, BOTTOM - yBar(clip(p.shift2)))}
                   rx={2}
-                  fill={p.shift2Approved ? '#6f9280' : 'var(--color-accent-soft)'}
+                  fill={p.shift2Approved ? '#6f96b8' : 'var(--color-accent-soft)'}
                 />
               )}
               {p.shift1 != null && p.shift1 > barMax && (

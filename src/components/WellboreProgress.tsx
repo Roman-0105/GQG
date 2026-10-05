@@ -58,7 +58,7 @@ export default function WellboreProgress({
     <svg viewBox="0 0 260 400" style={{ width: '100%', maxWidth: 220, display: 'block', margin: '0 auto' }}>
       <defs>
         <linearGradient id="wellbore-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#3c5c4d" />
+          <stop offset="0%" stopColor="#2a6a96" />
           <stop offset="100%" stopColor="var(--color-primary)" />
         </linearGradient>
         <linearGradient id="wellbore-sheen" x1="0" y1="0" x2="1" y2="1">

@@ -27,6 +27,7 @@ import ProgressBar from '../../components/ProgressBar'
 import DrillingProgressPanel, { type DrillingChartRow } from '../../components/DrillingProgressPanel'
 import CrewAssignmentSection from '../../components/CrewAssignmentSection'
 import Modal from '../../components/Modal'
+import { useIsMobile } from '../../hooks/useMediaQuery'
 import { TASK_TYPE_REPORT_COLUMN, TASK_TYPE_LABELS, type TaskType } from '../../types/taskType'
 import { CLOSED_REASON_LABELS } from '../../types/database'
 import type {
@@ -102,6 +103,7 @@ export default function TaskDashboard() {
 
   // Таблица "По дням": на телефоне свёрнута по умолчанию (полевому работнику
   // нужны забой и прогресс, а не вся история), на ПК развёрнута.
+  const isMobile = useIsMobile()
   const [daysOpen, setDaysOpen] = useState(
     () => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches,
   )
@@ -960,7 +962,47 @@ export default function TaskDashboard() {
               {isManagement(profile?.role) ? ' Задайте его в блоке выше.' : ' Уточните у техдира.'}
             </p>
           )}
-          {daysOpen && (
+          {daysOpen && isMobile && (
+            // Телефон: вместо широкой таблицы — карточки по дням (только дни со сводками и сегодня)
+            <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+              {rowsForDisplay
+                .filter(({ cells, row }) => row.date === todayIso() || cells.some((c) => c.meters != null || c.hours != null || c.samplesTaken != null))
+                .map(({ row, cells, dayApproved, runningApproved: cumApproved, plannedCumulative }) => {
+                  const dayDiff = plannedCumulative != null ? round2(cumApproved - plannedCumulative) : null
+                  const isToday = row.date === todayIso()
+                  return (
+                    <div key={row.date} className="card" style={{ padding: 12, background: isToday ? 'var(--color-primary-soft)' : undefined }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                        <b className="num">{`${row.date.slice(8, 10)}.${row.date.slice(5, 7)}.${row.date.slice(0, 4)}`}</b>
+                        {isAdditiveMeters && <span className="num" style={{ fontWeight: 700 }}>{dayApproved} м</span>}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+                        {cells.map((c, i) => (
+                          <span key={i} className="badge badge-neutral num">
+                            {shiftsApply ? `${shiftColumnLabel(i as 0 | 1)}: ` : ''}
+                            {c.meters != null ? `${c.meters} м` : c.samplesTaken != null ? `${c.samplesTaken} проб` : '—'}
+                            {c.hours != null ? ` · ${c.hours} ч` : ''}
+                          </span>
+                        ))}
+                      </div>
+                      {isAdditiveMeters && (
+                        <div className="text-muted" style={{ fontSize: 12.5, display: 'flex', flexWrap: 'wrap', gap: '2px 14px' }}>
+                          <span>Накопл. факт: <b className="num">{cumApproved} м</b></span>
+                          {isDrilling && plannedCumulative != null && <span>План: <b className="num">{plannedCumulative} м</b></span>}
+                          {isDrilling && dayDiff != null && (
+                            <span style={{ color: dayDiff >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                              {dayDiff >= 0 ? '+' : ''}{dayDiff} м
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>Дни без сводок скрыты.</p>
+            </div>
+          )}
+          {daysOpen && !isMobile && (
           <div className="card" style={{ overflow: 'hidden', marginTop: 10 }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 480 }}>

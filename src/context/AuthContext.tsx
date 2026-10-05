@@ -77,7 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, profile, profileError, loading, signOut }}>
+    // Пока сессия есть, а профиль ещё не пришёл (и ошибки нет) — это тоже загрузка:
+    // иначе на долю секунды после входа мелькала служебная панель «профиль не
+    // загрузился… Диагностика» (05.10.2026).
+    <AuthContext.Provider
+      value={{ session, profile, profileError, loading: loading || (!!session && !profile && !profileError), signOut }}
+    >
       {children}
     </AuthContext.Provider>
   )
