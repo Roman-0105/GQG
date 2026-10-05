@@ -206,8 +206,15 @@ export default function SiteOverview({
       <div className="site-overview-grid">
         <div className="card" style={{ padding: 14 }}>
           <h3 style={{ margin: '0 0 10px', fontSize: 15 }}>Скважины</h3>
-          <div style={{ display: 'grid', gap: 2 }}>
-            {wells.map((w) => (
+          {/* Список прокручивается внутри карточки (до ~6 строк), чтобы он не растягивал
+              соседнюю карточку с графиком, когда скважин много (04.10.2026). */}
+          <div className="site-overview-wells">
+            {[...wells]
+              .sort((a, b) => {
+                const rank = (w: WellRow) => (w.task.status === 'in_progress' ? 0 : w.task.status === 'suspended' ? 1 : w.task.status === 'completed' ? 2 : 3)
+                return rank(a) - rank(b)
+              })
+              .map((w) => (
               <Link
                 key={w.task.id}
                 to={`/tasks/drilling/${w.task.id}/dashboard`}
