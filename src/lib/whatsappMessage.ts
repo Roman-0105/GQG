@@ -22,6 +22,10 @@ interface ShiftMessageInput {
   sawnMeters?: number | null
   samplesTaken?: number | null
   samplesSubmitted?: number | null
+  // Диаметр бурения за смену (интервалы) и текущая обсадка скважины (06.10.2026).
+  drillIntervals?: { code: string; from: number; to: number }[]
+  casings?: { code: string; depth: number }[]
+  reamings?: { code: string; from: number; to: number }[]
 }
 
 function formatDateRu(iso: string) {
@@ -45,6 +49,9 @@ export function buildDrillingShiftMessage({
   sawnMeters,
   samplesTaken,
   samplesSubmitted,
+  drillIntervals,
+  casings,
+  reamings,
 }: ShiftMessageInput): string {
   const lines = [`Отчёт по бурению ${formatDateRu(reportDate)}`]
   if (shiftNumber) lines.push(`Смена ${shiftNumber}`)
@@ -55,6 +62,19 @@ export function buildDrillingShiftMessage({
     `Глубина: ${bottomHole}`,
     `Проходка: ${meters}`,
   )
+  if (drillIntervals && drillIntervals.length > 0) {
+    lines.push(
+      drillIntervals.length === 1
+        ? `Диаметр бурения: ${drillIntervals[0].code}`
+        : `Диаметр бурения: ${drillIntervals.map((d) => `${d.code} (${d.from}–${d.to} м)`).join(', ')}`,
+    )
+  }
+  if (reamings && reamings.length > 0) {
+    lines.push(`Расширение: ${reamings.map((r) => `${r.code} ${r.from}–${r.to} м`).join(', ')}`)
+  }
+  if (casings && casings.length > 0) {
+    lines.push(`Обсадка: ${casings.map((c) => `${c.code} до ${c.depth} м`).join(', ')}`)
+  }
   for (const core of coreDescriptions ?? []) {
     lines.push(`Керн (${core.label}): ${core.from}–${core.to}`)
     if (core.photoTo != null) {

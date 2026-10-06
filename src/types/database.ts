@@ -295,3 +295,24 @@ export interface TaskAssignee {
   profile_id: string
   created_at: string
 }
+
+// Фактический диаметр бурения в сводке (миграция 0027).
+export interface ReportDrillDiameter {
+  id: string
+  report_id: string
+  depth_from: number
+  depth_to: number
+  diameter_code: string
+}
+
+// Журнал согласования сводки (миграция 0030).
+export type ReportLogAction = 'submitted' | 'resubmitted' | 'approved' | 'rejected' | 'returned'
+
+export interface ReportStatusLog {
+  id: string
+  report_id: string
+  action: ReportLogAction
+  actor_id: string | null
+  comment: string | null
+  created_at: string
+}

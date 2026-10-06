@@ -1,37 +1,42 @@
-import { motion } from 'framer-motion'
 import { round2 } from '../lib/taskProgress'
+import { drillDiameterMm } from '../lib/drillDiameters'
+
+export interface WellboreDiameter {
+  depth_from: number
+  depth_to: number
+  diameter: number
+  // Готовая подпись (для фактических интервалов — буквенный размер штанги).
+  label?: string
+}
 
 interface Props {
   projectedDepth: number | null
   approvedDepth: number
   pendingDepth?: number
+  diameters?: WellboreDiameter[]
+  // Обсадка: код размера + глубина «до» (от устья).
+  casings?: { code: string; depth: number }[]
 }
 
-const TOP = 36
-const BOTTOM = 356
-const TUBE_H = BOTTOM - TOP
-const TUBE_X = 70
-const TUBE_W = 60
+const VB_W = 300
+const TOP = 34
+const BOTTOM = 354
+const H = BOTTOM - TOP
+const AXIS_X = 38
+const CENTER_X = 96
+const MIN_W = 30
+const MAX_W = 62
+const LABEL_X = 140
 
-// Схематичный ствол скважины: труба сверху вниз, залив — фактическая
-// глубина по подтверждённым сводкам, штрих — ещё не согласованный остаток,
-// пунктирная линия — проектная глубина (если задание уже её достигло или
-// перегнало, это будет видно по вылезающему за пунктир заливу). Тонкие
-// горизонтальные линии внутри залива — стилизация под керн/породу, не
-// декор ради декора: сразу считывается как "ствол", а не абстрактный бар.
-//
-// 25.09.2026 — визуально доработан по одобренному эскизу (Design-канвас
-// "Проходка скважины — варианты", концепция 1): блик (sheen) поверх
-// залива для объёма, штрихованная (не сплошная) заливка "на
-// согласовании" вместо плоского цвета, пульсирующая метка текущего забоя
-// и деление насечек на крупные (подписаны) и мелкие — тот же ствол, тот
-// же интерфейс пропсов, просто "живее". Логика заливки/анимации не
-// менялась.
-export default function WellboreProgress({
-  projectedDepth,
-  approvedDepth,
-  pendingDepth = 0,
-}: Props) {
+const fmt = (n: number) => String(round2(n)).replace('.', ',')
+
+// Схематичная конструкция скважины (06.10.2026, выбрана владельцем из трёх
+// эскизов): плоская ступенчатая колонна по интервалам диаметров бурения,
+// слева ось глубины, справа подписи диаметров, оранжевая отметка забоя с
+// метражом и линия проектной глубины. Заливка — подтверждённый факт,
+// штриховка — «на согласовании». Без заданных диаметров колонна рисуется
+// одним сегментом.
+export default function WellboreProgress({ projectedDepth, approvedDepth, pendingDepth = 0, diameters = [], casings = [] }: Props) {
   if (!projectedDepth || projectedDepth <= 0) {
     return (
       <p className="text-muted" style={{ fontSize: 13.5 }}>
@@ -41,154 +46,148 @@ export default function WellboreProgress({
     )
   }
 
-  const clampFrac = (v: number) => Math.max(0, Math.min(1, v / projectedDepth))
-  const approvedFrac = clampFrac(approvedDepth)
-  const pendingFrac = clampFrac(approvedDepth + pendingDepth) - approvedFrac
+  const yOf = (depth: number) => TOP + (Math.max(0, Math.min(projectedDepth, depth)) / projectedDepth) * H
+  const knownDepth = approvedDepth + pendingDepth
+  const tipY = yOf(knownDepth)
+  const percent = round2((approvedDepth / projectedDepth) * 100)
 
-  const approvedH = TUBE_H * approvedFrac
-  const pendingH = TUBE_H * pendingFrac
-  const tipY = TOP + approvedH + pendingH
+  // Сегменты колонны: каждый тянется до начала следующего, последний — до проекта.
+  const sorted = [...diameters].filter((d) => d.depth_to > d.depth_from).sort((a, b) => a.depth_from - b.depth_from)
+  const casingList = casings
+    .map((c) => ({ ...c, mm: drillDiameterMm(c.code) ?? 0 }))
+    .filter((c) => c.depth > 0 && c.mm > 0)
+    .sort((a, b) => b.mm - a.mm)
+  const mms = [...sorted.map((d) => d.diameter), ...casingList.map((c) => c.mm)]
+  const dMin = Math.min(...mms)
+  const dMax = Math.max(...mms)
+  const widthOf = (dia: number) => (mms.length === 0 || dMax === dMin ? 46 : MIN_W + ((dia - dMin) / (dMax - dMin)) * (MAX_W - MIN_W))
+  const segments =
+    sorted.length > 0
+      ? sorted.map((d, i) => ({
+          from: i === 0 ? 0 : d.depth_from,
+          to: i === sorted.length - 1 ? Math.max(projectedDepth, d.depth_to) : sorted[i + 1].depth_from,
+          width: widthOf(d.diameter),
+          label: `${d.label ?? `Ø${round2(d.diameter)}`} · ${round2(d.depth_from)}–${round2(d.depth_to)} м`,
+          mid: (d.depth_from + d.depth_to) / 2,
+        }))
+      : [{ from: 0, to: projectedDepth, width: 46, label: '', mid: 0 }]
 
-  const majorTicks = Array.from({ length: 6 }, (_, i) => i / 5)
-  const minorTicks = Array.from({ length: 5 }, (_, i) => i / 5 + 0.1)
+  // Подписи диаметров: у середины своего интервала, но не поверх забоя/проекта
+  // и не друг на друга.
+  const placed: number[] = [tipY, BOTTOM]
+  const casingLabels = casingList.map((c) => ({ y: 0, text: 'Обсадка ' + c.code + ' · 0–' + round2(c.depth) + ' м', depth: c.depth }))
+  const labels = [
+    ...segments.filter((s) => s.label).map((s) => ({ label: s.label, mid: s.mid })),
+    ...casingLabels.map((c) => ({ label: c.text, mid: c.depth })),
+  ]
+    .map((s) => {
+      let y = Math.min(BOTTOM - 16, Math.max(TOP + 8, yOf(s.mid)))
+      for (let guard = 0; guard < 12; guard++) {
+        const hit = placed.find((p) => Math.abs(p - y) < 14)
+        if (hit === undefined) break
+        y = hit + 14
+      }
+      placed.push(y)
+      return { y, text: s.label }
+    })
 
-  const stripeCount = Math.max(0, Math.round((approvedH + pendingH) / 16))
+  const stepOptions = [10, 20, 50, 100, 200, 250, 500, 1000]
+  const step = stepOptions.find((s) => projectedDepth / s <= 7) ?? 1000
+  const ticks: number[] = []
+  for (let d = 0; d <= projectedDepth; d += step) ticks.push(d)
+
+  const overlap = (a0: number, a1: number, b0: number, b1: number) => Math.max(0, Math.min(a1, b1) - Math.max(a0, b0))
 
   return (
-    <svg viewBox="0 0 260 400" style={{ width: '100%', maxWidth: 220, display: 'block', margin: '0 auto' }}>
+    <svg viewBox={`0 0 ${VB_W} 410`} style={{ width: '100%', maxWidth: 300, display: 'block', margin: '0 auto' }}>
       <defs>
-        <linearGradient id="wellbore-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2a6a96" />
-          <stop offset="100%" stopColor="var(--color-primary)" />
-        </linearGradient>
-        <linearGradient id="wellbore-sheen" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="30%" stopColor="#ffffff" stopOpacity="0" />
-          <stop offset="46%" stopColor="#ffffff" stopOpacity="0.16" />
-          <stop offset="60%" stopColor="#ffffff" stopOpacity="0" />
-        </linearGradient>
-        <pattern id="wellbore-hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+        <pattern id="wb-hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
           <rect width="6" height="6" fill="var(--color-accent-soft)" />
-          <line x1="0" y1="0" x2="0" y2="6" stroke="var(--color-accent)" strokeWidth={1.4} strokeOpacity={0.5} />
+          <line x1="0" y1="0" x2="0" y2="6" stroke="var(--color-accent)" strokeWidth={1.4} strokeOpacity={0.6} />
         </pattern>
-        <clipPath id="wellbore-clip">
-          <rect x={TUBE_X} y={TOP} width={TUBE_W} height={TUBE_H} rx={6} />
-        </clipPath>
       </defs>
 
-      {/* устье */}
-      <rect x={TUBE_X - 16} y={TOP - 14} width={TUBE_W + 32} height={14} rx={3} fill="var(--color-border-strong)" />
+      <text x={AXIS_X - 4} y={16} fontSize={13} fontWeight={700} fontFamily="var(--font-mono)" fill="var(--color-text)">
+        {String(Math.round(percent * 10) / 10).replace(".", ",")}% проекта
+      </text>
 
-      {/* труба (фон) */}
-      <rect x={TUBE_X} y={TOP} width={TUBE_W} height={TUBE_H} rx={6} fill="var(--color-surface-muted)" stroke="var(--color-border-strong)" strokeWidth={1.5} />
+      {/* ось глубины */}
+      <line x1={AXIS_X} y1={TOP} x2={AXIS_X} y2={BOTTOM} stroke="var(--color-border-strong)" strokeWidth={1} />
+      {ticks.map((d) => (
+        <g key={d}>
+          <line x1={AXIS_X - 4} y1={yOf(d)} x2={AXIS_X} y2={yOf(d)} stroke="var(--color-border-strong)" />
+          <text x={AXIS_X - 7} y={yOf(d) + 3.5} textAnchor="end" fontSize={10} fontFamily="var(--font-mono)" fill="var(--color-text-muted)">
+            {d}
+          </text>
+        </g>
+      ))}
 
-      <g clipPath="url(#wellbore-clip)">
-        {/* факт: подтверждено */}
-        <motion.rect
-          x={TUBE_X}
-          width={TUBE_W}
-          fill="url(#wellbore-fill)"
-          initial={{ y: BOTTOM, height: 0 }}
-          animate={{ y: TOP, height: approvedH }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        />
-        {/* факт: на согласовании — штриховка, а не плоский цвет: сразу
-            читается как "предварительно", не путается с подтверждённым */}
-        {pendingH > 0 && (
-          <motion.rect
-            x={TUBE_X}
-            width={TUBE_W}
-            fill="url(#wellbore-hatch)"
-            initial={{ y: BOTTOM, height: 0 }}
-            animate={{ y: TOP + approvedH, height: pendingH }}
-            transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          />
-        )}
-        {/* блик — стилизация под влажную породу: помогает читать залив как
-            объёмную трубу, а не плоский бар */}
-        <motion.rect
-          x={TUBE_X}
-          width={TUBE_W}
-          fill="url(#wellbore-sheen)"
-          initial={{ y: BOTTOM, height: 0 }}
-          animate={{ y: TOP, height: approvedH + pendingH }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        />
-        {/* керновые полосы — визуальная стилизация под породу */}
-        {Array.from({ length: stripeCount }).map((_, i) => (
-          <rect
-            key={i}
-            x={TUBE_X}
-            y={BOTTOM - (i + 1) * 16}
-            width={TUBE_W}
-            height={1}
-            fill="rgba(0,0,0,0.06)"
-          />
-        ))}
-      </g>
-
-      {/* пульсирующая метка текущего забоя */}
-      <circle cx={TUBE_X + TUBE_W / 2} cy={tipY} r={4.5} fill="var(--color-accent)">
-        <animate attributeName="r" values="4.5;8;4.5" dur="2.2s" repeatCount="indefinite" />
-        <animate attributeName="opacity" values="1;.25;1" dur="2.2s" repeatCount="indefinite" />
-      </circle>
-      <circle cx={TUBE_X + TUBE_W / 2} cy={tipY} r={2.6} fill="var(--color-accent)" />
-
-      {/* насечки глубины: крупные — подписаны, мелкие — просто деления */}
-      {majorTicks.map((t) => {
-        const y = TOP + TUBE_H * t
-        const depth = Math.round(projectedDepth * t)
+      {/* обсадка: стальная «рубашка» от устья до глубины обсадки */}
+      {casingList.map((c) => {
+        const w = widthOf(c.mm) + 10
         return (
-          <g key={`major-${t}`}>
-            <line x1={TUBE_X - 8} y1={y} x2={TUBE_X + TUBE_W + 8} y2={y} stroke="var(--color-border)" strokeWidth={1.3} />
-            <text
-              x={TUBE_X + TUBE_W + 14}
-              y={y + 4}
-              fontSize={11}
-              fontWeight={700}
-              fontFamily="var(--font-mono)"
-              fill="var(--color-text)"
-            >
-              {depth}м
-            </text>
+          <rect
+            key={c.code}
+            x={CENTER_X - w / 2}
+            y={TOP}
+            width={w}
+            height={yOf(c.depth) - TOP}
+            fill="#d6dadd"
+            stroke="#7d868c"
+            strokeWidth={2}
+          />
+        )
+      })}
+
+      {/* колонна по диаметрам */}
+      {segments.map((s, i) => {
+        const x = CENTER_X - s.width / 2
+        const y0 = yOf(s.from)
+        const y1 = yOf(s.to)
+        const aH = (overlap(s.from, s.to, 0, approvedDepth) / projectedDepth) * H
+        const pH = (overlap(s.from, s.to, approvedDepth, knownDepth) / projectedDepth) * H
+        return (
+          <g key={i}>
+            <rect x={x} y={y0} width={s.width} height={y1 - y0} fill="var(--color-surface-muted)" stroke="var(--color-border-strong)" strokeWidth={1.2} />
+            {aH > 0 && <rect x={x} y={y0} width={s.width} height={aH} fill="var(--color-primary)" />}
+            {pH > 0 && <rect x={x} y={y0 + aH} width={s.width} height={pH} fill="url(#wb-hatch)" />}
+            <rect x={x} y={y0} width={s.width} height={y1 - y0} fill="none" stroke="var(--color-border-strong)" strokeWidth={1.2} />
           </g>
         )
       })}
-      {minorTicks.map((t) => {
-        const y = TOP + TUBE_H * t
-        return (
-          <line
-            key={`minor-${t}`}
-            x1={TUBE_X - 4}
-            y1={y}
-            x2={TUBE_X + TUBE_W + 4}
-            y2={y}
-            stroke="var(--color-border)"
-            strokeWidth={0.8}
-          />
-        )
-      })}
 
-      {/* долото на конце факта */}
-      <polygon
-        points={`${TUBE_X},${tipY} ${TUBE_X + TUBE_W},${tipY} ${TUBE_X + TUBE_W / 2},${tipY + 14}`}
-        fill={pendingH > 0 ? 'var(--color-accent-soft)' : 'var(--color-primary)'}
-      />
-      <ellipse cx={TUBE_X + TUBE_W / 2} cy={tipY + 15.5} rx={17} ry={3.4} fill="rgba(42,38,32,.10)" />
+      {/* подписи диаметров */}
+      {labels.map((l) => (
+        <text key={l.text} x={LABEL_X} y={l.y + 3.5} fontSize={10.5} fontFamily="var(--font-mono)" fill="var(--color-text-muted)">
+          {l.text}
+        </text>
+      ))}
 
-      {/* низ ствола (план) */}
-      <line x1={TUBE_X - 10} y1={BOTTOM} x2={TUBE_X + TUBE_W + 10} y2={BOTTOM} stroke="var(--color-text-faint)" strokeDasharray="3 3" strokeWidth={1.5} />
+      {/* забой */}
+      {knownDepth > 0 && (
+        <g>
+          <line x1={AXIS_X} y1={tipY} x2={VB_W - 6} y2={tipY} stroke="var(--color-accent)" strokeWidth={1.6} />
+          <polygon points={`${CENTER_X + MAX_W / 2 + 4},${tipY} ${CENTER_X + MAX_W / 2 + 12},${tipY - 4} ${CENTER_X + MAX_W / 2 + 12},${tipY + 4}`} fill="var(--color-accent)" />
+          <text x={LABEL_X} y={tipY - 5} fontSize={11.5} fontWeight={700} fontFamily="var(--font-mono)" fill="var(--color-accent)">
+            Забой {fmt(knownDepth)} м
+          </text>
+        </g>
+      )}
 
-      <text
-        x={TUBE_X + TUBE_W / 2}
-        y={TOP - 18}
-        textAnchor="middle"
-        fontSize={13}
-        fontWeight={700}
-        fontFamily="var(--font-mono)"
-        fill="var(--color-text)"
-      >
-        {round2(approvedDepth)}{pendingDepth > 0 ? `(+${round2(pendingDepth)})` : ''} / {round2(projectedDepth)} м
+      {/* проект */}
+      <line x1={AXIS_X} y1={BOTTOM} x2={VB_W - 6} y2={BOTTOM} stroke="var(--color-text)" strokeWidth={2} />
+      <text x={LABEL_X} y={BOTTOM + 15} fontSize={11.5} fontWeight={700} fontFamily="var(--font-mono)" fill="var(--color-text)">
+        Проект {fmt(projectedDepth)} м
       </text>
+
+      {pendingDepth > 0 && (
+        <g>
+          <rect x={AXIS_X - 4} y={386} width={16} height={10} fill="url(#wb-hatch)" stroke="var(--color-accent)" strokeOpacity={0.6} />
+          <text x={AXIS_X + 18} y={395} fontSize={11} fontFamily="var(--font-mono)" fill="var(--color-text-muted)">
+            на согласовании +{fmt(pendingDepth)} м
+          </text>
+        </g>
+      )}
     </svg>
   )
 }

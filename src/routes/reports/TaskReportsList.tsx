@@ -7,7 +7,8 @@ import { useAuth } from '../../context/AuthContext'
 import { riseIn } from '../../lib/motionVariants'
 import { ApprovalBadge } from '../../components/StatusBadge'
 import { TASK_TYPE_REPORT_COLUMN, type TaskType } from '../../types/taskType'
-import type { Report } from '../../types/database'
+import { isManagement } from '../../types/roles'
+import type { ApprovalStatus, Report } from '../../types/database'
 
 function shiftLabel(taskType: TaskType, shiftNumber: number | null) {
   if (!shiftNumber) return ''
@@ -20,7 +21,10 @@ export default function TaskReportsList() {
     taskType: TaskType
     taskId: string
   }>()
-  const { session, loading: authLoading } = useAuth()
+  const { session, profile, loading: authLoading } = useAuth()
+  const showPeople = isManagement(profile?.role)
+  const [names, setNames] = useState<Map<string, string>>(new Map())
+  const [statusFilter, setStatusFilter] = useState<ApprovalStatus | 'all'>('all')
 
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,6 +46,11 @@ export default function TaskReportsList() {
 
       if (fetchError) setError(fetchError.message)
       else setReports(data ?? [])
+      const ids = [...new Set((data ?? []).flatMap((r) => [r.author_id, r.approved_by]).filter((x): x is string => !!x))]
+      if (ids.length > 0) {
+        const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', ids)
+        setNames(new Map((profs ?? []).map((p) => [p.id as string, p.full_name as string])))
+      }
       setLoading(false)
     }
 
@@ -72,7 +81,24 @@ export default function TaskReportsList() {
       </div>
       <p className="text-muted" style={{ fontSize: 13, marginTop: 6 }}>
         Клик по сводке открывает историю — что было заполнено, статус, комментарий согласования.
+        {showPeople && ' Из сводки можно вернуть мастеру на правку.'}
       </p>
+
+      {showPeople && reports.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
+          {([['all', 'Все'], ['submitted', 'На согласовании'], ['approved', 'Одобрено'], ['rejected', 'Отклонено / на правке'], ['draft', 'Черновики']] as const).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              className={statusFilter === k ? undefined : 'btn-outline'}
+              onClick={() => setStatusFilter(k)}
+              style={{ minHeight: 34, padding: '4px 12px', fontSize: 13 }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && <p className="text-error">{error}</p>}
 
@@ -88,7 +114,7 @@ export default function TaskReportsList() {
         </p>
       ) : (
         <div style={{ display: 'grid', gap: 8, marginTop: 20 }}>
-          {reports.map((r, i) => (
+          {reports.filter((r) => statusFilter === 'all' || r.approval_status === statusFilter).map((r, i) => (
             <motion.div key={r.id} {...riseIn(i, { duration: 0.25, cap: 10, step: 0.03 })}>
               <Link
                 to={`/tasks/${taskType}/${taskId}/reports/${r.id}`}
@@ -103,6 +129,13 @@ export default function TaskReportsList() {
                   <ApprovalBadge status={r.approval_status} />
                   <ChevronRight size={17} className="text-faint" style={{ marginLeft: 'auto' }} />
                 </div>
+                {showPeople && (
+                  <p className="text-muted" style={{ fontSize: 13, margin: '6px 0 0' }}>
+                    Автор: {names.get(r.author_id) ?? '—'}
+                    {r.approved_by && r.approved_at && (r.approval_status === 'approved' || r.approval_status === 'rejected') &&
+                      ` · ${r.approval_status === 'approved' ? 'согласовал' : 'вернул'}: ${names.get(r.approved_by) ?? '—'}, ${new Date(r.approved_at).toLocaleDateString('ru-RU')}`}
+                  </p>
+                )}
                 {r.approval_status === 'rejected' && r.review_comment && (
                   <p className="text-error" style={{ fontSize: 13.5, margin: '6px 0 0' }}>
                     Причина: {r.review_comment}

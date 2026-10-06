@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ChevronLeft, MessageCircle, Check } from 'lucide-react'
+import { ChevronLeft, MessageCircle, Check, Plus, X } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { notifyReportsChanged } from '../../hooks/useReportCounts'
 import { buildDrillingShiftMessage } from '../../lib/whatsappMessage'
 import { round2 } from '../../lib/taskProgress'
+import { DRILL_DIAMETERS, drillDiameterLabel, loadDiameterHistory, paintIntervals } from '../../lib/drillDiameters'
 import { TASK_TYPE_REPORT_COLUMN, type TaskType } from '../../types/taskType'
 import type {
   CoreDescriptionTask,
@@ -127,6 +128,27 @@ export default function DailyReportForm() {
   // Проходка за смену вводится на шаге 1 вместо/вместе с «до»: «до» = «от» + проходка
   // считается сразу (03.10.2026). Храним строкой, чтобы не терять «5.» при наборе.
   const [metersInput, setMetersInput] = useState('')
+  // Фактический диаметр бурения (06.10.2026): строки «от / проходка / до /
+  // диаметр». «От» первой строки — забой на начало смены, у следующих — «до»
+  // предыдущей. «До» и проходка ПОСЛЕДНЕЙ строки живут в drillingTo/metersInput
+  // (это и есть забой на конец смены), у остальных — в to/m. По умолчанию —
+  // диаметр последней сводки по заданию.
+  const [diamSegs, setDiamSegs] = useState<{ code: string; to: string; m: string }[]>([{ code: '', to: '', m: '' }])
+  // Правка старой сводки, где диаметр ещё не вносился — не требуем его задним числом.
+  const [legacyNoDiam, setLegacyNoDiam] = useState(false)
+  // Последний интервал бурения по прошлым сводкам — подсказка мастеру.
+  // История диаметров бурения по прошлым сводкам: подряд идущие интервалы одного
+  // диаметра склеены (PQ 0–10.7, HQ 10.7–45.9).
+  // Расширение ствола (06.10.2026): участок уже пробуренного ствола, который
+  // добурили другим диаметром. Метраж бурения не меняет, забой остаётся прежним.
+  const [reamOn, setReamOn] = useState(false)
+  const [reamRows, setReamRows] = useState<{ code: string; from: string; to: string }[]>([])
+  const [diamHistory, setDiamHistory] = useState<{ code: string; from: number; to: number }[]>([])
+  // Обсадка (06.10.2026): casingBase — текущее состояние по прошлым сводкам
+  // (диаметр -> глубина, м), casingEdits — что мастер изменил в ЭТОЙ сводке.
+  // Пустой список правок = обсадка не менялась, в сводку ничего не пишется.
+  const [casingBase, setCasingBase] = useState<Record<string, number>>({})
+  const [casingEdits, setCasingEdits] = useState<{ code: string; depth: string }[]>([])
   const [coreFrom, setCoreFrom] = useState('0')
   const [coreTo, setCoreTo] = useState('')
   const [photoFrom, setPhotoFrom] = useState('0')
@@ -333,6 +355,22 @@ export default function DailyReportForm() {
         setDrillingFrom(String(knownSum))
         knownSumAtLoad = knownSum
 
+        // Диаметр по умолчанию — с которого закончили прошлую смену.
+        const otherIds = otherReports.map((r) => r.id)
+        if (otherIds.length > 0) {
+          const { data: casRows } = await supabase
+            .from('report_casings')
+            .select('diameter_code, depth_to')
+            .in('report_id', otherIds)
+          const base: Record<string, number> = {}
+          for (const c of casRows ?? []) base[c.diameter_code] = Math.max(base[c.diameter_code] ?? 0, c.depth_to)
+          setCasingBase(base)
+          const history = await loadDiameterHistory(supabase, taskId ?? '', reportId)
+          setDiamHistory(history.intervals)
+          const lastCode = history.lastCode
+          if (lastCode) setDiamSegs([{ code: lastCode, to: '', m: '' }])
+        }
+
         // Геологические работы (керн, распиловка, опробование) в сводку
         // мастера бурения больше не подмешиваются (03.10.2026): мастер заполняет
         // только бурение, а геологи вносят свою часть отдельно — на экране
@@ -438,6 +476,37 @@ export default function DailyReportForm() {
             r.samples_submitted != null ? String(r.samples_submitted) : '',
           )
           setShiftNotes(r.shift_notes ?? '')
+        }
+        if (taskType === 'drilling') {
+          const { data: diamRows } = await supabase
+            .from('report_drill_diameters')
+            .select('depth_from, depth_to, diameter_code, is_reaming')
+            .eq('report_id', reportId)
+            .order('depth_from', { ascending: true })
+          const reamLoaded = (diamRows ?? []).filter((d) => d.is_reaming)
+          if (reamLoaded.length > 0) {
+            setReamOn(true)
+            setReamRows(reamLoaded.map((d) => ({ code: d.diameter_code, from: String(round2(d.depth_from)), to: String(round2(d.depth_to)) })))
+          }
+          const normalRows = (diamRows ?? []).filter((d) => !d.is_reaming)
+          if (normalRows.length > 0) {
+            setDiamSegs(
+              normalRows.map((d) => ({
+                code: d.diameter_code,
+                to: String(round2(d.depth_to)),
+                m: String(round2(d.depth_to - d.depth_from)),
+              })),
+            )
+            const lastRow = normalRows[normalRows.length - 1]
+            setMetersInput(String(round2(lastRow.depth_to - lastRow.depth_from)))
+          } else {
+            setLegacyNoDiam(true)
+          }
+          const { data: casEdits } = await supabase
+            .from('report_casings')
+            .select('diameter_code, depth_to')
+            .eq('report_id', reportId)
+          setCasingEdits((casEdits ?? []).map((c) => ({ code: c.diameter_code, depth: String(round2(c.depth_to)) })))
         }
         if (costsRes.data && costsRes.data.length > 0) {
           setCostRows(
@@ -577,8 +646,51 @@ export default function DailyReportForm() {
       : await supabase.from('reports').insert(base).select().single()
   }
 
+  // Границы строк диаметра (см. комментарий у diamSegs).
+  const rowFrom = (i: number) => (i === 0 ? drillingFrom : diamSegs[i - 1].to)
+  const rowTo = (i: number) => (i === diamSegs.length - 1 ? drillingTo : diamSegs[i].to)
+  const rowM = (i: number) => (i === diamSegs.length - 1 ? metersInput : diamSegs[i].m)
+
+  // Проверка диаметров бурения: у каждого интервала выбран размер, а «с метра»
+  // смены диаметра лежит строго между забоем «от» и «до» и идёт по возрастанию.
+  const diamIssue: string | null = (() => {
+    if (taskType !== 'drilling') return null
+    if (!legacyNoDiam && diamSegs.some((sg) => sg.code === '')) return 'Выберите диаметр бурения'
+    for (let i = 0; i < diamSegs.length; i++) {
+      const to = rowTo(i)
+      if (to === '') {
+        if (i < diamSegs.length - 1) return 'Укажите «до» для каждого диаметра'
+        continue
+      }
+      if (Number(to) < Number(rowFrom(i) || 0)) return 'Диаметр ' + (i + 1) + ': «до» меньше «от»'
+    }
+    if (reamOn) {
+      for (const r of reamRows) {
+        if (r.code === '' || r.from === '' || r.to === '') return 'Расширение: выберите диаметр и укажите «с» и «до»'
+        if (!(Number(r.to) > Number(r.from))) return 'Расширение: «до» должно быть больше «с»'
+      }
+    }
+    const seen = new Set<string>()
+    for (const c of casingEdits) {
+      const v = Number(c.depth)
+      if (c.code === '' || c.depth === '') return 'Обсадка: выберите диаметр и укажите глубину'
+      if (seen.has(c.code)) return 'Обсадка: диаметр ' + c.code + ' указан дважды'
+      seen.add(c.code)
+      if (!(v > (casingBase[c.code] ?? 0))) {
+        return 'Обсадка ' + c.code + ': глубина должна быть больше текущей (' + (casingBase[c.code] ?? 0) + ' м)'
+      }
+      if (drillingTo !== '' && v > Number(drillingTo)) return 'Обсадка ' + c.code + ': глубина больше забоя'
+    }
+    return null
+  })()
+
   async function doSubmit(mode: 'draft' | 'submit') {
     if (!profile || !taskId || !taskType) return
+    if (diamIssue) {
+      setError(diamIssue)
+      setSubmitting(null)
+      return
+    }
     const siteId =
       drillingTask?.site_id ?? coreTask?.site_id ?? sawingTask?.site_id ?? samplingTask?.site_id
     if (!siteId) {
@@ -677,6 +789,69 @@ export default function DailyReportForm() {
         )
         setSubmitting(null)
         return
+      }
+    }
+
+    // Фактический диаметр бурения (миграция 0027): тот же приём — снести
+    // старые интервалы и записать текущие.
+    if (taskType === 'drilling') {
+      if (isEditMode) {
+        await supabase.from('report_drill_diameters').delete().eq('report_id', report.id)
+      }
+      if (diamSegs[0].code !== '') {
+        const { error: diamError } = await supabase.from('report_drill_diameters').insert(
+          diamSegs
+            .map((sg, i) => ({
+              report_id: report.id,
+              depth_from: round2(Number(rowFrom(i))),
+              depth_to: round2(Number(rowTo(i))),
+              diameter_code: sg.code,
+            }))
+            // интервал нулевой длины (перешли на другой диаметр ровно с
+            // начала смены) не храним; последний оставляем — он задаёт
+            // диаметр для следующей смены
+            .filter((row, i, all) => row.depth_to > row.depth_from || i === all.length - 1),
+        )
+        if (diamError) {
+          setError('Сводка сохранена, но не удалось сохранить диаметр бурения: ' + diamError.message)
+          setSubmitting(null)
+          return
+        }
+      }
+    }
+
+    // Расширение ствола (миграция 0029).
+    if (taskType === 'drilling' && reamOn && reamRows.length > 0) {
+      const { error: reamError } = await supabase.from('report_drill_diameters').insert(
+        reamRows.map((r) => ({
+          report_id: report.id,
+          depth_from: round2(Number(r.from)),
+          depth_to: round2(Number(r.to)),
+          diameter_code: r.code,
+          is_reaming: true,
+        })),
+      )
+      if (reamError) {
+        setError('Сводка сохранена, но не удалось сохранить расширение ствола: ' + reamError.message)
+        setSubmitting(null)
+        return
+      }
+    }
+
+    // Обсадка (миграция 0028): пишем только то, что изменено в этой сводке.
+    if (taskType === 'drilling') {
+      if (isEditMode) {
+        await supabase.from('report_casings').delete().eq('report_id', report.id)
+      }
+      if (casingEdits.length > 0) {
+        const { error: casError } = await supabase.from('report_casings').insert(
+          casingEdits.map((c) => ({ report_id: report.id, diameter_code: c.code, depth_to: round2(Number(c.depth)) })),
+        )
+        if (casError) {
+          setError('Сводка сохранена, но не удалось сохранить обсадку: ' + casError.message)
+          setSubmitting(null)
+          return
+        }
       }
     }
 
@@ -836,6 +1011,24 @@ export default function DailyReportForm() {
       setHoursWorked('')
       setDrillingTo('')
       setMetersInput('')
+      setDiamSegs((prev) => [{ code: prev[prev.length - 1].code, to: '', m: '' }])
+      setCasingBase((prev) => {
+        const next = { ...prev }
+        for (const c of casingEdits) next[c.code] = Math.max(next[c.code] ?? 0, Number(c.depth))
+        return next
+      })
+      setCasingEdits([])
+      setDiamHistory((prev) =>
+        paintIntervals([
+          ...prev,
+          ...diamSegs
+            .map((sg, i) => ({ code: sg.code, from: Number(rowFrom(i) || 0), to: Number(rowTo(i) || 0) }))
+            .filter((d) => d.code !== ''),
+          ...(reamOn ? reamRows.map((r) => ({ code: r.code, from: Number(r.from), to: Number(r.to) })) : []),
+        ]),
+      )
+      setReamOn(false)
+      setReamRows([])
       setCoreFrom('0')
       setCoreTo('')
       setPhotoFrom('0')
@@ -897,6 +1090,19 @@ export default function DailyReportForm() {
       // не зависит от того, приняты ли предыдущие сводки (03.10.2026).
       bottomHole: drillingTo !== '' ? round2(Number(drillingTo)) : round2(Number(drillingFrom || 0)),
       shiftNotes,
+      drillIntervals: diamSegs
+        .map((sg, i) => ({ code: sg.code, from: round2(Number(rowFrom(i) || 0)), to: round2(Number(rowTo(i) || 0)) }))
+        .filter((d, i, all) => d.code !== '' && (d.to > d.from || i === all.length - 1)),
+      reamings: reamOn
+        ? reamRows.filter((r) => r.code && r.from !== '' && r.to !== '').map((r) => ({ code: r.code, from: round2(Number(r.from)), to: round2(Number(r.to)) }))
+        : [],
+      casings: (() => {
+        const merged: Record<string, number> = { ...casingBase }
+        for (const c of casingEdits) {
+          if (c.code && c.depth !== '') merged[c.code] = Math.max(merged[c.code] ?? 0, Number(c.depth))
+        }
+        return Object.entries(merged).map(([code, depth]) => ({ code, depth: round2(depth) }))
+      })(),
       coreDescriptions,
       sawnMeters: attachedSawing && sawnMeters ? Number(sawnMeters) : null,
       samplesTaken: canFillAttachedSampling && samplesTaken ? Number(samplesTaken) : null,
@@ -1027,56 +1233,296 @@ export default function DailyReportForm() {
                   </span>
                 )}
               </legend>
-              <input
-                type="number"
-                step="any"
-                placeholder="от"
-                value={drillingFrom}
-                readOnly
-                title="Подставляется автоматически — забой на начало смены"
-                style={{ width: 90 }}
-              />
-              <input
-                type="number"
-                step="any"
-                inputMode="decimal"
-                placeholder="проходка"
-                aria-label="Проходка за смену, м"
-                title="Проходка за смену, м — «до» посчитается само"
-                value={metersInput}
-                onChange={(e) => {
-                  const v = e.target.value
-                  setMetersInput(v)
-                  setDrillingTo(v === '' ? '' : String(round2(Number(drillingFrom || 0) + Number(v))))
-                }}
-                style={{ width: 100 }}
-              />
-              <input
-                type="number"
-                step="any"
-                inputMode="decimal"
-                placeholder="до"
-                aria-label="Забой на конец смены, м"
-                value={drillingTo}
-                onChange={(e) => {
-                  const v = e.target.value
-                  setDrillingTo(v)
-                  setMetersInput(v === '' ? '' : String(round2(Number(v) - Number(drillingFrom || 0))))
-                }}
-                style={{ width: 100 }}
-              />
+              <div className="text-muted" style={{ fontSize: 13, marginBottom: 8 }}>
+                {diamHistory.length > 0
+                  ? 'Ранее бурили: ' + diamHistory.map((d) => d.code + ' ' + round2(d.from) + '–' + round2(d.to) + ' м').join(' → ') + ' (забой ' + round2(diamHistory[diamHistory.length - 1].to) + ' м)'
+                  : 'Ранее диаметр бурения не вносился — выберите диаметр, которым бурите'}
+              </div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {diamSegs.map((sg, i) => {
+                  const last = i === diamSegs.length - 1
+                  const fromV = Number(rowFrom(i) || 0)
+                  const setTo = (v: string) => {
+                    const m = v === '' ? '' : String(round2(Number(v) - fromV))
+                    if (last) {
+                      setDrillingTo(v)
+                      setMetersInput(m)
+                    } else {
+                      setDiamSegs((prev) => prev.map((x, j) => (j === i ? { ...x, to: v, m } : x)))
+                    }
+                  }
+                  return (
+                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                      <label style={{ display: 'grid', gap: 2 }}>
+                        <span className="text-muted" style={{ fontSize: 11.5 }}>от, м</span>
+                        <input
+                          type="number"
+                          step="any"
+                          value={rowFrom(i)}
+                          readOnly
+                          title="Подставляется автоматически"
+                          style={{ width: 90 }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: 2 }}>
+                        <span className="text-muted" style={{ fontSize: 11.5 }}>проходка, м</span>
+                        <input
+                          type="number"
+                          step="any"
+                          inputMode="decimal"
+                          aria-label="Проходка, м"
+                          value={rowM(i)}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setTo(v === '' ? '' : String(round2(fromV + Number(v))))
+                          }}
+                          style={{ width: 100 }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: 2 }}>
+                        <span className="text-muted" style={{ fontSize: 11.5 }}>до, м</span>
+                        <input
+                          type="number"
+                          step="any"
+                          inputMode="decimal"
+                          aria-label="Забой, м"
+                          value={rowTo(i)}
+                          onChange={(e) => setTo(e.target.value)}
+                          style={{ width: 100 }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: 2 }}>
+                        <span className="text-muted" style={{ fontSize: 11.5 }}>диаметр</span>
+                        <select
+                          aria-label="Диаметр бурения"
+                          value={sg.code}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setDiamSegs((prev) => prev.map((x, j) => (j === i ? { ...x, code: v } : x)))
+                          }}
+                          style={{ minWidth: 130 }}
+                        >
+                          <option value="">Выберите…</option>
+                          {DRILL_DIAMETERS.map((d) => (
+                            <option key={d.code} value={d.code}>
+                              {drillDiameterLabel(d.code)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {i > 0 && last && (
+                        <button
+                          type="button"
+                          className="icon-btn-round"
+                          title="Убрать смену диаметра"
+                          aria-label="Убрать смену диаметра"
+                          onClick={() => {
+                            const prevRow = diamSegs[i - 1]
+                            setDrillingTo(prevRow.to)
+                            setMetersInput(prevRow.m)
+                            setDiamSegs((prev) => prev.slice(0, -1))
+                          }}
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+                <button
+                  type="button"
+                  className="btn-outline"
+                  style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  disabled={drillingTo === ''}
+                  title={drillingTo === '' ? 'Сначала укажите, до какого метра бурили этим диаметром' : undefined}
+                  onClick={() => {
+                    setDiamSegs((prev) => [
+                      ...prev.slice(0, -1),
+                      { ...prev[prev.length - 1], to: drillingTo, m: metersInput },
+                      { code: prev[prev.length - 1].code, to: '', m: '' },
+                    ])
+                    setDrillingTo('')
+                    setMetersInput('')
+                  }}
+                >
+                  <Plus size={15} /> Смена диаметра
+                </button>
+                {diamIssue && drillingTo !== '' && <div className="text-error" style={{ fontSize: 12.5 }}>{diamIssue}</div>}
+              </div>
               <div className="text-muted" style={{ fontSize: 12.5, marginTop: 6 }}>
-                «от» + проходка = «до». Введите проходку или забой — второе посчитается само.
+                «от» + проходка = «до». Введите проходку или забой — второе посчитается само. Если диаметр сменился в течение смены — «+ Смена диаметра»: «от» подставится сам.
               </div>
               {drillingTo !== '' && (
                 <div style={{ marginTop: 6, fontWeight: 600 }}>
                   Глубина скважины:{' '}
                   <span className="num">{round2(Number(drillingTo))} м</span>{' '}
                   <span className="text-muted" style={{ fontWeight: 400 }}>
-                    (проходка {round2(Number(drillingTo) - Number(drillingFrom || 0))} м) — это попадёт в сообщение для WhatsApp
+                    (проходка за смену {round2(Number(drillingTo) - Number(drillingFrom || 0))} м) — это попадёт в сообщение для WhatsApp
                   </span>
                 </div>
               )}
+              <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={reamOn}
+                    onChange={(e) => {
+                      const on = e.target.checked
+                      setReamOn(on)
+                      if (on && reamRows.length === 0) setReamRows([{ code: '', from: '', to: '' }])
+                    }}
+                    style={{ width: 'auto' }}
+                  />
+                  Расширение ствола
+                </label>
+                {reamOn && (
+                  <>
+                    <div className="text-muted" style={{ fontSize: 13 }}>
+                      Участок уже пробуренного ствола, который добурили другим диаметром. Расширение не входит в проходку — её считают поля «проходка / до» выше (в смену можно сделать и то и другое).
+                    </div>
+                    {reamRows.map((r, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                        <label style={{ display: 'grid', gap: 2 }}>
+                          <span className="text-muted" style={{ fontSize: 11.5 }}>с, м</span>
+                          <input
+                            type="number"
+                            step="any"
+                            inputMode="decimal"
+                            aria-label="Расширение с метра"
+                            value={r.from}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setReamRows((prev) => prev.map((x, j) => (j === i ? { ...x, from: v } : x)))
+                            }}
+                            style={{ width: 90 }}
+                          />
+                        </label>
+                        <label style={{ display: 'grid', gap: 2 }}>
+                          <span className="text-muted" style={{ fontSize: 11.5 }}>до, м</span>
+                          <input
+                            type="number"
+                            step="any"
+                            inputMode="decimal"
+                            aria-label="Расширение до метра"
+                            value={r.to}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setReamRows((prev) => prev.map((x, j) => (j === i ? { ...x, to: v } : x)))
+                            }}
+                            style={{ width: 100 }}
+                          />
+                        </label>
+                        <label style={{ display: 'grid', gap: 2 }}>
+                          <span className="text-muted" style={{ fontSize: 11.5 }}>диаметр</span>
+                          <select
+                            aria-label="Диаметр расширения"
+                            value={r.code}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setReamRows((prev) => prev.map((x, j) => (j === i ? { ...x, code: v } : x)))
+                            }}
+                            style={{ minWidth: 130 }}
+                          >
+                            <option value="">Выберите…</option>
+                            {DRILL_DIAMETERS.map((d) => (
+                              <option key={d.code} value={d.code}>
+                                {drillDiameterLabel(d.code)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {reamRows.length > 1 && (
+                          <button
+                            type="button"
+                            className="icon-btn-round"
+                            title="Убрать"
+                            aria-label="Убрать расширение"
+                            onClick={() => setReamRows((prev) => prev.filter((_, j) => j !== i))}
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="btn-outline"
+                      style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                      onClick={() => setReamRows((prev) => [...prev, { code: prev[prev.length - 1]?.code ?? '', from: '', to: '' }])}
+                    >
+                      <Plus size={15} /> Ещё интервал
+                    </button>
+                  </>
+                )}
+              </div>
+              <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
+                <div style={{ fontWeight: 600 }}>Обсадка</div>
+                <div className="text-muted" style={{ fontSize: 13 }}>
+                  {Object.keys(casingBase).length === 0
+                    ? 'Не вносилась'
+                    : 'Сейчас: ' +
+                      Object.entries(casingBase)
+                        .map(([code, d]) => code + ' до ' + round2(d) + ' м')
+                        .join(', ')}
+                </div>
+                {casingEdits.map((c, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select
+                      aria-label="Диаметр обсадки"
+                      value={c.code}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setCasingEdits((prev) => prev.map((x, j) => (j === i ? { ...x, code: v } : x)))
+                      }}
+                      style={{ minWidth: 130 }}
+                    >
+                      <option value="">Выберите…</option>
+                      {DRILL_DIAMETERS.map((d) => (
+                        <option key={d.code} value={d.code}>
+                          {drillDiameterLabel(d.code)}
+                        </option>
+                      ))}
+                    </select>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="text-muted">до</span>
+                      <input
+                        type="number"
+                        step="any"
+                        inputMode="decimal"
+                        aria-label="Глубина обсадки, м"
+                        placeholder="глубина"
+                        value={c.depth}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setCasingEdits((prev) => prev.map((x, j) => (j === i ? { ...x, depth: v } : x)))
+                        }}
+                        style={{ width: 100 }}
+                      />
+                      <span className="text-muted">м</span>
+                    </label>
+                    <button
+                      type="button"
+                      className="icon-btn-round"
+                      title="Убрать"
+                      aria-label="Убрать изменение обсадки"
+                      onClick={() => setCasingEdits((prev) => prev.filter((_, j) => j !== i))}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="btn-outline"
+                  style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  onClick={() => {
+                    const codes = Object.keys(casingBase)
+                    setCasingEdits((prev) => [...prev, { code: codes[codes.length - 1] ?? '', depth: '' }])
+                  }}
+                >
+                  <Plus size={15} /> {Object.keys(casingBase).length === 0 ? 'Внести обсадку' : 'Изменить обсадку'}
+                </button>
+              </div>
               {knownMeters !== priorApprovedMeters && (
                 <div className="text-muted" style={{ fontSize: 12, marginTop: 4 }}>
                   <span
@@ -1101,7 +1547,7 @@ export default function DailyReportForm() {
             <div className="wizard-nav">
               <button
                 type="button"
-                disabled={drillingTo === ''}
+                disabled={drillingTo === '' || diamIssue !== null}
                 onClick={() => setStep(1)}
               >
                 Далее

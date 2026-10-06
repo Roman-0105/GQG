@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
-import { ChevronLeft, MessageSquare, MessageCircle, Check, Pencil, Trash2 } from 'lucide-react'
+import { ChevronLeft, MessageSquare, MessageCircle, Check, Pencil, Trash2, Undo2 } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import ReportGeologyExtras from '../../components/ReportGeologyExtras'
+import ReportHistory from '../../components/ReportHistory'
 import { isManagement } from '../../types/roles'
 import { ApprovalBadge } from '../../components/StatusBadge'
 import { buildDrillingShiftMessage } from '../../lib/whatsappMessage'
+import { loadShiftDiameterInfo } from '../../lib/drillDiameters'
 import { loadReportSiteAndWellLabel } from '../../lib/reportLabel'
 import { notifyReportsChanged } from '../../hooks/useReportCounts'
 import { round2 } from '../../lib/taskProgress'
@@ -50,6 +52,12 @@ export default function ReportDetail() {
   const [copied, setCopied] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // Возврат мастеру на правку (руководство): статус rejected + edit_unlocked,
+  // автор исправляет и отправляет заново; всё фиксируется в истории согласования.
+  const [returning, setReturning] = useState(false)
+  const [returnComment, setReturnComment] = useState('')
+  const [returnBusy, setReturnBusy] = useState(false)
+  const [historyKey, setHistoryKey] = useState(0)
 
   useEffect(() => {
     if (!session || !taskId || !taskType || !reportId) return
@@ -146,7 +154,9 @@ export default function ReportDetail() {
 
   async function handleCopyWhatsApp() {
     if (!report || !drillingTask) return
+    const diamInfo = await loadShiftDiameterInfo(supabase, drillingTask.id, report)
     const message = buildDrillingShiftMessage({
+      ...diamInfo,
       wellNumber: drillingTask.well_number,
       rigNumber: drillingRigNumber,
       reportDate: report.report_date,
@@ -179,6 +189,45 @@ export default function ReportDetail() {
     !!report &&
     !!profile &&
     (isManagement(profile.role) || (report.author_id === profile.id && report.approval_status === 'draft'))
+
+  const canReturn =
+    !!report &&
+    !!profile &&
+    isManagement(profile.role) &&
+    (report.approval_status === 'approved' || report.approval_status === 'submitted')
+
+  async function handleReturn() {
+    if (!report || !profile || !reportId) return
+    if (!returnComment.trim()) {
+      setError('Укажите, что нужно исправить.')
+      return
+    }
+    setReturnBusy(true)
+    setError(null)
+    const now = new Date().toISOString()
+    const { data: updated, error: updError } = await supabase
+      .from('reports')
+      .update({
+        approval_status: 'rejected',
+        approved_by: profile.id,
+        approved_at: now,
+        review_comment: returnComment.trim(),
+        edit_unlocked: true,
+      })
+      .eq('id', reportId)
+      .select()
+      .single()
+    setReturnBusy(false)
+    if (updError || !updated) {
+      setError(updError?.message ?? 'Не удалось вернуть сводку на правку.')
+      return
+    }
+    setReport(updated)
+    setReturning(false)
+    setReturnComment('')
+    setHistoryKey((k) => k + 1)
+    notifyReportsChanged()
+  }
 
   async function handleDelete() {
     if (!reportId) return
@@ -287,7 +336,7 @@ export default function ReportDetail() {
 
           {report.approval_status === 'rejected' && report.review_comment && (
             <p className="card" style={{ padding: 12, fontSize: 14, marginBottom: 16, borderLeft: '3px solid var(--color-danger)' }}>
-              <span className="text-error">Причина отклонения:</span> {report.review_comment}
+              <span className="text-error">Что нужно исправить:</span> {report.review_comment}
             </p>
           )}
 
@@ -297,6 +346,8 @@ export default function ReportDetail() {
               {report.shift_notes}
             </p>
           )}
+
+          {reportId && <ReportHistory reportId={reportId} reloadKey={historyKey} />}
 
           {costs.length > 0 && (
             <>
@@ -334,6 +385,16 @@ export default function ReportDetail() {
                 </button>
               </Link>
             )}
+            {canReturn && !returning && (
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={() => setReturning(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 7 }}
+              >
+                <Undo2 size={15} /> Вернуть мастеру на правку
+              </button>
+            )}
             {canDelete && !confirmingDelete && (
               <button
                 type="button"
@@ -368,6 +429,34 @@ export default function ReportDetail() {
               </>
             )}
           </div>
+
+          {canReturn && returning && (
+            <div className="card" style={{ padding: 14, marginTop: 14, display: 'grid', gap: 10 }}>
+              <label style={{ display: 'grid', gap: 4 }}>
+                Что нужно исправить (увидит мастер)
+                <textarea
+                  value={returnComment}
+                  onChange={(e) => setReturnComment(e.target.value)}
+                  rows={3}
+                  autoFocus
+                />
+              </label>
+              {report.approval_status === 'approved' && (
+                <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+                  Сводка выйдет из согласованных (прогресс скважины пересчитается), пока мастер не исправит и не отправит её заново.
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" disabled={returnBusy} onClick={handleReturn} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  {returnBusy ? <span className="spinner" style={{ marginRight: 0 }} /> : <Undo2 size={15} />}
+                  {returnBusy ? 'Возвращаем…' : 'Вернуть'}
+                </button>
+                <button type="button" className="btn-outline" disabled={returnBusy} onClick={() => { setReturning(false); setReturnComment('') }}>
+                  Отмена
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

@@ -1,6 +1,8 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
-import WellboreProgress from './WellboreProgress'
+import WellboreProgress, { type WellboreDiameter } from './WellboreProgress'
+import { supabase } from '../lib/supabaseClient'
+import { drillDiameterMm, loadDiameterHistory } from '../lib/drillDiameters'
 import DrillingProgressChart, { type ChartClosure, type DrillingChartRow } from './DrillingProgressChart'
 import DrillingCrewStrip from './DrillingCrewStrip'
 import { round2 } from '../lib/taskProgress'
@@ -50,6 +52,41 @@ export default function DrillingProgressPanel({
   planEditor,
 }: Props) {
   const [expanded, setExpanded] = useState(true)
+  const [diameters, setDiameters] = useState<WellboreDiameter[]>([])
+  const [casings, setCasings] = useState<{ code: string; depth: number }[]>([])
+
+  // Диаметры на стволе: факт из сводок (06.10.2026) до текущего забоя, глубже
+  // — плановые диаметры задания, пока факта нет.
+  useEffect(() => {
+    let cancelled = false
+    async function loadDiameters() {
+      const [planRes, repRes] = await Promise.all([
+        supabase.from('drilling_task_diameters').select('depth_from, depth_to, diameter').eq('drilling_task_id', taskId),
+        supabase.from('reports').select('id').eq('drilling_task_id', taskId),
+      ])
+      const plan = (planRes.data as WellboreDiameter[] | null) ?? []
+      const ids = (repRes.data ?? []).map((r) => r.id as string)
+      if (ids.length > 0) {
+        const { data: cas } = await supabase.from('report_casings').select('diameter_code, depth_to').in('report_id', ids)
+        const byCode: Record<string, number> = {}
+        for (const c of cas ?? []) byCode[c.diameter_code] = Math.max(byCode[c.diameter_code] ?? 0, c.depth_to)
+        if (!cancelled) setCasings(Object.entries(byCode).map(([code, depth]) => ({ code, depth })))
+      }
+      const history = await loadDiameterHistory(supabase, taskId)
+      const fact: WellboreDiameter[] = history.intervals
+        .map((d) => ({ depth_from: d.from, depth_to: d.to, diameter: drillDiameterMm(d.code) ?? 0, label: d.code }))
+        .filter((d) => d.diameter > 0)
+      const factEnd = fact.length > 0 ? fact[fact.length - 1].depth_to : 0
+      const planRest = plan
+        .filter((d) => d.depth_to > factEnd)
+        .map((d) => ({ ...d, depth_from: Math.max(d.depth_from, factEnd) }))
+      if (!cancelled) setDiameters([...fact, ...planRest])
+    }
+    loadDiameters()
+    return () => {
+      cancelled = true
+    }
+  }, [taskId])
 
   const gaugeR = 52
   const circumference = 2 * Math.PI * gaugeR
@@ -130,8 +167,8 @@ export default function DrillingProgressPanel({
           </div>
         )}
 
-        <div style={{ flexShrink: compact ? 1 : 0, minWidth: 0, width: compact ? 170 : undefined }}>
-          <WellboreProgress projectedDepth={projectedDepth} approvedDepth={approvedDepth} pendingDepth={pendingDepth} />
+        <div style={{ flexShrink: compact ? 1 : 0, minWidth: 0, width: compact ? 220 : 280 }}>
+          <WellboreProgress projectedDepth={projectedDepth} approvedDepth={approvedDepth} pendingDepth={pendingDepth} diameters={diameters} casings={casings} />
         </div>
 
         {!compact && (
