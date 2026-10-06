@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, useAnimationControls } from 'framer-motion'
+import { AnimatePresence, motion, useAnimationControls, useReducedMotion } from 'framer-motion'
+import { useIsMobile } from '../hooks/useMediaQuery'
 import { ArrowRight, BarChart3, ClipboardCheck, Eye, EyeOff, Lock, Mail, Map as MapIcon, TriangleAlert } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 
@@ -13,6 +14,7 @@ import { supabase } from '../lib/supabaseClient'
 // Офлайн-сессия (ТЗ раздел 6): supabase-js сам кэширует сессию в localStorage —
 // отдельно ничего настраивать здесь не нужно.
 const LAST_EMAIL_KEY = 'gqg-last-email'
+const INTRO_SEEN_KEY = 'gqg-intro-seen'
 
 function readLastEmail() {
   try {
@@ -57,6 +59,33 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const shake = useAnimationControls()
+
+  // Полноэкранная анимированная заставка — только на телефоне и один раз за сессию
+  // браузера (повторные заходы на /login её не показывают). Коснитесь экрана,
+  // чтобы пропустить. При prefers-reduced-motion не показывается.
+  const isMobile = useIsMobile()
+  const reduceMotion = useReducedMotion()
+  const [introDone, setIntroDone] = useState(() => {
+    try {
+      return sessionStorage.getItem(INTRO_SEEN_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const showIntro = isMobile && !introDone && !reduceMotion
+  function finishIntro() {
+    setIntroDone(true)
+    try {
+      sessionStorage.setItem(INTRO_SEEN_KEY, '1')
+    } catch {
+      // приватный режим — просто покажем заставку при следующем заходе
+    }
+  }
+  useEffect(() => {
+    if (!showIntro) return
+    const t = window.setTimeout(finishIntro, 2800)
+    return () => window.clearTimeout(t)
+  }, [showIntro])
   const passwordRef = useRef<HTMLInputElement>(null)
 
   // Фокус: если e-mail уже подставлен (вход не в первый раз) — сразу в пароль.
@@ -100,6 +129,50 @@ export default function Login() {
 
   return (
     <div className="login">
+      <AnimatePresence>
+        {showIntro && (
+          <motion.div
+            key="intro"
+            className="login-intro"
+            onClick={finishIntro}
+            exit={{ opacity: 0, y: -48 }}
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            role="presentation"
+          >
+            <Backdrop />
+            <div className="login-intro-center">
+              <motion.div
+                className="login-intro-logo"
+                initial={{ opacity: 0, scale: 0.55, rotate: -24 }}
+                animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                transition={{ duration: 0.95, ease: [0.34, 1.4, 0.64, 1] }}
+              >
+                <span className="login-logo-halo" />
+                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="GEO QUEST GROUP" width={200} height={200} draggable={false} />
+              </motion.div>
+              <motion.p
+                className="login-intro-title"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.7 }}
+              >
+                GEO QUEST GROUP
+              </motion.p>
+              <motion.p
+                className="login-intro-sub"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 1.0 }}
+              >
+                Платформа учёта работ
+              </motion.p>
+            </div>
+            <div className="login-intro-bar" aria-hidden>
+              <span />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <aside className="login-brand">
         <Backdrop />
         <div className="login-brand-inner">
@@ -147,11 +220,11 @@ export default function Login() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
           >
-            <p className="eyebrow" style={{ marginBottom: 6 }}>
+            <p className="eyebrow login-extra" style={{ marginBottom: 6 }}>
               Учёт буровых и ГРР
             </p>
-            <h1 style={{ marginBottom: 6 }}>С возвращением</h1>
-            <p className="text-muted" style={{ marginBottom: 22 }}>
+            <h1 className="login-title" style={{ marginBottom: 6 }}>С возвращением</h1>
+            <p className="text-muted login-extra" style={{ marginBottom: 22 }}>
               Войдите, чтобы продолжить работу с участками и сводками.
             </p>
 
@@ -221,7 +294,7 @@ export default function Login() {
               </button>
             </form>
 
-            <p className="text-muted" style={{ fontSize: 12.5, marginTop: 18, lineHeight: 1.45 }}>
+            <p className="text-muted login-extra" style={{ fontSize: 12.5, marginTop: 18, lineHeight: 1.45 }}>
               Учётные записи создаёт администратор — открытой регистрации нет. Нет доступа? Обратитесь к руководителю.
             </p>
           </motion.div>

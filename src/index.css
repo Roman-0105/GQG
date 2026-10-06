@@ -2316,3 +2316,143 @@ a:focus:not(:focus-visible) {
   touch-action: none;
   cursor: grab;
 }
+
+/* ==========================================================================
+   Вход на телефоне (06.10.2026): полноэкранная заставка, синий анимированный
+   фон на весь экран, без лишних подписей, заголовок меньше.
+   ========================================================================== */
+.login-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(160deg, #05223a 0%, #0a3a5c 55%, #0f4c76 100%);
+  overflow: hidden;
+}
+.login-intro .login-backdrop {
+  position: absolute;
+  inset: 0;
+}
+.login-intro-center {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.login-intro-logo {
+  position: relative;
+  width: min(54vw, 220px);
+  aspect-ratio: 1;
+  margin-bottom: 14px;
+  animation: login-float 6s ease-in-out infinite;
+}
+.login-intro-logo img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 50%;
+  box-shadow: 0 26px 56px -14px rgba(0, 0, 0, 0.6), 0 0 0 4px rgba(237, 235, 222, 0.2);
+}
+.login-intro-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.14em;
+  color: #fff;
+}
+.login-intro-sub {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(238, 242, 245, 0.7);
+}
+.login-intro-bar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(44px + env(safe-area-inset-bottom, 0px));
+  width: 120px;
+  height: 3px;
+  margin-left: -60px;
+  border-radius: 999px;
+  background: rgba(237, 235, 222, 0.18);
+  overflow: hidden;
+}
+.login-intro-bar span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: #f0a15e;
+  transform-origin: left;
+  animation: login-intro-load 2.7s ease-out forwards;
+}
+@keyframes login-intro-load {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@media (max-width: 899px) {
+  /* синий анимированный фон — на весь экран, карточка входа поверх него */
+  .login {
+    display: block;
+    position: relative;
+    min-height: 100svh;
+  }
+  .login-brand {
+    position: fixed;
+    inset: 0;
+    padding: calc(34px + env(safe-area-inset-top, 0px)) 24px 0;
+    align-items: center;
+    justify-content: flex-start;
+    z-index: 0;
+  }
+  .login-main {
+    position: relative;
+    z-index: 1;
+    margin-top: 0;
+    padding: calc(190px + env(safe-area-inset-top, 0px)) 16px 28px;
+    background: transparent;
+    align-items: flex-start;
+  }
+  .login-card {
+    box-shadow: 0 18px 44px -12px rgba(0, 0, 0, 0.45);
+  }
+  /* лишние подписи на телефоне скрыты */
+  .login-extra {
+    display: none;
+  }
+  .login-title {
+    font-size: 24px;
+    line-height: 32px;
+    margin-bottom: 18px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-intro-logo,
+  .login-intro-bar span {
+    animation: none !important;
+  }
+}
+@media (max-width: 899px) {
+  /* подпись под логотипом на телефоне не нужна (название есть на логотипе и в заставке) */
+  .login-brand-text {
+    display: none;
+  }
+  .login-main {
+    padding-top: calc(168px + env(safe-area-inset-top, 0px));
+  }
+}
+
+/* Лишние подписи на экране входа убраны на всех устройствах (06.10.2026) */
+.login-extra {
+  display: none;
+}
+.login-title {
+  margin-bottom: 22px !important;
+}
