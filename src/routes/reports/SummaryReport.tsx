@@ -428,10 +428,10 @@ export default function SummaryReport() {
                 style={{ padding: 16 }}
               >
                 <tile.icon size={17} className="text-muted" style={{ marginBottom: 8 }} />
-                <div className="num" style={{ fontSize: 24, fontWeight: 700 }}>
+                <div className="num" style={{ fontSize: 22, fontWeight: 700 }}>
                   {tile.value} {tile.unit}
                 </div>
-                <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', fontWeight: 600 }}>{tile.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>{tile.label}</div>
               </motion.div>
             ))}
           </div>

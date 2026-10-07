@@ -128,7 +128,7 @@ export default function ReportReview() {
     <div style={{ maxWidth: 460 }}>
       <Link
         to="/reports/pending"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 10 }}
       >
         <ChevronLeft size={15} /> На согласование
       </Link>
@@ -139,17 +139,17 @@ export default function ReportReview() {
       ) : (
         <>
           <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-            <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 15 }}>
+            <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 14 }}>
               {siteName}, {wellLabel}
             </p>
             <p style={{ margin: '0 0 4px' }}>
               <b>{authorName}</b>
             </p>
-            <p className="text-muted num" style={{ margin: '0 0 12px', fontSize: 13.5 }}>
+            <p className="text-muted num" style={{ margin: '0 0 12px', fontSize: 13 }}>
               {report.report_date}
               {report.shift_number ? `, смена ${report.shift_number}` : ''}
             </p>
-            <div style={{ display: 'grid', gap: 6, fontSize: 14.5 }}>
+            <div style={{ display: 'grid', gap: 6, fontSize: 14 }}>
               {report.hours_worked != null && (
                 <p style={{ margin: 0 }}>
                   Часы работы: <span className="num">{report.hours_worked}</span>

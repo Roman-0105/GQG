@@ -39,7 +39,7 @@ const fmt = (n: number) => String(round2(n)).replace('.', ',')
 export default function WellboreProgress({ projectedDepth, approvedDepth, pendingDepth = 0, diameters = [], casings = [] }: Props) {
   if (!projectedDepth || projectedDepth <= 0) {
     return (
-      <p className="text-muted" style={{ fontSize: 13.5 }}>
+      <p className="text-muted" style={{ fontSize: 13 }}>
         Проектная глубина не указана — ствол скважины не отрисовать. Факт:{' '}
         <span className="num">{round2(approvedDepth)}</span> м.
       </p>

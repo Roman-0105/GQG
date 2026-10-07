@@ -84,7 +84,7 @@ export default function CoreSawingTaskForm() {
 
   return (
     <div style={{ maxWidth: 460 }}>
-      <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}>
+      <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 10 }}>
         <ChevronLeft size={15} /> Участок
       </Link>
       <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -116,7 +116,7 @@ export default function CoreSawingTaskForm() {
             )}
           </label>
 
-          <p className="text-muted" style={{ fontSize: 12.5 }}>
+          <p className="text-muted" style={{ fontSize: 12 }}>
             Ответственного назначать не нужно — сводки по распиловке вносит тот
             же бригадир, что ведёт бурение этой скважины.
           </p>

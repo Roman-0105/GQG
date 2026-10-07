@@ -575,7 +575,7 @@ export default function SiteMap() {
             />
           ) : (
             <div className="card map-overview">
-              <h2 style={{ margin: '0 0 10px', fontSize: 17 }}>{selectedSite ? selectedSite.name : 'Все участки'}</h2>
+              <h2 style={{ margin: '0 0 10px', fontSize: 14 }}>{selectedSite ? selectedSite.name : 'Все участки'}</h2>
               {!loading && (
                 <div className="map-kpis">
                   <div>
@@ -645,7 +645,7 @@ export default function SiteMap() {
                   <TaskStatusBadge status="in_progress" /> пульсирует на карте
                 </span>
               </div>
-              <p className="text-muted" style={{ fontSize: 12.5, margin: '12px 0 0' }}>
+              <p className="text-muted" style={{ fontSize: 12, margin: '12px 0 0' }}>
                 Нажмите на точку на карте или на скважину в списке, чтобы увидеть описание и прогресс.
               </p>
             </div>

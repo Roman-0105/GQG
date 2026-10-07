@@ -146,7 +146,7 @@ export default function SitesList() {
                       display: 'block',
                       fontFamily: 'var(--font-display)',
                       fontWeight: 600,
-                      fontSize: 16,
+                      fontSize: 14,
                       color: 'var(--color-text)',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',

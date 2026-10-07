@@ -17,6 +17,7 @@ import type {
   DrillingTask,
   SamplingTask,
 } from '../../types/database'
+import Modal from '../../components/Modal'
 import CostRowsEditor, {
   type CostRow,
 } from '../../components/CostRowsEditor'
@@ -142,6 +143,7 @@ export default function DailyReportForm() {
   // Расширение ствола (06.10.2026): участок уже пробуренного ствола, который
   // добурили другим диаметром. Метраж бурения не меняет, забой остаётся прежним.
   const [reamOn, setReamOn] = useState(false)
+  const [diamHelpOpen, setDiamHelpOpen] = useState(false)
   const [reamRows, setReamRows] = useState<{ code: string; from: string; to: string }[]>([])
   const [diamHistory, setDiamHistory] = useState<{ code: string; from: number; to: number }[]>([])
   // Обсадка (06.10.2026): casingBase — текущее состояние по прошлым сводкам
@@ -575,12 +577,6 @@ export default function DailyReportForm() {
     return <p>Сводки вносит только назначенный ответственный.</p>
   }
 
-  const description =
-    drillingTask?.description ??
-    coreTask?.description ??
-    sawingTask?.description ??
-    samplingTask?.description
-
   const wellLabel =
     taskType === 'drilling'
       ? `скважина №${drillingTask?.well_number ?? '…'}`
@@ -649,7 +645,6 @@ export default function DailyReportForm() {
   // Границы строк диаметра (см. комментарий у diamSegs).
   const rowFrom = (i: number) => (i === 0 ? drillingFrom : diamSegs[i - 1].to)
   const rowTo = (i: number) => (i === diamSegs.length - 1 ? drillingTo : diamSegs[i].to)
-  const rowM = (i: number) => (i === diamSegs.length - 1 ? metersInput : diamSegs[i].m)
 
   // Проверка диаметров бурения: у каждого интервала выбран размер, а «с метра»
   // смены диаметра лежит строго между забоем «от» и «до» и идёт по возрастанию.
@@ -1142,29 +1137,13 @@ export default function DailyReportForm() {
     <div style={{ maxWidth: 420 }}>
       <Link
         to={`/tasks/${taskType}/${taskId}/reports`}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 10 }}
       >
         <ChevronLeft size={15} /> Все сводки
       </Link>
-      <h1>
+      <h1 style={{ fontSize: 18, lineHeight: 1.25, margin: '0 0 12px' }}>
         {isEditMode ? 'Правка сводки' : 'Сводка за смену'} — {wellLabel}
       </h1>
-
-      {!loadingTask && description && (
-        <p
-          className="text-muted"
-          style={{
-            background: 'var(--color-surface-muted)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)',
-            padding: 12,
-            fontSize: 14,
-            marginBottom: 14,
-          }}
-        >
-          {description}
-        </p>
-      )}
 
       {loadingTask ? (
         <p>Загрузка задания…</p>
@@ -1225,20 +1204,25 @@ export default function DailyReportForm() {
 
           {taskType === 'drilling' && (
             <fieldset>
-              <legend>
-                Метраж бурения за смену, забой
-                {drillingTask?.planned_daily_meters != null && (
-                  <span className="text-muted" style={{ fontWeight: 400 }}>
-                    {' '}— план: {drillingTask.planned_daily_meters} м/сутки
-                  </span>
-                )}
-              </legend>
-              <div className="text-muted" style={{ fontSize: 13, marginBottom: 8 }}>
-                {diamHistory.length > 0
-                  ? 'Ранее бурили: ' + diamHistory.map((d) => d.code + ' ' + round2(d.from) + '–' + round2(d.to) + ' м').join(' → ') + ' (забой ' + round2(diamHistory[diamHistory.length - 1].to) + ' м)'
-                  : 'Ранее диаметр бурения не вносился — выберите диаметр, которым бурите'}
+              <legend>Забой за смену</legend>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
+                <div className="text-muted" style={{ fontSize: 13, flex: 1, minWidth: 0 }}>
+                  {diamHistory.length > 0
+                    ? 'Ранее бурили: ' + diamHistory.map((d) => d.code + ' ' + round2(d.from) + '–' + round2(d.to) + ' м').join(' → ') + ' (забой ' + round2(diamHistory[diamHistory.length - 1].to) + ' м)'
+                    : 'Ранее диаметр бурения не вносился — выберите диаметр, которым бурите'}
+                </div>
+                <button
+                  type="button"
+                  className="icon-btn-round"
+                  aria-label="Подсказка"
+                  title="Подсказка"
+                  onClick={() => setDiamHelpOpen(true)}
+                  style={{ flexShrink: 0, width: 28, height: 28, minWidth: 28, minHeight: 28, fontWeight: 700 }}
+                >
+                  ?
+                </button>
               </div>
-              <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ display: 'grid', gap: 12 }}>
                 {diamSegs.map((sg, i) => {
                   const last = i === diamSegs.length - 1
                   const fromV = Number(rowFrom(i) || 0)
@@ -1252,87 +1236,76 @@ export default function DailyReportForm() {
                     }
                   }
                   return (
-                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                      <label style={{ display: 'grid', gap: 2 }}>
-                        <span className="text-muted" style={{ fontSize: 11.5 }}>от, м</span>
-                        <input
-                          type="number"
-                          step="any"
-                          value={rowFrom(i)}
-                          readOnly
-                          title="Подставляется автоматически"
-                          style={{ width: 90 }}
-                        />
-                      </label>
-                      <label style={{ display: 'grid', gap: 2 }}>
-                        <span className="text-muted" style={{ fontSize: 11.5 }}>проходка, м</span>
-                        <input
-                          type="number"
-                          step="any"
-                          inputMode="decimal"
-                          aria-label="Проходка, м"
-                          value={rowM(i)}
-                          onChange={(e) => {
-                            const v = e.target.value
-                            setTo(v === '' ? '' : String(round2(fromV + Number(v))))
-                          }}
-                          style={{ width: 100 }}
-                        />
-                      </label>
-                      <label style={{ display: 'grid', gap: 2 }}>
-                        <span className="text-muted" style={{ fontSize: 11.5 }}>до, м</span>
-                        <input
-                          type="number"
-                          step="any"
-                          inputMode="decimal"
-                          aria-label="Забой, м"
-                          value={rowTo(i)}
-                          onChange={(e) => setTo(e.target.value)}
-                          style={{ width: 100 }}
-                        />
-                      </label>
-                      <label style={{ display: 'grid', gap: 2 }}>
-                        <span className="text-muted" style={{ fontSize: 11.5 }}>диаметр</span>
-                        <select
-                          aria-label="Диаметр бурения"
-                          value={sg.code}
-                          onChange={(e) => {
-                            const v = e.target.value
-                            setDiamSegs((prev) => prev.map((x, j) => (j === i ? { ...x, code: v } : x)))
-                          }}
-                          style={{ minWidth: 130 }}
-                        >
-                          <option value="">Выберите…</option>
-                          {DRILL_DIAMETERS.map((d) => (
-                            <option key={d.code} value={d.code}>
-                              {drillDiameterLabel(d.code)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      {i > 0 && last && (
-                        <button
-                          type="button"
-                          className="icon-btn-round"
-                          title="Убрать смену диаметра"
-                          aria-label="Убрать смену диаметра"
-                          onClick={() => {
-                            const prevRow = diamSegs[i - 1]
-                            setDrillingTo(prevRow.to)
-                            setMetersInput(prevRow.m)
-                            setDiamSegs((prev) => prev.slice(0, -1))
-                          }}
-                        >
-                          <X size={16} />
-                        </button>
-                      )}
+                    <div key={i} style={{ display: 'grid', gap: 8 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                        <label style={{ display: 'grid', gap: 2 }}>
+                          <span className="text-muted" style={{ fontSize: 11 }}>от, м</span>
+                          <input
+                            type="number"
+                            step="any"
+                            value={rowFrom(i)}
+                            readOnly
+                            title="Подставляется автоматически"
+                            style={{ width: '100%' }}
+                          />
+                        </label>
+                        <label style={{ display: 'grid', gap: 2 }}>
+                          <span className="text-muted" style={{ fontSize: 11 }}>до, м</span>
+                          <input
+                            type="number"
+                            step="any"
+                            inputMode="decimal"
+                            aria-label="Забой, м"
+                            value={rowTo(i)}
+                            onChange={(e) => setTo(e.target.value)}
+                            style={{ width: '100%' }}
+                          />
+                        </label>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: i > 0 && last ? 'minmax(0, 1fr) auto' : 'minmax(0, 1fr)', gap: 8, alignItems: 'end' }}>
+                        <label style={{ display: 'grid', gap: 2 }}>
+                          <span className="text-muted" style={{ fontSize: 11 }}>диаметр</span>
+                          <select
+                            aria-label="Диаметр бурения"
+                            value={sg.code}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setDiamSegs((prev) => prev.map((x, j) => (j === i ? { ...x, code: v } : x)))
+                            }}
+                            style={{ width: '100%' }}
+                          >
+                            <option value="">Выберите…</option>
+                            {DRILL_DIAMETERS.map((d) => (
+                              <option key={d.code} value={d.code}>
+                                {drillDiameterLabel(d.code)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {i > 0 && last && (
+                          <button
+                            type="button"
+                            className="icon-btn-round"
+                            title="Убрать смену диаметра"
+                            aria-label="Убрать смену диаметра"
+                            onClick={() => {
+                              const prevRow = diamSegs[i - 1]
+                              setDrillingTo(prevRow.to)
+                              setMetersInput(prevRow.m)
+                              setDiamSegs((prev) => prev.slice(0, -1))
+                            }}
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )
                 })}
                 <button
                   type="button"
                   className="btn-outline"
-                  style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                   disabled={drillingTo === ''}
                   title={drillingTo === '' ? 'Сначала укажите, до какого метра бурили этим диаметром' : undefined}
                   onClick={() => {
@@ -1347,10 +1320,7 @@ export default function DailyReportForm() {
                 >
                   <Plus size={15} /> Смена диаметра
                 </button>
-                {diamIssue && drillingTo !== '' && <div className="text-error" style={{ fontSize: 12.5 }}>{diamIssue}</div>}
-              </div>
-              <div className="text-muted" style={{ fontSize: 12.5, marginTop: 6 }}>
-                «от» + проходка = «до». Введите проходку или забой — второе посчитается само. Если диаметр сменился в течение смены — «+ Смена диаметра»: «от» подставится сам.
+                {diamIssue && drillingTo !== '' && <div className="text-error" style={{ fontSize: 12 }}>{diamIssue}</div>}
               </div>
               {drillingTo !== '' && (
                 <div style={{ marginTop: 6, fontWeight: 600 }}>
@@ -1383,7 +1353,7 @@ export default function DailyReportForm() {
                     {reamRows.map((r, i) => (
                       <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                         <label style={{ display: 'grid', gap: 2 }}>
-                          <span className="text-muted" style={{ fontSize: 11.5 }}>с, м</span>
+                          <span className="text-muted" style={{ fontSize: 11 }}>с, м</span>
                           <input
                             type="number"
                             step="any"
@@ -1398,7 +1368,7 @@ export default function DailyReportForm() {
                           />
                         </label>
                         <label style={{ display: 'grid', gap: 2 }}>
-                          <span className="text-muted" style={{ fontSize: 11.5 }}>до, м</span>
+                          <span className="text-muted" style={{ fontSize: 11 }}>до, м</span>
                           <input
                             type="number"
                             step="any"
@@ -1413,7 +1383,7 @@ export default function DailyReportForm() {
                           />
                         </label>
                         <label style={{ display: 'grid', gap: 2 }}>
-                          <span className="text-muted" style={{ fontSize: 11.5 }}>диаметр</span>
+                          <span className="text-muted" style={{ fontSize: 11 }}>диаметр</span>
                           <select
                             aria-label="Диаметр расширения"
                             value={r.code}
@@ -1447,7 +1417,7 @@ export default function DailyReportForm() {
                     <button
                       type="button"
                       className="btn-outline"
-                      style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                       onClick={() => setReamRows((prev) => [...prev, { code: prev[prev.length - 1]?.code ?? '', from: '', to: '' }])}
                     >
                       <Plus size={15} /> Ещё интервал
@@ -1514,7 +1484,7 @@ export default function DailyReportForm() {
                 <button
                   type="button"
                   className="btn-outline"
-                  style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                   onClick={() => {
                     const codes = Object.keys(casingBase)
                     setCasingEdits((prev) => [...prev, { code: codes[codes.length - 1] ?? '', depth: '' }])
@@ -1553,7 +1523,7 @@ export default function DailyReportForm() {
                 Далее
               </button>
               {drillingTo === '' && (
-                <span className="text-muted" style={{ fontSize: 12.5 }}>Укажите забой «до», чтобы продолжить</span>
+                <span className="text-muted" style={{ fontSize: 12 }}>Укажите забой «до», чтобы продолжить</span>
               )}
             </div>
           )}
@@ -1643,7 +1613,7 @@ export default function DailyReportForm() {
             <fieldset>
               <legend>Керн, геологическая документация — интервал</legend>
               {siblingLocked.geo && (
-                <p className="text-muted" style={{ fontSize: 12.5, margin: '0 0 6px' }}>
+                <p className="text-muted" style={{ fontSize: 12, margin: '0 0 6px' }}>
                   Уже согласуется отдельно от бурения — правка отсюда недоступна.
                 </p>
               )}
@@ -1665,7 +1635,7 @@ export default function DailyReportForm() {
                 disabled={siblingLocked.geo}
                 style={{ width: 80 }}
               />
-              <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--color-text-muted)' }}>Фотофиксация</div>
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-muted)' }}>Фотофиксация</div>
               <input
                 type="number"
                 step="any"
@@ -1690,7 +1660,7 @@ export default function DailyReportForm() {
             <fieldset>
               <legend>Керн, геотехническая документация — интервал</legend>
               {siblingLocked.geotech && (
-                <p className="text-muted" style={{ fontSize: 12.5, margin: '0 0 6px' }}>
+                <p className="text-muted" style={{ fontSize: 12, margin: '0 0 6px' }}>
                   Уже согласуется отдельно от бурения — правка отсюда недоступна.
                 </p>
               )}
@@ -1712,7 +1682,7 @@ export default function DailyReportForm() {
                 disabled={siblingLocked.geotech}
                 style={{ width: 80 }}
               />
-              <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--color-text-muted)' }}>Фотофиксация</div>
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-muted)' }}>Фотофиксация</div>
               <input
                 type="number"
                 step="any"
@@ -1737,7 +1707,7 @@ export default function DailyReportForm() {
             <label>
               Распилено за смену, м
               {siblingLocked.sawing && (
-                <span className="text-muted" style={{ fontWeight: 400, fontSize: 12.5 }}>
+                <span className="text-muted" style={{ fontWeight: 400, fontSize: 12 }}>
                   {' '}
                   (уже согласуется отдельно — правка отсюда недоступна)
                 </span>
@@ -1755,7 +1725,7 @@ export default function DailyReportForm() {
           {taskType === 'drilling' && canFillAttachedSampling && (
             <>
               {siblingLocked.sampling && (
-                <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>
+                <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
                   Опробование за эту дату уже согласуется отдельно — правка отсюда недоступна.
                 </p>
               )}
@@ -1817,20 +1787,6 @@ export default function DailyReportForm() {
               из введённых значений; после отправки форма очищается, поэтому ниже
               копируется текст, сохранённый в момент отправки (оба одной функцией,
               глубина = забой «до»). */}
-          {taskType === 'drilling' && !showSent && (
-            <button
-              type="button"
-              className="btn-outline"
-              onClick={handleCopyWhatsApp}
-              disabled={drillingTo === ''}
-              title={drillingTo === '' ? 'Укажите забой «до» на первом шаге' : undefined}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 44 }}
-            >
-              {copied ? <Check size={16} /> : <MessageCircle size={16} />}
-              {copied ? 'Скопировано' : 'Скопировать для WhatsApp'}
-            </button>
-          )}
-
           {error && <p className="text-error">{error}</p>}
           {showSent && (
             <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, borderColor: 'var(--color-success)' }}>
@@ -1838,6 +1794,7 @@ export default function DailyReportForm() {
               {sentMessage && (
                 <button
                   type="button"
+                  className="btn-whatsapp"
                   onClick={() => copyText(sentMessage)}
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 44 }}
                 >
@@ -1873,13 +1830,13 @@ export default function DailyReportForm() {
               lastSubmitted.shift === shiftNumber
             const disabled = submitting !== null || alreadySubmittedHere
             return (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'grid', gap: 8 }}>
                 <button
                   type="button"
                   className="btn-outline"
                   disabled={disabled}
                   onClick={(e) => handleSubmit(e, 'draft')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44 }}
                 >
                   {submitting === 'draft' && <span className="spinner" style={{ marginRight: 0 }} />}
                   {submitting === 'draft' ? 'Сохраняем…' : 'Сохранить черновик'}
@@ -1888,7 +1845,7 @@ export default function DailyReportForm() {
                   type="button"
                   disabled={disabled}
                   onClick={(e) => handleSubmit(e, 'submit')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44 }}
                 >
                   {submitting === 'submit' && <span className="spinner" style={{ marginRight: 0 }} />}
                   {submitting === 'submit'
@@ -1897,19 +1854,42 @@ export default function DailyReportForm() {
                       ? 'Уже отправлено — измените дату/смену'
                       : 'Отправить на согласование'}
                 </button>
+                {taskType === 'drilling' && !showSent && (
+                  <button
+                    type="button"
+                    className="btn-whatsapp"
+                    onClick={handleCopyWhatsApp}
+                    disabled={drillingTo === ''}
+                    title={drillingTo === '' ? 'Укажите забой «до» на первом шаге' : undefined}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 44 }}
+                  >
+                    {copied ? <Check size={16} /> : <MessageCircle size={16} />}
+                    {copied ? 'Скопировано' : 'Скопировать для WhatsApp'}
+                  </button>
+                )}
+                {taskType === 'drilling' && (
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    onClick={() => setStep(1)}
+                    style={{ minHeight: 44 }}
+                  >
+                    Назад
+                  </button>
+                )}
               </div>
             )
           })()}
-          {taskType === 'drilling' && (
-            <div className="wizard-nav">
-              <button type="button" className="btn-outline" onClick={() => setStep(1)}>
-                Назад
-              </button>
-            </div>
-          )}
           </div>
         </form>
       )}
+      <Modal open={diamHelpOpen} onClose={() => setDiamHelpOpen(false)} title="Как заполнять забой">
+        <div style={{ display: 'grid', gap: 10, fontSize: 14, lineHeight: 1.5 }}>
+          <p style={{ margin: 0 }}><b>«От»</b> — забой на начало смены, подставляется сам и не редактируется.</p>
+          <p style={{ margin: 0 }}><b>«До»</b> — забой на конец смены. Проходка за смену считается как «до» минус «от».</p>
+          <p style={{ margin: 0 }}>Выберите диаметр, которым бурили. Если диаметр сменился в течение смены, нажмите <b>«Смена диаметра»</b>: появится вторая строка, её «от» подставится из «до» предыдущей, укажите новый забой и диаметр.</p>
+        </div>
+      </Modal>
     </div>
   )
 }

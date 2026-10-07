@@ -218,7 +218,7 @@ function CategoryCard({
           }}
         >
           {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15 }}>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>
             {category.name}
           </span>
         </button>
@@ -253,7 +253,7 @@ function CategoryCard({
                     padding: '8px 10px',
                     borderRadius: 'var(--radius-sm)',
                     background: 'var(--color-surface-muted)',
-                    fontSize: 13.5,
+                    fontSize: 13,
                   }}
                 >
                   <span style={{ flex: 1 }}>{it.name}</span>

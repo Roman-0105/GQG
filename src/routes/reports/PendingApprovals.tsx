@@ -332,7 +332,7 @@ export default function PendingApprovals() {
             type="button"
             disabled={bulkBusy}
             onClick={() => approveMany(ids)}
-            style={{ fontSize: 12.5, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            style={{ fontSize: 12, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
           >
             <CheckCheck size={14} /> {bulkBusy ? 'Принимаем…' : `Принять ${ids.length}?`}
           </button>
@@ -341,7 +341,7 @@ export default function PendingApprovals() {
             className="btn-outline"
             disabled={bulkBusy}
             onClick={() => setConfirmKey(null)}
-            style={{ fontSize: 12.5, padding: '5px 10px' }}
+            style={{ fontSize: 12, padding: '5px 10px' }}
           >
             Отмена
           </button>
@@ -353,7 +353,7 @@ export default function PendingApprovals() {
         type="button"
         className="btn-outline"
         onClick={() => setConfirmKey(key)}
-        style={{ fontSize: 12.5, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+        style={{ fontSize: 12, padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
       >
         <CheckCheck size={14} /> {label} ({ids.length})
       </button>
@@ -480,7 +480,7 @@ export default function PendingApprovals() {
                   }}
                 >
                   {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16, flex: 1 }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, flex: 1 }}>
                     {site.siteName}
                   </span>
                   <span className="badge badge-primary num">{site.count}</span>

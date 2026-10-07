@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { ROLE_LABELS, isManagement } from '../types/roles'
 import { useReportCounts } from '../hooks/useReportCounts'
+import { useIsMobile } from '../hooks/useMediaQuery'
 import { riseIn } from '../lib/motionVariants'
 import { coreProgress, sawingProgress, samplingProgress, fetchForeignDrillingProgress } from '../lib/taskProgress'
 import ProgressBar from '../components/ProgressBar'
@@ -33,7 +34,7 @@ function ExpandableList<T>({ items, renderItem }: { items: T[]; renderItem: (ite
           onClick={() => setExpanded((v) => !v)}
           style={{
             marginTop: 8,
-            fontSize: 12.5,
+            fontSize: 12,
             padding: '5px 10px',
             display: 'flex',
             alignItems: 'center',
@@ -100,6 +101,7 @@ interface SiteProgress {
 export default function Dashboard() {
   const { session, profile, profileError, loading, signOut } = useAuth()
   const { pendingApprovals } = useReportCounts()
+  const isMobile = useIsMobile()
 
   const [sites, setSites] = useState<Site[]>([])
   const [siteProgress, setSiteProgress] = useState<Map<string, SiteProgress>>(new Map())
@@ -330,7 +332,7 @@ export default function Dashboard() {
             borderRadius: 'var(--radius-md)',
             padding: 12,
             fontSize: 13,
-            fontFamily: 'monospace',
+            fontFamily: 'var(--font-mono)',
             color: 'var(--color-text-muted)',
             marginTop: 10,
             marginBottom: 16,
@@ -389,15 +391,19 @@ export default function Dashboard() {
 
   return (
     <div>
-      <p className="eyebrow" style={{ marginBottom: 8 }}>
-        {ROLE_LABELS[profile.role]}
-      </p>
-      <h1 style={{ marginBottom: 26 }}>
-        {greeting()}, {firstName}
-      </h1>
+      {!isMobile && (
+        <>
+          <p className="eyebrow" style={{ marginBottom: 8 }}>
+            {ROLE_LABELS[profile.role]}
+          </p>
+          <h1 style={{ marginBottom: 26 }}>
+            {greeting()}, {firstName}
+          </h1>
+        </>
+      )}
 
       <div style={{ display: 'grid', gap: 12, marginBottom: 28 }}>
-        {(profile.role === 'party_chief' || isManagement(profile.role)) && (
+        {((profile.role === 'party_chief' && !isMobile) || isManagement(profile.role)) && (
           <motion.div {...riseIn(0, { duration: 0.3 })}>
             <ShiftDutyCard />
           </motion.div>
@@ -524,7 +530,7 @@ export default function Dashboard() {
           <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
             <div>
               <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>Бурение</div>
-              <div className="num" style={{ fontSize: 20, fontWeight: 700 }}>
+              <div className="num" style={{ fontSize: 18, fontWeight: 700 }}>
                 {companyTotals.drillingApproved.toFixed(1)}{' '}
                 {companyTotals.drillingPlan > 0 && (
                   <span className="text-muted" style={{ fontSize: 14, fontWeight: 500 }}>
@@ -536,7 +542,7 @@ export default function Dashboard() {
             {companyTotals.corePlan > 0 && (
               <div>
                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>Керн</div>
-                <div className="num" style={{ fontSize: 20, fontWeight: 700 }}>
+                <div className="num" style={{ fontSize: 18, fontWeight: 700 }}>
                   {Math.round((companyTotals.coreApproved / companyTotals.corePlan) * 100)}%
                 </div>
               </div>
@@ -544,7 +550,7 @@ export default function Dashboard() {
             {companyTotals.sawingPlan > 0 && (
               <div>
                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>Распиловка</div>
-                <div className="num" style={{ fontSize: 20, fontWeight: 700 }}>
+                <div className="num" style={{ fontSize: 18, fontWeight: 700 }}>
                   {Math.round((companyTotals.sawingApproved / companyTotals.sawingPlan) * 100)}%
                 </div>
               </div>
@@ -552,7 +558,7 @@ export default function Dashboard() {
             {(companyTotals.samplingTaken > 0 || companyTotals.samplingSubmitted > 0) && (
               <div>
                 <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 2 }}>Опробование</div>
-                <div className="num" style={{ fontSize: 20, fontWeight: 700 }}>
+                <div className="num" style={{ fontSize: 18, fontWeight: 700 }}>
                   {companyTotals.samplingTaken}{' '}
                   <span className="text-muted" style={{ fontSize: 14, fontWeight: 500 }}>
                     (сдано {companyTotals.samplingSubmitted})
@@ -598,7 +604,7 @@ export default function Dashboard() {
                         <Mountain size={15} />
                       </span>
                       <span>
-                        <b style={{ display: 'block', color: 'var(--color-text)', fontFamily: 'var(--font-display)', fontSize: 16 }}>
+                        <b style={{ display: 'block', color: 'var(--color-text)', fontFamily: 'var(--font-display)', fontSize: 14 }}>
                           {site.name}
                         </b>
                         <span className={`badge badge-${site.status === 'active' ? 'primary' : 'neutral'}`} style={{ marginTop: 3 }}>

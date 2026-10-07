@@ -72,10 +72,11 @@ export default function DrillingCrewStrip({ taskId }: Props) {
   ]
 
   return (
-    <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
-      <div className="eyebrow" style={{ flexShrink: 0 }}>
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div className="eyebrow" style={{ textAlign: 'center' }}>
         Бригада
       </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px 16px' }}>
       {slots.map(({ role, shift }) => {
         const assignment = assignments.find((a) => a.role === role && a.shift_number === shift)
         const worker = assignment ? workers.find((w) => w.id === assignment.worker_id) : undefined
@@ -92,7 +93,7 @@ export default function DrillingCrewStrip({ taskId }: Props) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 10.5,
+                fontSize: 11,
                 fontWeight: 700,
                 flexShrink: 0,
               }}
@@ -103,11 +104,12 @@ export default function DrillingCrewStrip({ taskId }: Props) {
               <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
                 {ROLE_LABELS[role]} · смена {shift}
               </div>
-              <div style={{ fontSize: 12.5, fontWeight: 600 }}>{name}</div>
+              <div style={{ fontSize: 12, fontWeight: 600 }}>{name}</div>
             </div>
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

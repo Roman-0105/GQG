@@ -48,7 +48,7 @@ export default function TrendSparkline({
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-        <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
           {data[0].date} — {data[data.length - 1].date}
         </span>
         <span className="num" style={{ fontSize: 13, fontWeight: 600 }}>

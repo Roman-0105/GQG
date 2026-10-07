@@ -241,7 +241,7 @@ function OrganizationCard({
           }}
         >
           {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15 }}>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>
             {organization.name}
           </span>
         </button>
@@ -277,7 +277,7 @@ function OrganizationCard({
                     padding: '8px 10px',
                     borderRadius: 'var(--radius-sm)',
                     background: 'var(--color-surface-muted)',
-                    fontSize: 13.5,
+                    fontSize: 13,
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>

@@ -195,17 +195,17 @@ export default function SiteOverview({
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-text-muted)' }}>
               <t.icon size={14} /> {t.label}
             </div>
-            <div className="num" style={{ fontSize: 24, fontWeight: 700, marginTop: 4 }}>
+            <div className="num" style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>
               {t.value}
             </div>
-            <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>{t.sub}</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{t.sub}</div>
           </div>
         ))}
       </div>
 
       <div className="site-overview-grid">
         <div className="card" style={{ padding: 14 }}>
-          <h3 style={{ margin: '0 0 10px', fontSize: 15 }}>Скважины</h3>
+          <h3 style={{ margin: '0 0 10px', fontSize: 14 }}>Скважины</h3>
           {/* Список прокручивается внутри карточки (до ~6 строк), чтобы он не растягивал
               соседнюю карточку с графиком, когда скважин много (04.10.2026). */}
           <div className="site-overview-wells">
@@ -245,7 +245,7 @@ export default function SiteOverview({
         </div>
 
         <div className="card" style={{ padding: 14 }}>
-          <h3 style={{ margin: '0 0 10px', fontSize: 15 }}>Метраж за 14 дней</h3>
+          <h3 style={{ margin: '0 0 10px', fontSize: 14 }}>Метраж за 14 дней</h3>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 96 }}>
             {days.map((d) => (
               <div
@@ -263,7 +263,7 @@ export default function SiteOverview({
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--color-text-faint)', marginTop: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--color-text-faint)', marginTop: 4 }}>
             <span>{days[0].iso.slice(8, 10)}.{days[0].iso.slice(5, 7)}</span>
             <span>{days[13].iso.slice(8, 10)}.{days[13].iso.slice(5, 7)}</span>
           </div>
@@ -272,7 +272,7 @@ export default function SiteOverview({
 
       {(attention.length > 0 || rejected > 0) && (
         <div className="card" style={{ padding: 14, borderColor: 'var(--color-accent)' }}>
-          <h3 style={{ margin: '0 0 8px', fontSize: 15, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
             <AlertTriangle size={16} color="var(--color-accent)" /> Требует внимания
           </h3>
           <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 4, fontSize: 14 }}>

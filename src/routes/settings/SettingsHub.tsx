@@ -91,10 +91,10 @@ export default function SettingsHub() {
                 <item.icon size={17} />
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15 }}>
+                <span style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>
                   {item.label}
                 </span>
-                <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+                <span style={{ display: 'block', fontSize: 12, color: 'var(--color-text-muted)' }}>
                   {item.description}
                 </span>
               </span>

@@ -308,7 +308,7 @@ export default function GeologyTaskWizard() {
 
   return (
     <div style={{ maxWidth: 720 }}>
-      <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}>
+      <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 10 }}>
         <ChevronLeft size={15} /> Участок
       </Link>
       <h1 style={{ marginTop: 0 }}>Геология на скважине</h1>
@@ -327,7 +327,7 @@ export default function GeologyTaskWizard() {
               display: 'flex',
               alignItems: 'center',
               gap: 7,
-              fontSize: 13.5,
+              fontSize: 13,
               fontWeight: i === step ? 700 : 500,
               color: i <= step ? 'var(--color-text)' : 'var(--color-text-faint)',
             }}
@@ -444,7 +444,7 @@ export default function GeologyTaskWizard() {
                           <def.icon size={17} className="text-muted" />
                           <span style={{ display: 'grid' }}>
                             <span style={{ fontWeight: 600 }}>{def.label}</span>
-                            <span className="text-muted" style={{ fontSize: 12.5 }}>
+                            <span className="text-muted" style={{ fontSize: 12 }}>
                               {def.hint}
                               {locked ? ' · уже создана' : ''}
                             </span>

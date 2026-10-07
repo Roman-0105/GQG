@@ -294,7 +294,7 @@ export default function Login() {
               </button>
             </form>
 
-            <p className="text-muted login-extra" style={{ fontSize: 12.5, marginTop: 18, lineHeight: 1.45 }}>
+            <p className="text-muted login-extra" style={{ fontSize: 12, marginTop: 18, lineHeight: 1.45 }}>
               Учётные записи создаёт администратор — открытой регистрации нет. Нет доступа? Обратитесь к руководителю.
             </p>
           </motion.div>

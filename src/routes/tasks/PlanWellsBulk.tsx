@@ -90,7 +90,7 @@ export default function PlanWellsBulk() {
 
   return (
     <div style={{ maxWidth: 1100 }}>
-      <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}>
+      <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 10 }}>
         <ChevronLeft size={15} /> Участок
       </Link>
       <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -128,7 +128,7 @@ export default function PlanWellsBulk() {
           placeholder="Вставьте строки из Excel сюда…"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5 }}
+          style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
         />
       </div>
 

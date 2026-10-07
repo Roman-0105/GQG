@@ -107,7 +107,7 @@ export default function SamplingTaskForm() {
 
   return (
     <div style={{ maxWidth: 460 }}>
-      <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}>
+      <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 10 }}>
         <ChevronLeft size={15} /> Участок
       </Link>
       <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

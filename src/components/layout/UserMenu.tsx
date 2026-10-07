@@ -60,7 +60,7 @@ export default function UserMenu({ placement = 'down', showLabel = false }: User
             <span style={{ display: 'block', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {profile.full_name}
             </span>
-            <span className="text-muted" style={{ display: 'block', fontSize: 11.5 }}>
+            <span className="text-muted" style={{ display: 'block', fontSize: 11 }}>
               {ROLE_LABELS[profile.role]}
             </span>
           </span>
@@ -78,7 +78,7 @@ export default function UserMenu({ placement = 'down', showLabel = false }: User
           >
             <div className="user-menu-header">
               <div style={{ fontWeight: 700, fontSize: 14 }}>{profile.full_name}</div>
-              <div className="text-muted" style={{ fontSize: 12.5 }}>
+              <div className="text-muted" style={{ fontSize: 12 }}>
                 {ROLE_LABELS[profile.role]}
               </div>
             </div>

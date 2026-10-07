@@ -369,21 +369,21 @@ export default function OrgChart() {
             <button
               type="button"
               onClick={openAddPerson}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13.5 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13 }}
             >
               <Plus size={15} /> Добавить человека
             </button>
             <Link
               to="/users"
               className="btn-outline"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13.5 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13 }}
             >
               <UserPlus size={15} /> Все пользователи
             </Link>
             <Link
               to="/settings/workers"
               className="btn-outline"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13.5 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontSize: 13 }}
             >
               <UserPlus size={15} /> Все работники
             </Link>
@@ -422,7 +422,7 @@ export default function OrgChart() {
 
       {!loading && unassignedPeople.length > 0 && (
         <div style={{ marginTop: 24 }}>
-          <h2 style={{ fontSize: 15, marginBottom: 6 }}>Без назначенной должности</h2>
+          <h2 style={{ fontSize: 14, marginBottom: 6 }}>Без назначенной должности</h2>
           <p className="text-muted" style={{ fontSize: 13, marginTop: 0, marginBottom: 10 }}>
             Эти люди уже есть в системе, но не показаны в схеме выше — нажмите на карточку, чтобы назначить должность
             и руководителя.
@@ -575,7 +575,7 @@ export default function OrgChart() {
             {addSaving ? 'Добавляем…' : 'Добавить'}
           </button>
         </form>
-        <p className="text-muted" style={{ fontSize: 12.5, marginTop: 10, marginBottom: 0 }}>
+        <p className="text-muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
           Должность и руководителя можно будет назначить сразу после — новый человек появится в разделе "Без
           назначенной должности".
         </p>

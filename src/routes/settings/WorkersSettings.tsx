@@ -171,12 +171,12 @@ function WorkerCard({
           <span style={{ display: 'block', fontWeight: 600, fontSize: 14 }}>
             {worker.full_name}
             {worker.archived_at && (
-              <span className="badge badge-neutral" style={{ marginLeft: 6, fontSize: 10.5 }}>
+              <span className="badge badge-neutral" style={{ marginLeft: 6, fontSize: 11 }}>
                 архивирован
               </span>
             )}
           </span>
-          <span className="text-muted" style={{ fontSize: 12.5 }}>
+          <span className="text-muted" style={{ fontSize: 12 }}>
             {positionName} · {orgName}
           </span>
         </div>
@@ -336,7 +336,7 @@ function WorkerCard({
             type="button"
             className="btn-outline"
             onClick={() => onArchiveToggle(worker)}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 12.5, flex: 1 }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 12, flex: 1 }}
           >
             {worker.archived_at ? <ArchiveRestore size={13} /> : <Archive size={13} />}
             {worker.archived_at ? 'Вернуть из архива' : 'Архивировать'}
@@ -345,7 +345,7 @@ function WorkerCard({
             type="button"
             className="btn-outline"
             onClick={() => setConfirmingDelete(true)}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 12.5, color: 'var(--color-danger)' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 12, color: 'var(--color-danger)' }}
             title="Удалить безвозвратно"
           >
             <Trash2 size={13} />
@@ -363,7 +363,7 @@ function WorkerCard({
               className="btn-danger"
               disabled={deleting}
               onClick={handleDelete}
-              style={{ flex: 1, fontSize: 12.5 }}
+              style={{ flex: 1, fontSize: 12 }}
             >
               {deleting ? 'Удаляем…' : 'Да, удалить'}
             </button>
@@ -372,7 +372,7 @@ function WorkerCard({
               className="btn-outline"
               disabled={deleting}
               onClick={() => setConfirmingDelete(false)}
-              style={{ flex: 1, fontSize: 12.5 }}
+              style={{ flex: 1, fontSize: 12 }}
             >
               Отмена
             </button>

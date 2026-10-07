@@ -139,7 +139,7 @@ export default function CrewAssignmentSection({ taskType, taskId, foremanId, can
 
   return (
     <div>
-      {heading && <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 15 }}>{heading}</h3>}
+      {heading && <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 14 }}>{heading}</h3>}
       {error && <p className="text-error" style={{ fontSize: 13 }}>{error}</p>}
       {canEdit && foremanId && brigadeWorkers.length === 0 && (
         <p className="text-muted" style={{ fontSize: 13 }}>
@@ -148,14 +148,14 @@ export default function CrewAssignmentSection({ taskType, taskId, foremanId, can
         </p>
       )}
       {canEdit && roles.some((r) => SHIFT_AWARE_ROLES.has(r.value)) && brigadeWorkers.length > 0 && (
-        <p className="text-muted" style={{ fontSize: 12.5, margin: '0 0 10px' }}>
+        <p className="text-muted" style={{ fontSize: 12, margin: '0 0 10px' }}>
           {showAllWorkers
             ? 'Показаны все работники бригады. '
             : 'В списках только работники с должностью «Буровик» / «Помощник бурильщика» (роль задаётся в «Управление должностями»). '}
           <button
             type="button"
             onClick={() => setShowAllWorkers((v) => !v)}
-            style={{ background: 'transparent', border: 'none', padding: 0, color: 'var(--color-primary)', fontSize: 12.5 }}
+            style={{ background: 'transparent', border: 'none', padding: 0, color: 'var(--color-primary)', fontSize: 12 }}
           >
             {showAllWorkers ? 'Показать только по должности' : 'Показать всех'}
           </button>
@@ -227,7 +227,7 @@ export default function CrewAssignmentSection({ taskType, taskId, foremanId, can
               border: 'none',
               color: 'var(--color-text-muted)',
               padding: 0,
-              fontSize: 12.5,
+              fontSize: 12,
             }}
           >
             {historyOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -238,7 +238,7 @@ export default function CrewAssignmentSection({ taskType, taskId, foremanId, can
               {closed.map((a) => {
                 const roleLabel = roles.find((r) => r.value === a.role)?.label ?? a.role
                 return (
-                  <div key={a.id} className="text-muted" style={{ fontSize: 12.5 }}>
+                  <div key={a.id} className="text-muted" style={{ fontSize: 12 }}>
                     {roleLabel}
                     {a.shift_number ? `, смена ${a.shift_number}` : ''} — {workerName(a.worker_id)}
                     {' '}
@@ -278,7 +278,7 @@ function RoleSlot({
 }) {
   return (
     <div>
-      <div className="eyebrow" style={{ marginBottom: 6, fontSize: 11.5 }}>
+      <div className="eyebrow" style={{ marginBottom: 6, fontSize: 11 }}>
         {label}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: canEdit ? 8 : 0 }}>

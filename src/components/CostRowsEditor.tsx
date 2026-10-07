@@ -90,7 +90,7 @@ export default function CostRowsEditor({ rows, categories, items, onChange }: Pr
           </div>
         )
       })}
-      <button type="button" className="btn-outline" onClick={addRow}>
+      <button type="button" className="btn-outline" onClick={addRow} style={{ width: '100%' }}>
         + статья затрат
       </button>
     </div>

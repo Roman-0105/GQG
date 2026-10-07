@@ -95,7 +95,7 @@ export default function AttachedSamplingCard({
         <FlaskConical size={15} className="text-muted" />
         <span>Опробование</span>
       </div>
-      <label style={{ fontSize: 12.5 }}>
+      <label style={{ fontSize: 12 }}>
         Ответственный
         <select value={assignedId} onChange={(e) => setAssignedId(e.target.value)}>
           <option value="">— выбрать —</option>
@@ -113,12 +113,12 @@ export default function AttachedSamplingCard({
         onChange={(e) => setDescription(e.target.value)}
       />
       {error && (
-        <p className="text-error" style={{ fontSize: 12.5, margin: 0 }}>
+        <p className="text-error" style={{ fontSize: 12, margin: 0 }}>
           {error}
         </p>
       )}
       <div style={{ display: 'flex', gap: 6 }}>
-        <button type="button" onClick={handleSave} disabled={saving || !assignedId} style={{ fontSize: 12.5, padding: '6px 10px' }}>
+        <button type="button" onClick={handleSave} disabled={saving || !assignedId} style={{ fontSize: 12, padding: '6px 10px' }}>
           {saving ? '…' : task ? 'Сохранить' : 'Добавить'}
         </button>
         {!task && (
@@ -126,7 +126,7 @@ export default function AttachedSamplingCard({
             type="button"
             className="btn-outline"
             onClick={() => setAdding(false)}
-            style={{ fontSize: 12.5, padding: '6px 10px' }}
+            style={{ fontSize: 12, padding: '6px 10px' }}
           >
             Отмена
           </button>

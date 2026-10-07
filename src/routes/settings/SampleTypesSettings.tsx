@@ -145,7 +145,7 @@ export default function SampleTypesSettings() {
     <div>
       <Link
         to="/settings"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 10 }}
       >
         <ChevronLeft size={15} /> Настройки
       </Link>

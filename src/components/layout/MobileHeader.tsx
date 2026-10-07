@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { Settings } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { NAV_ITEMS, isNavItemActive } from './navItems'
 import BrandMark from '../BrandMark'
@@ -12,6 +13,7 @@ export default function MobileHeader() {
   const { session, profile } = useAuth()
 
   const current = NAV_ITEMS.find((item) => isNavItemActive(pathname, item.to))
+  const onDutyPage = pathname.startsWith('/duty')
 
   if (!session || !profile) {
     return (
@@ -27,7 +29,12 @@ export default function MobileHeader() {
   return (
     <header className="mobile-header">
       <div className="mobile-header-title">
-        {current ? (
+        {onDutyPage ? (
+          <>
+            <Settings size={18} strokeWidth={2.2} color="var(--color-primary)" />
+            Настройки
+          </>
+        ) : current ? (
           <>
             <current.icon size={18} strokeWidth={2.2} color="var(--color-primary)" />
             {current.label}
@@ -36,7 +43,20 @@ export default function MobileHeader() {
           'GQG'
         )}
       </div>
-      <UserMenu />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        {profile.role === 'party_chief' && (
+          <Link
+            to="/duty"
+            className="icon-btn-round"
+            aria-label="Настройки"
+            title="Настройки: вахта"
+            style={onDutyPage ? { color: 'var(--color-primary)' } : undefined}
+          >
+            <Settings size={19} />
+          </Link>
+        )}
+        <UserMenu />
+      </div>
     </header>
   )
 }

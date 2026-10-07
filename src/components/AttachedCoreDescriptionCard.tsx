@@ -95,12 +95,12 @@ export default function AttachedCoreDescriptionCard({
         onChange={(e) => setDescription(e.target.value)}
       />
       {error && (
-        <p className="text-error" style={{ fontSize: 12.5, margin: 0 }}>
+        <p className="text-error" style={{ fontSize: 12, margin: 0 }}>
           {error}
         </p>
       )}
       <div style={{ display: 'flex', gap: 6 }}>
-        <button type="button" onClick={handleSave} disabled={saving} style={{ fontSize: 12.5, padding: '6px 10px' }}>
+        <button type="button" onClick={handleSave} disabled={saving} style={{ fontSize: 12, padding: '6px 10px' }}>
           {saving ? '…' : task ? 'Сохранить' : 'Добавить'}
         </button>
         {!task && (
@@ -108,7 +108,7 @@ export default function AttachedCoreDescriptionCard({
             type="button"
             className="btn-outline"
             onClick={() => setAdding(false)}
-            style={{ fontSize: 12.5, padding: '6px 10px' }}
+            style={{ fontSize: 12, padding: '6px 10px' }}
           >
             Отмена
           </button>

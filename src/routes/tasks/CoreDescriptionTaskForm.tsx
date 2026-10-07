@@ -249,7 +249,7 @@ export default function CoreDescriptionTaskForm() {
 
   return (
     <div style={{ maxWidth: 460 }}>
-      <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}>
+      <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 10 }}>
         <ChevronLeft size={15} /> Участок
       </Link>
       <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -297,7 +297,7 @@ export default function CoreDescriptionTaskForm() {
               />{' '}
               Геотехническая
             </label>
-            <p className="text-muted" style={{ fontSize: 12.5, margin: '6px 0 0' }}>
+            <p className="text-muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
               Идут по одной скважине независимо — если нужны обе, заведите два задания.
             </p>
           </fieldset>

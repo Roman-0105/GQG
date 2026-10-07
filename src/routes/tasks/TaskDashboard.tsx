@@ -16,6 +16,7 @@ import {
   Users,
   Lock,
   Unlock,
+  FileText,
 } from 'lucide-react'
 import DerrickIcon from '../../components/icons/DerrickIcon'
 import { supabase } from '../../lib/supabaseClient'
@@ -105,6 +106,9 @@ export default function TaskDashboard() {
   // нужны забой и прогресс, а не вся история), на ПК развёрнута.
   const isMobile = useIsMobile()
   const [daysOpen, setDaysOpen] = useState(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches,
+  )
+  const [commentsOpen, setCommentsOpen] = useState(
     () => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches,
   )
   const [drillingTask, setDrillingTask] = useState<DrillingTask | null>(null)
@@ -277,20 +281,20 @@ export default function TaskDashboard() {
   if (loading) return <p>Загрузка…</p>
   if (error) return <p className="text-error">{error}</p>
 
+  // Только номер скважины (07.10.2026): слово «скважина» в заголовке не нужно;
+  // скважина подрядчика помечается словом «подрядчик».
   const wellLabel = isDrilling
-    ? `Скважина №${drillingTask?.well_number ?? '…'}`
+    ? `№${drillingTask?.well_number ?? '…'}`
     : isCoreDescription
       ? coreTask?.drilling_task_id
-        ? `Своя скважина №${linkedDrillingTask?.well_number ?? '…'}`
-        : `Скважина подрядчика №${coreTask?.external_well_number ?? '…'}`
+        ? `№${linkedDrillingTask?.well_number ?? '…'}`
+        : `Подрядчик №${coreTask?.external_well_number ?? '…'}`
       : isSawing
-        ? `Скважина №${linkedDrillingTask?.well_number ?? '…'}`
+        ? `№${linkedDrillingTask?.well_number ?? '…'}`
         : samplingTask?.drilling_task_id
-          ? `Своя скважина №${linkedDrillingTask?.well_number ?? '…'}`
-          : `Скважина подрядчика №${samplingTask?.external_well_number ?? '…'}`
+          ? `№${linkedDrillingTask?.well_number ?? '…'}`
+          : `Подрядчик №${samplingTask?.external_well_number ?? '…'}`
 
-  const description =
-    drillingTask?.description ?? coreTask?.description ?? sawingTask?.description ?? samplingTask?.description
   const siteId = drillingTask?.site_id ?? coreTask?.site_id ?? sawingTask?.site_id ?? samplingTask?.site_id
 
   const shiftsApply = isDrilling || isSawing ? true : isCoreDescription ? (coreTask?.shift_enabled ?? true) : false
@@ -579,87 +583,97 @@ export default function TaskDashboard() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 13.5, marginBottom: 14, flexWrap: 'wrap' }}>
-        {siteId && (
-          <Link to={`/sites/${siteId}`} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <ChevronLeft size={15} /> Участок
-          </Link>
-        )}
-        <Link to={`/tasks/${taskType}/${taskId}/reports`}>Все сводки →</Link>
-        {profile?.role === 'party_chief' && (
-          <Link to={`/tasks/${taskType}/${taskId}/reports/new`} style={{ marginLeft: 'auto' }}>
-            <button type="button" style={{ fontSize: 12.5, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Plus size={13} /> Сводка
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 18 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {siteId && (
+            <div style={{ marginBottom: 12 }}>
+              <Link to={`/sites/${siteId}`}>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap' }}
+                >
+                  <ChevronLeft size={15} /> К участку
+                </button>
+              </Link>
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <span
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: isDrilling ? 'var(--color-primary-soft)' : 'var(--color-accent-soft)',
+                color: isDrilling ? 'var(--color-primary)' : 'var(--color-accent)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <TaskIcon size={18} />
+            </span>
+            <h1 style={{ margin: 0, minWidth: 0, fontSize: 22, fontStyle: 'italic', fontWeight: 700, overflowWrap: 'anywhere' }}>
+              {wellLabel}
+            </h1>
+          </div>
+          <p className="eyebrow" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {TASK_TYPE_LABELS[taskType]}
+            {isCoreDescription && coreTask && (
+              <span className="badge badge-neutral">
+                {coreTask.documentation_type === 'geological' ? 'геологическая' : 'геотехническая'}
+              </span>
+            )}
+            {foreman && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-text-muted)' }}>
+                <HardHat size={13} /> {foreman.full_name}
+              </span>
+            )}
+          </p>
+        </div>
+
+        {/* Кнопки действий — столбиком справа, одинаковой ширины */}
+        <div style={{ width: 152, flexShrink: 0, display: 'grid', gap: 8 }}>
+          {profile?.role === 'party_chief' && (
+            <Link to={`/tasks/${taskType}/${taskId}/reports/new`} style={{ display: 'block' }}>
+              <button type="button" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', width: '100%' }}>
+                <Plus size={15} /> Новая сводка
+              </button>
+            </Link>
+          )}
+          <Link to={`/tasks/${taskType}/${taskId}/reports`} style={{ display: 'block' }}>
+            <button type="button" className="btn-outline" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', width: '100%' }}>
+              <FileText size={15} /> Все сводки
             </button>
           </Link>
-        )}
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
-        <span
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 10,
-            background: isDrilling ? 'var(--color-primary-soft)' : 'var(--color-accent-soft)',
-            color: isDrilling ? 'var(--color-primary)' : 'var(--color-accent)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <TaskIcon size={19} />
-        </span>
-        <h1 style={{ margin: 0, flex: 1, minWidth: 0 }}>{wellLabel}</h1>
-        <button
-          type="button"
-          className="btn-outline"
-          onClick={() => setCrewOpen(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}
-        >
-          <Users size={15} /> Состав бригады
-        </button>
-        {/* Редактирование задания — руководству, для всех четырёх видов заданий */}
-        {isManagement(profile?.role) && siteId && (
-          <Link to={`/sites/${siteId}/tasks/${taskType}/${taskId}/edit`} style={{ flexShrink: 0 }}>
+          <button type="button" className="btn-outline" onClick={() => setCrewOpen(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', width: '100%' }}>
+            <Users size={15} /> Состав бригады
+          </button>
+          {/* Редактирование задания — руководству, для всех четырёх видов заданий */}
+          {isManagement(profile?.role) && siteId && (
+            <Link to={`/sites/${siteId}/tasks/${taskType}/${taskId}/edit`} style={{ display: 'block' }}>
+              <button type="button" className="btn-outline" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', width: '100%' }}>
+                <Pencil size={15} /> Редактировать
+              </button>
+            </Link>
+          )}
+          {isDrilling && drillingTask && isManagement(profile?.role) && !drillingTask.closed_reason && (
             <button
               type="button"
               className="btn-outline"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap' }}
+              onClick={() => {
+                setCloseError(null)
+                setCloseDate(todayIso())
+                setCloseOpen(true)
+              }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', width: '100%' }}
             >
-              <Pencil size={15} /> Редактировать
+              <Lock size={15} /> Закрыть скважину
             </button>
-          </Link>
-        )}
-        {isDrilling && drillingTask && isManagement(profile?.role) && !drillingTask.closed_reason && (
-          <button
-            type="button"
-            className="btn-outline"
-            onClick={() => {
-              setCloseError(null)
-              setCloseDate(todayIso())
-              setCloseOpen(true)
-            }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}
-          >
-            <Lock size={15} /> Закрыть скважину
-          </button>
-        )}
+          )}
+        </div>
       </div>
-      <p className="eyebrow" style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        {TASK_TYPE_LABELS[taskType]}
-        {isCoreDescription && coreTask && (
-          <span className="badge badge-neutral">
-            {coreTask.documentation_type === 'geological' ? 'геологическая' : 'геотехническая'}
-          </span>
-        )}
-        {foreman && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-text-muted)' }}>
-            <HardHat size={13} /> {foreman.full_name}
-          </span>
-        )}
-      </p>
 
       {isDrilling && drillingTask?.closed_reason && (
         <div
@@ -679,7 +693,7 @@ export default function TaskDashboard() {
             <b>Скважина закрыта</b>
             {drillingTask.closed_at && <span className="text-muted"> · {drillingTask.closed_at.slice(8, 10)}.{drillingTask.closed_at.slice(5, 7)}.{drillingTask.closed_at.slice(0, 4)}</span>}
             <br />
-            <span className="text-muted" style={{ fontSize: 13.5 }}>
+            <span className="text-muted" style={{ fontSize: 13 }}>
               {CLOSED_REASON_LABELS[drillingTask.closed_reason]}
               {drillingTask.closed_note ? `: ${drillingTask.closed_note}` : ''}
             </span>
@@ -700,7 +714,7 @@ export default function TaskDashboard() {
 
       <Modal open={closeOpen} onClose={() => setCloseOpen(false)} title="Закрыть скважину">
         <div style={{ display: 'grid', gap: 12 }}>
-          <p className="text-muted" style={{ margin: 0, fontSize: 13.5 }}>
+          <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
             Укажите причину. Новые дни в таблицу «По дням» после закрытия не добавляются, на графике отметится линия закрытия.
           </p>
           {(['depth_reached', 'accident', 'other'] as ClosedReason[]).map((r) => (
@@ -744,12 +758,6 @@ export default function TaskDashboard() {
           </div>
         </div>
       </Modal>
-
-      {description && (
-        <p className="card" style={{ padding: 12, fontSize: 14, marginBottom: 20 }}>
-          {description}
-        </p>
-      )}
 
       <Modal open={crewOpen} onClose={() => setCrewOpen(false)} title="Состав бригады">
         <div style={{ display: 'grid', gap: 20 }}>
@@ -873,14 +881,14 @@ export default function TaskDashboard() {
                         placeholder="м/сутки"
                         style={{ width: 100, padding: '6px 8px' }}
                       />
-                      <button type="button" onClick={savePlan} disabled={savingPlan} style={{ padding: '6px 10px', fontSize: 12.5 }}>
+                      <button type="button" onClick={savePlan} disabled={savingPlan} style={{ padding: '6px 10px', fontSize: 12 }}>
                         {savingPlan ? '…' : 'Сохранить'}
                       </button>
                       <button
                         type="button"
                         className="btn-outline"
                         onClick={() => setEditingPlan(false)}
-                        style={{ padding: '6px 10px', fontSize: 12.5 }}
+                        style={{ padding: '6px 10px', fontSize: 12 }}
                       >
                         Отмена
                       </button>
@@ -893,7 +901,7 @@ export default function TaskDashboard() {
                         setPlanDraft(drillingTask.planned_daily_meters != null ? String(drillingTask.planned_daily_meters) : '')
                         setEditingPlan(true)
                       }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, padding: '6px 10px' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '6px 10px' }}
                     >
                       <Pencil size={12} />
                       {plannedDailyMeters != null ? `План: ${plannedDailyMeters} м/сутки` : 'Задать план бурения'}
@@ -929,7 +937,7 @@ export default function TaskDashboard() {
             <div className="eyebrow" style={{ marginBottom: 3 }}>
               Проб отобрано
             </div>
-            <div className="num" style={{ fontSize: 26, fontWeight: 700 }}>
+            <div className="num" style={{ fontSize: 22, fontWeight: 700 }}>
               {approvedSamplesTaken}
             </div>
           </div>
@@ -937,7 +945,7 @@ export default function TaskDashboard() {
             <div className="eyebrow" style={{ marginBottom: 3 }}>
               Сдано в лабораторию
             </div>
-            <div className="num" style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-text-muted)' }}>
+            <div className="num" style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-muted)' }}>
               {approvedSamplesSubmitted}
             </div>
           </div>
@@ -945,12 +953,15 @@ export default function TaskDashboard() {
       )}
 
       <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-            <h2 style={{ margin: 0 }}>По дням {shiftsApply ? `(${shiftColumnLabel(0).toLowerCase()} / ${shiftColumnLabel(1).toLowerCase()})` : ''}</h2>
-            <button type="button" className="btn-outline" onClick={() => setDaysOpen((v) => !v)} style={{ minHeight: 40 }}>
-              {daysOpen ? 'Свернуть таблицу' : 'Показать таблицу'}
-            </button>
-          </div>
+          <h2 style={{ margin: '0 0 8px', fontSize: 14 }}>По дням {shiftsApply ? `(${shiftColumnLabel(0).toLowerCase()} / ${shiftColumnLabel(1).toLowerCase()})` : ''}</h2>
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={() => setDaysOpen((v) => !v)}
+            style={{ width: '100%', minHeight: 36, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}
+          >
+            {daysOpen ? 'Свернуть таблицу' : 'Показать таблицу'}
+          </button>
           {!isActiveStatus && (
             <p className="text-muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
               Скважина не в работе — новые дни в таблицу не добавляются.
@@ -986,7 +997,7 @@ export default function TaskDashboard() {
                         ))}
                       </div>
                       {isAdditiveMeters && (
-                        <div className="text-muted" style={{ fontSize: 12.5, display: 'flex', flexWrap: 'wrap', gap: '2px 14px' }}>
+                        <div className="text-muted" style={{ fontSize: 12, display: 'flex', flexWrap: 'wrap', gap: '2px 14px' }}>
                           <span>Накопл. факт: <b className="num">{cumApproved} м</b></span>
                           {isDrilling && plannedCumulative != null && <span>План: <b className="num">{plannedCumulative} м</b></span>}
                           {isDrilling && dayDiff != null && (
@@ -999,38 +1010,38 @@ export default function TaskDashboard() {
                     </div>
                   )
                 })}
-              <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>Дни без сводок скрыты.</p>
+              <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>Дни без сводок скрыты.</p>
             </div>
           )}
           {daysOpen && !isMobile && (
           <div className="card" style={{ overflow: 'hidden', marginTop: 10 }}>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 480 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 480 }}>
                 <thead>
                   <tr style={{ textAlign: 'left', background: 'var(--color-surface-muted)' }}>
-                    <th style={{ padding: '10px 12px', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Дата</th>
+                    <th style={{ padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Дата</th>
                     {shiftsApply ? (
                       <>
-                        <th style={{ padding: '10px 12px', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>{shiftColumnLabel(0)}</th>
-                        <th style={{ padding: '10px 12px', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>{shiftColumnLabel(1)}</th>
+                        <th style={{ padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>{shiftColumnLabel(0)}</th>
+                        <th style={{ padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>{shiftColumnLabel(1)}</th>
                       </>
                     ) : (
-                      <th style={{ padding: '10px 12px', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Сводка</th>
+                      <th style={{ padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Сводка</th>
                     )}
                     {isAdditiveMeters && (
                       <>
-                        <th style={{ padding: '10px 12px', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Итого/день</th>
-                        <th title="Сумма подтверждённых метров с начала задания по эту дату включительно" style={{ padding: '10px 12px', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Накопл. факт</th>
+                        <th style={{ padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Итого/день</th>
+                        <th title="Сумма подтверждённых метров с начала задания по эту дату включительно" style={{ padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Накопл. факт</th>
                       </>
                     )}
                     {isDrilling && (
                       <>
-                        <th title="Сколько должно быть пробурено к этой дате при темпе «план, м/сутки» из настроек задания" style={{ padding: '10px 12px', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Накопл. план</th>
-                        <th title="Накопл. факт минус накопл. план: плюс — опережаем, минус — отстаём" style={{ padding: '10px 12px', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Отклонение</th>
+                        <th title="Сколько должно быть пробурено к этой дате при темпе «план, м/сутки» из настроек задания" style={{ padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Накопл. план</th>
+                        <th title="Накопл. факт минус накопл. план: плюс — опережаем, минус — отстаём" style={{ padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Отклонение</th>
                       </>
                     )}
                     {isSampling && (
-                      <th style={{ padding: '10px 12px', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Проб с начала</th>
+                      <th style={{ padding: '10px 12px', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--color-text-faint)' }}>Проб с начала</th>
                     )}
                   </tr>
                 </thead>
@@ -1108,10 +1119,19 @@ export default function TaskDashboard() {
 
       {rowsRendered.some(({ cells }) => cells.some((c) => c.notes)) && (
         <>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <MessageSquare size={18} className="text-muted" /> Комментарии бригадира по сменам
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '20px 0 8px', fontSize: 14 }}>
+            <MessageSquare size={16} className="text-muted" /> Комментарии бригадира по сменам
           </h2>
-          <div className="card" style={{ padding: 4 }}>
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={() => setCommentsOpen((v) => !v)}
+            style={{ width: '100%', minHeight: 36, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}
+          >
+            {commentsOpen ? 'Свернуть комментарии' : 'Показать комментарии'}
+          </button>
+          {commentsOpen && (
+          <div className="card" style={{ padding: 4, fontSize: 13 }}>
             <ul>
               {rowsRendered.flatMap(({ row, cells }) =>
                 cells
@@ -1126,6 +1146,7 @@ export default function TaskDashboard() {
               )}
             </ul>
           </div>
+          )}
         </>
       )}
     </div>

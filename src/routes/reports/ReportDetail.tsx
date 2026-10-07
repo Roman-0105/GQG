@@ -260,7 +260,7 @@ export default function ReportDetail() {
     <div style={{ maxWidth: 460 }}>
       <Link
         to={`/tasks/${taskType}/${taskId}/reports`}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 14 }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 14 }}
       >
         <ChevronLeft size={15} /> Все сводки
       </Link>
@@ -275,17 +275,17 @@ export default function ReportDetail() {
         <>
           <div className="card" style={{ padding: 16, marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>
                 {siteName}, {wellLabel}
               </p>
               <ApprovalBadge status={report.approval_status} />
             </div>
             <p style={{ margin: '0 0 4px' }}>{authorName}</p>
-            <p className="text-muted num" style={{ margin: '0 0 12px', fontSize: 13.5 }}>
+            <p className="text-muted num" style={{ margin: '0 0 12px', fontSize: 13 }}>
               {report.report_date}
               {shiftLabel(taskType, report.shift_number)}
             </p>
-            <div style={{ display: 'grid', gap: 6, fontSize: 14.5 }}>
+            <div style={{ display: 'grid', gap: 6, fontSize: 14 }}>
               {report.hours_worked != null && (
                 <p style={{ margin: 0 }}>
                   Часы работы: <span className="num">{report.hours_worked}</span>
@@ -407,7 +407,7 @@ export default function ReportDetail() {
             )}
             {canDelete && confirmingDelete && (
               <>
-                <span style={{ alignSelf: 'center', fontSize: 13.5 }}>Удалить безвозвратно?</span>
+                <span style={{ alignSelf: 'center', fontSize: 13 }}>Удалить безвозвратно?</span>
                 <button
                   type="button"
                   className="btn-danger"

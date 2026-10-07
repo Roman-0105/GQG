@@ -32,7 +32,7 @@ export default function ProgressBar({
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          fontSize: 12.5,
+          fontSize: 12,
           fontWeight: 600,
           color: 'var(--color-text-muted)',
           marginBottom: 5,

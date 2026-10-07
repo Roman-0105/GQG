@@ -90,7 +90,7 @@ export default function PlanWellForm() {
 
   return (
     <div style={{ maxWidth: 900 }}>
-      <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}>
+      <Link to={`/sites/${siteId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 10 }}>
         <ChevronLeft size={15} /> Участок
       </Link>
       <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -107,7 +107,7 @@ export default function PlanWellForm() {
         <label>
           Номер скважины
           <input required value={wellNumber} onChange={(e) => setWellNumber(e.target.value)} />
-          {duplicate && <span className="text-error" style={{ fontSize: 12.5 }}>Такой номер уже есть на участке</span>}
+          {duplicate && <span className="text-error" style={{ fontSize: 12 }}>Такой номер уже есть на участке</span>}
         </label>
         <div />
         {num(lat, setLat, 'Широта (WGS-84)', 'например 47.5123')}

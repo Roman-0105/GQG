@@ -104,9 +104,10 @@ export default function DrillingProgressPanel({
       <div
         style={{
           display: compact ? 'none' : 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          flexWrap: 'wrap',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          textAlign: 'center',
           gap: 10,
           marginBottom: 18,
         }}
@@ -115,7 +116,7 @@ export default function DrillingProgressPanel({
         {headerRight && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{headerRight}</div>}
       </div>
 
-      <div style={{ display: 'flex', gap: compact ? 12 : 24, flexWrap: compact ? 'nowrap' : 'wrap', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: compact ? 12 : 24, flexWrap: compact ? 'nowrap' : 'wrap', alignItems: 'flex-start', justifyContent: 'center' }}>
         {projectedDepth != null && (
           <div style={{ width: compact ? 168 : 190, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
             <svg width={130} height={130} viewBox="0 0 130 130">

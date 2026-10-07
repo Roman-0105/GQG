@@ -287,7 +287,7 @@ export default function MyReports() {
                   }}
                 >
                   {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16, flex: 1 }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, flex: 1 }}>
                     {site.siteName}
                   </span>
                   <span className="badge badge-primary num">{site.count}</span>
@@ -350,7 +350,7 @@ export default function MyReports() {
                                     style={{
                                       display: 'block',
                                       fontWeight: 600,
-                                      fontSize: 13.5,
+                                      fontSize: 13,
                                       whiteSpace: 'nowrap',
                                       overflow: 'hidden',
                                       textOverflow: 'ellipsis',
@@ -467,11 +467,11 @@ export default function MyReports() {
                     className="btn-outline"
                     disabled={page === 0}
                     onClick={() => setPage((p) => Math.max(0, p - 1))}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, padding: '6px 10px' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '6px 10px' }}
                   >
                     <ChevronLeft size={14} /> Назад
                   </button>
-                  <span className="text-muted num" style={{ fontSize: 12.5 }}>
+                  <span className="text-muted num" style={{ fontSize: 12 }}>
                     {page + 1} / {totalPages}
                   </span>
                   <button
@@ -479,7 +479,7 @@ export default function MyReports() {
                     className="btn-outline"
                     disabled={page >= totalPages - 1}
                     onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, padding: '6px 10px' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '6px 10px' }}
                   >
                     Вперёд <ChevronRight size={14} />
                   </button>

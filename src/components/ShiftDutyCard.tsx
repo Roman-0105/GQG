@@ -57,6 +57,9 @@ export default function ShiftDutyCard() {
   const [open, setOpen] = useState(false)
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [toId, setToId] = useState('')
+  // По умолчанию сменщика выбирают среди мастеров; «Другие варианты» раскрывают
+  // остальных ответственных (другие должности) — например, если мастера-сменщика нет.
+  const [showOthers, setShowOthers] = useState(false)
   const [comment, setComment] = useState('')
   const [summary, setSummary] = useState<{ tasks: number; drafts: number } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -94,6 +97,7 @@ export default function ShiftDutyCard() {
     setError(null)
     setDone(null)
     setToId('')
+    setShowOthers(false)
     setComment('')
     const [{ data: cands }, tasksRes] = await Promise.all([
       supabase.rpc('list_shift_candidates'),
@@ -148,6 +152,11 @@ export default function ShiftDutyCard() {
 
   if (!isChief && !isMgmt) return null
 
+  const isMaster = (c: Candidate) => /^мастер/i.test((c.position_name ?? '').trim())
+  const masters = candidates.filter(isMaster)
+  const others = candidates.filter((c) => !isMaster(c))
+  const visibleCandidates = showOthers ? [...masters, ...others] : masters
+
   return (
     <div className="card" style={{ padding: '14px 16px', display: 'grid', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -180,7 +189,7 @@ export default function ShiftDutyCard() {
             <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center' }}>
               <DutyDot on={c.on_duty} />
               {c.full_name}
-              <span className="text-muted" style={{ marginLeft: 6, fontSize: 12.5 }}>{c.on_duty ? 'на вахте' : 'межвахта'}</span>
+              <span className="text-muted" style={{ marginLeft: 6, fontSize: 12 }}>{c.on_duty ? 'на вахте' : 'межвахта'}</span>
             </span>
           ))}
         </div>
@@ -224,8 +233,8 @@ export default function ShiftDutyCard() {
                   <span>Должность</span>
                   <span>Статус</span>
                 </div>
-                {candidates.length === 0 && <div className="text-muted" style={{ padding: 12 }}>Других мастеров нет.</div>}
-                {candidates.map((c) => {
+                {masters.length === 0 && <div className="text-muted" style={{ padding: 12 }}>Мастеров для передачи нет — раскройте «Другие варианты».</div>}
+                {visibleCandidates.map((c) => {
                   const selected = toId === c.id
                   return (
                     <button
@@ -259,13 +268,26 @@ export default function ShiftDutyCard() {
                   )
                 })}
               </div>
+              {others.length > 0 && (
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => {
+                    if (showOthers && others.some((o) => o.id === toId)) setToId('')
+                    setShowOthers((v) => !v)
+                  }}
+                  style={{ justifySelf: 'start', minHeight: 36, fontSize: 13 }}
+                >
+                  {showOthers ? 'Скрыть другие варианты' : 'Другие варианты (' + others.length + ')'}
+                </button>
+              )}
             </div>
             <label style={{ display: 'grid', gap: 4 }}>
               Комментарий сменщику (по желанию)
               <textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} />
             </label>
             {summary && (
-              <p className="text-muted" style={{ fontSize: 13.5, margin: 0 }}>
+              <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
                 Будет передано: скважин бурения — <b>{summary.tasks}</b>, неотправленных черновиков и сводок на правке — <b>{summary.drafts}</b>.
                 Вы уйдёте на межвахту, сданные скважины останутся у вас только для чтения.
               </p>

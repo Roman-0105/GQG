@@ -65,7 +65,7 @@ export default function TaskReportsList() {
     <div>
       <Link
         to={`/tasks/${taskType}/${taskId}/dashboard`}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 10 }}
       >
         <ChevronLeft size={15} /> Дашборд задания
       </Link>
@@ -137,12 +137,12 @@ export default function TaskReportsList() {
                   </p>
                 )}
                 {r.approval_status === 'rejected' && r.review_comment && (
-                  <p className="text-error" style={{ fontSize: 13.5, margin: '6px 0 0' }}>
+                  <p className="text-error" style={{ fontSize: 13, margin: '6px 0 0' }}>
                     Причина: {r.review_comment}
                   </p>
                 )}
                 {r.shift_notes && (
-                  <p className="text-muted" style={{ fontSize: 13.5, margin: '6px 0 0' }}>
+                  <p className="text-muted" style={{ fontSize: 13, margin: '6px 0 0' }}>
                     {r.shift_notes}
                   </p>
                 )}

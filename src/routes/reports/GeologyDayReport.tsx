@@ -428,7 +428,7 @@ export default function GeologyDayReport() {
 
   return (
     <div style={{ maxWidth: 760 }}>
-      <Link to="/reports/mine" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 10 }}>
+      <Link to="/reports/mine" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 10 }}>
         <ChevronLeft size={15} /> Мои сводки
       </Link>
       <h1 style={{ marginTop: 0 }}>Сводка геологов за день</h1>
@@ -638,7 +638,7 @@ export default function GeologyDayReport() {
           ))}
 
           <section className="card" style={{ padding: 14, display: 'grid', gap: 10 }}>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Текст для WhatsApp</h2>
+            <h2 style={{ margin: 0, fontSize: 14 }}>Текст для WhatsApp</h2>
             <pre
               style={{
                 margin: 0,

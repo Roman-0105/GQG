@@ -1,13 +1,8 @@
-@import '@fontsource/manrope/400.css';
-@import '@fontsource/manrope/500.css';
-@import '@fontsource/manrope/600.css';
-@import '@fontsource/manrope/700.css';
-@import '@fontsource/fraunces/500.css';
-@import '@fontsource/fraunces/600.css';
-@import '@fontsource/fraunces/700.css';
-@import '@fontsource/fraunces/500-italic.css';
+@import '@fontsource/jetbrains-mono/400.css';
 @import '@fontsource/jetbrains-mono/500.css';
 @import '@fontsource/jetbrains-mono/600.css';
+@import '@fontsource/jetbrains-mono/700.css';
+@import '@fontsource/jetbrains-mono/700-italic.css';
 
 /* Палитра обновлена 05.10.2026 под логотип GEO QUEST GROUP: глубокий синий
    (#0b3a5a, из логотипа #022c45) + кремовый фон (из логотипа #edebde); оранжевый
@@ -64,9 +59,18 @@
   --shadow-lg: 0 20px 45px -12px rgba(8, 34, 56, 0.28);
   --shadow-focus: 0 0 0 3px var(--color-primary-soft);
 
-  --font-body: 'Manrope', system-ui, sans-serif;
-  --font-display: 'Fraunces', 'Manrope', Georgia, serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  /* Единый шрифт интерфейса (06.10.2026): JetBrains Mono везде — как на схеме скважины. */
+  --font-body: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-display: var(--font-body);
+  --font-mono: var(--font-body);
+
+  /* Шкала размеров текста (компактная) */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 18px;
+  --fs-xl: 22px;
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -80,7 +84,7 @@
   color-scheme: light;
   color: var(--color-text);
   background: var(--color-bg);
-  font: 15.5px/1.55 var(--font-body);
+  font: 13px/1.55 var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -143,18 +147,18 @@ h3 {
 }
 
 h1 {
-  font-size: clamp(28px, 4.5vw, 40px);
+  font-size: var(--fs-xl);
   font-weight: 600;
 }
 
 h2 {
-  font-size: 21px;
+  font-size: 22px;
   margin-top: 30px;
   font-weight: 600;
 }
 
 h3 {
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -182,7 +186,7 @@ ul {
 li {
   padding: 10px 0;
   border-bottom: 1px solid var(--color-border);
-  font-size: 15px;
+  font-size: 14px;
 }
 
 li:last-child {
@@ -336,7 +340,7 @@ li:last-child {
     border-radius: var(--radius-sm);
     color: var(--color-text-muted);
     font-weight: 600;
-    font-size: 13.5px;
+    font-size: 13px;
     white-space: nowrap;
     transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
   }
@@ -530,7 +534,7 @@ li:last-child {
   border: none;
   color: var(--color-text);
   font-weight: 500;
-  font-size: 13.5px;
+  font-size: 13px;
   padding: 9px 10px;
   border-radius: var(--radius-sm);
   text-align: left;
@@ -571,7 +575,7 @@ li:last-child {
   .mobile-header-title {
     font-family: var(--font-display);
     font-weight: 700;
-    font-size: 17px;
+    font-size: 14px;
     color: var(--color-text);
     display: flex;
     align-items: center;
@@ -609,9 +613,13 @@ li:last-child {
     background: transparent;
     border: none;
     color: var(--color-text-faint);
-    font-size: 10.5px;
+    font-size: 10px;
     font-weight: 600;
     padding: 6px 2px 0;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .tabbar-item.is-active {
@@ -649,8 +657,8 @@ li:last-child {
     height: 3px;
     border-radius: 0 0 3px 3px;
     background: var(--color-primary);
-    left: 50%;
-    transform: translateX(-50%);
+    /* без transform: им управляет framer-motion (layoutId) и затирает сдвиг -50% */
+    left: calc(50% - 16px);
   }
 
   body {
@@ -675,7 +683,7 @@ li:last-child {
   border-radius: var(--radius-md);
   color: var(--color-text);
   font-weight: 600;
-  font-size: 14.5px;
+  font-size: 14px;
 }
 
 .tabbar-more-item:hover {
@@ -741,7 +749,7 @@ button.attached-task-add {
   justify-content: flex-start;
   padding: 12px 14px;
   border-style: dashed;
-  font-size: 13.5px;
+  font-size: 13px;
 }
 
 .attached-task-card {
@@ -796,7 +804,7 @@ button.attached-task-add {
   align-items: center;
   gap: 7px;
   flex-wrap: wrap;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -815,7 +823,7 @@ input,
 select,
 textarea {
   font: inherit;
-  /* 16px не меньше — иначе iOS Safari зумит страницу при фокусе на поле */
+  /* на телефоне 16px не меньше — иначе iOS Safari зумит страницу при фокусе на поле */
   font-size: 16px;
   color: var(--color-text);
   background: var(--color-surface);
@@ -825,6 +833,14 @@ textarea {
   width: 100%;
   box-sizing: border-box;
   transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+@media (min-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: var(--fs-md);
+  }
 }
 
 input:focus,
@@ -1009,7 +1025,7 @@ button.btn-danger:hover:not(:disabled) {
 
 @media (max-width: 480px) {
   .dynamic-row-costs {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) 44px;
     grid-template-areas:
       'cat cat'
       'item item'
@@ -1026,7 +1042,9 @@ button.btn-danger:hover:not(:disabled) {
   }
   .dynamic-row-costs > :nth-child(4) {
     grid-area: del;
-    justify-self: end;
+    justify-self: stretch;
+    padding-left: 0;
+    padding-right: 0;
   }
 }
 
@@ -1249,12 +1267,12 @@ button.btn-danger:hover:not(:disabled) {
 .org-node-title {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 13.5px;
+  font-size: 13px;
   white-space: nowrap;
 }
 
 .org-node-worker {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--color-text-muted);
   white-space: nowrap;
   max-width: 180px;
@@ -1394,6 +1412,10 @@ button.btn-danger:hover:not(:disabled) {
 }
 .wizard-nav button {
   min-height: 44px;
+  flex: 1 1 0;
+}
+.wizard-nav span {
+  flex-basis: 100%;
 }
 
 /* Формы заданий: две колонки на ПК, одна на телефоне (03.10.2026) */
@@ -1508,7 +1530,7 @@ button.btn-danger:hover:not(:disabled) {
   display: grid;
   gap: 3px;
   margin: 0;
-  font-size: 13.5px;
+  font-size: 13px;
 }
 .map-card-facts > div {
   display: flex;
@@ -1678,11 +1700,11 @@ button.btn-danger:hover:not(:disabled) {
   background: var(--color-surface-muted);
 }
 .map-kpis b {
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1.2;
 }
 .map-kpis span {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--color-text-muted);
 }
 .map-well-list {
@@ -1733,7 +1755,7 @@ button.btn-danger:hover:not(:disabled) {
   min-width: 0;
 }
 .map-well-row-main .text-muted {
-  font-size: 12.5px;
+  font-size: 12px;
 }
 .map-well-bar {
   display: block;
@@ -2029,14 +2051,14 @@ button.btn-danger:hover:not(:disabled) {
 .login-brand-text h2 {
   margin: 0 0 10px;
   font-family: var(--font-display);
-  font-size: clamp(24px, 2.6vw, 34px);
+  font-size: var(--fs-xl);
   line-height: 1.2;
   color: #fff;
 }
 .login-brand-text p {
   margin: 0;
   color: rgba(238, 242, 245, 0.8);
-  font-size: 15.5px;
+  font-size: 14px;
 }
 .login-points {
   list-style: none;
@@ -2049,7 +2071,7 @@ button.btn-danger:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 14.5px;
+  font-size: 14px;
   color: rgba(238, 242, 245, 0.92);
 }
 .login-points li svg {
@@ -2087,7 +2109,7 @@ button.btn-danger:hover:not(:disabled) {
   display: grid;
   gap: 6px;
   font-weight: 600;
-  font-size: 13.5px;
+  font-size: 13px;
 }
 .login-input {
   position: relative;
@@ -2136,7 +2158,7 @@ button.btn-danger:hover:not(:disabled) {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--color-warning);
 }
@@ -2145,7 +2167,7 @@ button.btn-danger:hover:not(:disabled) {
   padding: 9px 12px;
   border-radius: var(--radius-sm);
   background: var(--color-danger-soft);
-  font-size: 13.5px;
+  font-size: 13px;
 }
 .login-submit {
   position: relative;
@@ -2155,7 +2177,7 @@ button.btn-danger:hover:not(:disabled) {
   justify-content: center;
   gap: 8px;
   padding: 11px 16px !important;
-  font-size: 14.5px !important;
+  font-size: 14px !important;
   min-height: 44px !important;
 }
 .login-submit::after {
@@ -2189,7 +2211,7 @@ button.btn-danger:hover:not(:disabled) {
     width: 104px;
   }
   .login-brand-text h2 {
-    font-size: 19px;
+    font-size: 18px;
   }
   .login-brand-text p,
   .login-points,
@@ -2244,18 +2266,9 @@ button.btn-danger:hover:not(:disabled) {
 }
 
 /* Заголовки: Mobile -> Tablet -> Desktop (у Контура 32/40 -> 40/48) */
-h1 { font-size: 30px; line-height: 38px; }
-h2 { font-size: 20px; line-height: 28px; }
-h3 { font-size: 16px; line-height: 24px; }
-@media (min-width: 768px) {
-  h1 { font-size: 34px; line-height: 42px; }
-  h2 { font-size: 22px; line-height: 30px; }
-}
-@media (min-width: 1200px) {
-  h1 { font-size: 40px; line-height: 48px; }
-  h2 { font-size: 24px; line-height: 32px; }
-  h3 { font-size: 17px; }
-}
+h1 { font-size: var(--fs-xl); line-height: 1.3; }
+h2 { font-size: var(--fs-lg); line-height: 1.3; }
+h3 { font-size: var(--fs-md); line-height: 1.35; }
 /* Поля страницы: Mobile 16 -> Tablet 24 -> Desktop 32 */
 @media (min-width: 768px) { .page { padding-left: var(--space-3); padding-right: var(--space-3); } }
 @media (min-width: 1200px) { .page { padding-left: var(--space-4); padding-right: var(--space-4); } }
@@ -2427,7 +2440,7 @@ a:focus:not(:focus-visible) {
     display: none;
   }
   .login-title {
-    font-size: 24px;
+    font-size: 22px;
     line-height: 32px;
     margin-bottom: 18px !important;
   }
@@ -2455,4 +2468,21 @@ a:focus:not(:focus-visible) {
 }
 .login-title {
   margin-bottom: 22px !important;
+}
+
+/* Кнопка «Скопировать для WhatsApp»: пастельно-зелёная, чтобы сразу было видно,
+   что она отвечает за сообщение в мессенджер */
+.btn-whatsapp {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  border: 1px solid color-mix(in srgb, var(--color-success) 35%, transparent);
+}
+.btn-whatsapp:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-success) 18%, var(--color-surface));
+  color: var(--color-success);
+}
+.btn-whatsapp:disabled {
+  background: var(--color-surface-muted);
+  border-color: var(--color-border);
+  color: var(--color-text-faint);
 }

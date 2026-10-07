@@ -14,7 +14,7 @@ export default function AreaFilterHint({ pick, what }: { pick: Pick; what: strin
       <button
         type="button"
         onClick={() => pick.setShowAll(false)}
-        style={{ background: 'transparent', border: 'none', padding: 0, color: 'var(--color-primary)', fontSize: 12.5, textAlign: 'left' }}
+        style={{ background: 'transparent', border: 'none', padding: 0, color: 'var(--color-primary)', fontSize: 12, textAlign: 'left' }}
       >
         Показать только: {what}
       </button>
@@ -22,14 +22,14 @@ export default function AreaFilterHint({ pick, what }: { pick: Pick; what: strin
   }
   if (!pick.hidesSomeone && pick.candidates.length > 0) return null
   return (
-    <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+    <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
       {pick.candidates.length === 0
         ? `Нет подходящих сотрудников: назначьте должность нужного направления (${what}) в «Пользователи → Управление должностями». `
         : `Показаны только: ${what}. `}
       <button
         type="button"
         onClick={() => pick.setShowAll(true)}
-        style={{ background: 'transparent', border: 'none', padding: 0, color: 'var(--color-primary)', fontSize: 12.5 }}
+        style={{ background: 'transparent', border: 'none', padding: 0, color: 'var(--color-primary)', fontSize: 12 }}
       >
         Показать всех
       </button>

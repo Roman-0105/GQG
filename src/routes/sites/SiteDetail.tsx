@@ -253,7 +253,7 @@ export default function SiteDetail() {
     <div>
       <Link
         to="/sites"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, marginBottom: 14 }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 14 }}
       >
         <ChevronLeft size={15} /> Все участки
       </Link>
@@ -299,7 +299,7 @@ export default function SiteDetail() {
                 className="btn-outline"
                 onClick={toggleSiteStatus}
                 disabled={togglingStatus}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, padding: '4px 10px' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '4px 10px' }}
               >
                 {site.status === 'active' ? <Lock size={13} /> : <Unlock size={13} />}
                 {site.status === 'active' ? 'Закрыть участок' : 'Открыть участок'}
@@ -509,7 +509,7 @@ export default function SiteDetail() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                       <Link
                         to={`/tasks/drilling/${t.id}/dashboard`}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15.5, flexWrap: 'wrap' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, flexWrap: 'wrap' }}
                       >
                         Скважина №{t.well_number}
                         <TaskStatusBadge status={t.status} closedReason={t.closed_reason} />
@@ -520,7 +520,7 @@ export default function SiteDetail() {
                             {/* Полевой режим (30.09.2026): новая сводка — одним касанием
                                 прямо с карточки скважины, история — отдельной иконкой. */}
                             <Link to={`/tasks/drilling/${t.id}/reports/new`}>
-                              <button type="button" style={{ fontSize: 13.5, padding: '8px 12px', minHeight: 40, display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <button type="button" style={{ fontSize: 13, padding: '8px 12px', minHeight: 40, display: 'flex', alignItems: 'center', gap: 5 }}>
                                 <Plus size={15} /> Сводка
                               </button>
                             </Link>
@@ -650,7 +650,7 @@ export default function SiteDetail() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                         <Link
                           to={`/tasks/core-description/${t.id}/dashboard`}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15.5, flexWrap: 'wrap' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14, flexWrap: 'wrap' }}
                         >
                           {`Скважина подрядчика №${t.external_well_number}`}
                           <span className="badge badge-neutral">
@@ -661,7 +661,7 @@ export default function SiteDetail() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           {profile?.role === 'party_chief' && (
                             <Link to={`/tasks/core-description/${t.id}/reports`}>
-                              <button type="button" style={{ fontSize: 12.5, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <button type="button" style={{ fontSize: 12, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
                                 <FileText size={13} /> Сводка
                               </button>
                             </Link>
@@ -707,14 +707,14 @@ export default function SiteDetail() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                         <Link
                           to={`/tasks/sampling/${t.id}/dashboard`}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15.5 }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}
                         >
                           {`Скважина подрядчика №${t.external_well_number}`}
                         </Link>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           {profile?.role === 'party_chief' && (
                             <Link to={`/tasks/sampling/${t.id}/reports`}>
-                              <button type="button" style={{ fontSize: 12.5, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <button type="button" style={{ fontSize: 12, padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
                                 <FileText size={13} /> Сводка
                               </button>
                             </Link>
@@ -730,7 +730,7 @@ export default function SiteDetail() {
                         </div>
                       </div>
                       <AttentionBadges submitted={attention.submitted} rejected={attention.rejected} />
-                      <p className="text-muted" style={{ fontSize: 13.5, margin: '8px 0 0' }}>
+                      <p className="text-muted" style={{ fontSize: 13, margin: '8px 0 0' }}>
                         Проб отобрано: <span className="num text-success">{progress.taken}</span>
                         {' · '}
                         сдано в лабораторию: <span className="num text-success">{progress.submitted}</span>

@@ -345,7 +345,7 @@ function UserCard({
           <span style={{ display: 'block', fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {user.full_name}
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
             <RoleIcon size={12} /> {ROLE_LABELS[user.role]}
           </span>
         </span>
@@ -462,7 +462,7 @@ function UserCard({
               className="btn-danger"
               disabled={deleting}
               onClick={handleDelete}
-              style={{ flex: 1, fontSize: 12.5 }}
+              style={{ flex: 1, fontSize: 12 }}
             >
               {deleting ? 'Удаляем…' : 'Да, удалить'}
             </button>
@@ -471,7 +471,7 @@ function UserCard({
               className="btn-outline"
               disabled={deleting}
               onClick={() => setConfirming(false)}
-              style={{ flex: 1, fontSize: 12.5 }}
+              style={{ flex: 1, fontSize: 12 }}
             >
               Отмена
             </button>

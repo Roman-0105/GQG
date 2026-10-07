@@ -68,7 +68,7 @@ export default function AttachedSawingCard({ siteId, drillingTaskId, task, onSav
         <Scissors size={15} className="text-muted" />
         <span>Распиловка керна</span>
       </div>
-      <p className="text-muted" style={{ fontSize: 12.5, margin: 0 }}>
+      <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
         Ответственный не назначается — сводки вносит тот же бригадир, что ведёт бурение.
       </p>
       <textarea
@@ -78,12 +78,12 @@ export default function AttachedSawingCard({ siteId, drillingTaskId, task, onSav
         onChange={(e) => setDescription(e.target.value)}
       />
       {error && (
-        <p className="text-error" style={{ fontSize: 12.5, margin: 0 }}>
+        <p className="text-error" style={{ fontSize: 12, margin: 0 }}>
           {error}
         </p>
       )}
       <div style={{ display: 'flex', gap: 6 }}>
-        <button type="button" onClick={handleSave} disabled={saving} style={{ fontSize: 12.5, padding: '6px 10px' }}>
+        <button type="button" onClick={handleSave} disabled={saving} style={{ fontSize: 12, padding: '6px 10px' }}>
           {saving ? '…' : task ? 'Сохранить' : 'Добавить'}
         </button>
         {!task && (
@@ -91,7 +91,7 @@ export default function AttachedSawingCard({ siteId, drillingTaskId, task, onSav
             type="button"
             className="btn-outline"
             onClick={() => setAdding(false)}
-            style={{ fontSize: 12.5, padding: '6px 10px' }}
+            style={{ fontSize: 12, padding: '6px 10px' }}
           >
             Отмена
           </button>
