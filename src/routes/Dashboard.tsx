@@ -10,6 +10,7 @@ import { useReportCounts } from '../hooks/useReportCounts'
 import { riseIn } from '../lib/motionVariants'
 import { coreProgress, sawingProgress, samplingProgress, fetchForeignDrillingProgress } from '../lib/taskProgress'
 import ProgressBar from '../components/ProgressBar'
+import ShiftDutyCard from '../components/ShiftDutyCard'
 import CircularProgress from '../components/CircularProgress'
 import type { CoreDescriptionTask, CoreSawingTask, DrillingTask, Report, SamplingTask, Site } from '../types/database'
 import type { TaskType } from '../types/taskType'
@@ -396,6 +397,11 @@ export default function Dashboard() {
       </h1>
 
       <div style={{ display: 'grid', gap: 12, marginBottom: 28 }}>
+        {(profile.role === 'party_chief' || isManagement(profile.role)) && (
+          <motion.div {...riseIn(0, { duration: 0.3 })}>
+            <ShiftDutyCard />
+          </motion.div>
+        )}
         {isManagement(profile.role) && pendingApprovals > 0 && (
           <motion.div {...riseIn(0, { duration: 0.3 })}>
             <Link
