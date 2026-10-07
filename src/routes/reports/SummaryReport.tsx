@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Download, Timer, Layers, Camera, Coins, Scissors, FlaskConical, TrendingUp } from 'lucide-react'
+import { Download, Timer, Layers, Camera, Coins, Scissors, FlaskConical, TrendingUp, FileText } from 'lucide-react'
 import DerrickIcon from '../../components/icons/DerrickIcon'
 import { supabase } from '../../lib/supabaseClient'
 import { exportToXlsx } from '../../lib/xlsxExport'
@@ -9,7 +9,9 @@ import { useAuth } from '../../context/AuthContext'
 import { isManagement } from '../../types/roles'
 import { riseIn } from '../../lib/motionVariants'
 import { round2 } from '../../lib/taskProgress'
-import TrendSparkline from '../../components/TrendSparkline'
+import SearchSelect from '../../components/SearchSelect'
+import { DailyBarsChart, HBars, MASTER_COLORS, shortName } from '../../components/report/ReportCharts'
+import { loadWellReportData, type DayRow, type WellReportData } from '../../lib/wellReportData'
 import type { CoreDescriptionTask, DrillingTask, Report, Site } from '../../types/database'
 
 interface EnrichedReport extends Report {
@@ -44,8 +46,12 @@ export default function SummaryReport() {
   const [selectedSiteId, setSelectedSiteId] = useState('')
 
   // Задания текущего выбранного участка — каскадный фильтр.
-  const [siteDrillingTasks, setSiteDrillingTasks] = useState<DrillingTask[]>([])
-  const [siteCoreTasks, setSiteCoreTasks] = useState<CoreDescriptionTask[]>([])
+  const [allDrillingTasks, setAllDrillingTasks] = useState<DrillingTask[]>([])
+  const [allCoreTasks, setAllCoreTasks] = useState<CoreDescriptionTask[]>([])
+  const [wellData, setWellData] = useState<WellReportData | null>(null)
+  const [wellLoading, setWellLoading] = useState(false)
+  const [withCosts, setWithCosts] = useState(false)
+  const [showAllList, setShowAllList] = useState(false)
   const [selectedTask, setSelectedTask] = useState<TaskFilterValue>('')
 
   const [dateFrom, setDateFrom] = useState(defaultFromIso())
@@ -68,30 +74,37 @@ export default function SummaryReport() {
       .then(({ data }) => data && setSites(data))
   }, [session])
 
-  // Смена участка — сбрасываем выбранное задание и подгружаем список
-  // заданий именно этого участка (бурение + описание керна).
+  // Все задания сразу (поиск по номеру скважины работает по всем участкам);
+  // список в выпадашке сужается выбранным участком.
   useEffect(() => {
-    setSelectedTask('')
-    if (!session || !selectedSiteId) {
-      setSiteDrillingTasks([])
-      setSiteCoreTasks([])
+    if (!session) return
+    Promise.all([
+      supabase.from('drilling_tasks').select('*').order('well_number'),
+      supabase.from('core_description_tasks').select('*'),
+    ]).then(([drillingRes, coreRes]) => {
+      setAllDrillingTasks((drillingRes.data ?? []) as DrillingTask[])
+      setAllCoreTasks((coreRes.data ?? []) as CoreDescriptionTask[])
+    })
+  }, [session])
+
+  // Мини-дашборд выбранной скважины (бурение)
+  useEffect(() => {
+    if (!selectedTask.startsWith('drilling:')) {
+      setWellData(null)
       return
     }
-    Promise.all([
-      supabase
-        .from('drilling_tasks')
-        .select('*')
-        .eq('site_id', selectedSiteId)
-        .order('well_number'),
-      supabase
-        .from('core_description_tasks')
-        .select('*')
-        .eq('site_id', selectedSiteId),
-    ]).then(([drillingRes, coreRes]) => {
-      setSiteDrillingTasks(drillingRes.data ?? [])
-      setSiteCoreTasks(coreRes.data ?? [])
+    let cancelled = false
+    setWellLoading(true)
+    loadWellReportData(selectedTask.slice('drilling:'.length)).then((d) => {
+      if (!cancelled) {
+        setWellData(d)
+        setWellLoading(false)
+      }
     })
-  }, [session, selectedSiteId])
+    return () => {
+      cancelled = true
+    }
+  }, [selectedTask])
 
   useEffect(() => {
     if (!session || !isManagement(profile?.role)) return
@@ -277,18 +290,59 @@ export default function SummaryReport() {
   const totalSamplesTaken = reports.reduce((s, r) => s + (r.samples_taken ?? 0), 0)
   const totalSamplesSubmitted = reports.reduce((s, r) => s + (r.samples_submitted ?? 0), 0)
 
-  // Темп бурения по дням за период — для TrendSparkline. Только
-  // approved-сводки (те же reports, что и остальные итоги), по датам с
-  // хотя бы одним метром — дни без бурения просто не рисуются точкой
-  // (спарклайн не обязан быть календарной сеткой день-в-день).
-  const drillingByDate = new Map<string, number>()
-  for (const r of reports) {
-    if (!r.drilling_meters) continue
-    drillingByDate.set(r.report_date, (drillingByDate.get(r.report_date) ?? 0) + r.drilling_meters)
+  // Темп бурения по дням за период (только согласованные сводки). Для выбранной
+  // скважины график строится по всей её истории (wellData.days).
+  const periodDays: DayRow[] = (() => {
+    const byDate = new Map<string, { s1: number; s2: number }>()
+    for (const r of reports) {
+      if (!r.drilling_meters) continue
+      const c = byDate.get(r.report_date) ?? { s1: 0, s2: 0 }
+      if (r.shift_number === 2) c.s2 += r.drilling_meters
+      else c.s1 += r.drilling_meters
+      byDate.set(r.report_date, c)
+    }
+    let cum = 0
+    return [...byDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, c]) => {
+        const total = round2(c.s1 + c.s2)
+        cum = round2(cum + total)
+        return { date, s1: c.s1 ? round2(c.s1) : null, s2: c.s2 ? round2(c.s2) : null, total, cum, plan: null, hours: 0 }
+      })
+  })()
+
+  // Списки для поиска
+  const siteOptions = sites.map((x) => ({ value: x.id, label: x.name }))
+  const siteNameOf = new Map(sites.map((x) => [x.id, x.name]))
+  const taskOptions = [
+    ...allDrillingTasks
+      .filter((tk) => !selectedSiteId || tk.site_id === selectedSiteId)
+      .map((tk) => ({
+        value: `drilling:${tk.id}`,
+        label: `№${tk.well_number}`,
+        hint: selectedSiteId ? undefined : siteNameOf.get(tk.site_id),
+        group: 'Бурение',
+      })),
+    ...allCoreTasks
+      .filter((tk) => !selectedSiteId || tk.site_id === selectedSiteId)
+      .map((tk) => ({
+        value: `core:${tk.id}`,
+        label: tk.drilling_task_id ? `Керн, своя скв. ${allDrillingTasks.find((d) => d.id === tk.drilling_task_id)?.well_number ?? ''}` : `Керн, подрядчик №${tk.external_well_number}`,
+        hint: selectedSiteId ? undefined : siteNameOf.get(tk.site_id),
+        group: 'Описание керна',
+      })),
+  ]
+
+  function setPeriodDays(n: number | null) {
+    const to = todayIso()
+    setDateTo(to)
+    if (n == null) setDateFrom('2020-01-01')
+    else {
+      const d = new Date()
+      d.setDate(d.getDate() - n)
+      setDateFrom(d.toISOString().slice(0, 10))
+    }
   }
-  const drillingTrend = [...drillingByDate.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, value]) => ({ date, value: round2(value) }))
 
   function handleExport() {
     exportToXlsx(
@@ -343,70 +397,109 @@ export default function SummaryReport() {
         Учитываются только согласованные сводки.
       </p>
 
-      <div className="card" style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap', padding: 16 }}>
-        <label style={{ marginBottom: 0 }}>
-          Участок
-          <select
-            value={selectedSiteId}
-            onChange={(e) => setSelectedSiteId(e.target.value)}
-          >
-            <option value="">Все</option>
-            {sites.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label style={{ marginBottom: 0 }}>
-          Задание
-          <select
-            value={selectedTask}
-            onChange={(e) => setSelectedTask(e.target.value as TaskFilterValue)}
-            disabled={!selectedSiteId}
-          >
-            <option value="">
-              {selectedSiteId ? 'Все задания участка' : 'Сначала выберите участок'}
-            </option>
-            {siteDrillingTasks.length > 0 && (
-              <optgroup label="Бурение">
-                {siteDrillingTasks.map((t) => (
-                  <option key={t.id} value={`drilling:${t.id}`}>
-                    Скважина №{t.well_number}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {siteCoreTasks.length > 0 && (
-              <optgroup label="Описание керна">
-                {siteCoreTasks.map((t) => (
-                  <option key={t.id} value={`core:${t.id}`}>
-                    {t.drilling_task_id
-                      ? `Своя скв. (задание ${t.id.slice(0, 8)})`
-                      : `Подрядчик, скв. №${t.external_well_number}`}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </label>
-        <label style={{ marginBottom: 0 }}>
-          С
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
-        </label>
-        <label style={{ marginBottom: 0 }}>
-          По
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-          />
-        </label>
+      <div className="card" style={{ display: 'grid', gap: 12, marginBottom: 20, padding: 16 }}>
+        <div className="report-filters">
+          <label style={{ marginBottom: 0 }}>
+            Участок
+            <SearchSelect
+              options={siteOptions}
+              value={selectedSiteId}
+              onChange={(v) => {
+                setSelectedSiteId(v)
+                if (v && selectedTask) {
+                  const id = selectedTask.slice(selectedTask.indexOf(':') + 1)
+                  const task = allDrillingTasks.find((x) => x.id === id) ?? allCoreTasks.find((x) => x.id === id)
+                  if (task && task.site_id !== v) setSelectedTask('')
+                }
+              }}
+              emptyLabel="Все участки"
+              ariaLabel="Участок"
+            />
+          </label>
+          <label style={{ marginBottom: 0 }}>
+            Скважина / задание
+            <SearchSelect
+              options={taskOptions}
+              value={selectedTask}
+              onChange={(v) => {
+                setSelectedTask(v as TaskFilterValue)
+                if (v && !selectedSiteId) {
+                  const id = v.slice(v.indexOf(':') + 1)
+                  const task = allDrillingTasks.find((x) => x.id === id) ?? allCoreTasks.find((x) => x.id === id)
+                  if (task) setSelectedSiteId(task.site_id)
+                }
+              }}
+              emptyLabel="Все задания"
+              placeholder="Введите номер скважины…"
+              ariaLabel="Скважина или задание"
+            />
+          </label>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          {([['7 дней', 7], ['30 дней', 30], ['90 дней', 90], ['Весь период', null]] as const).map(([label, n]) => (
+            <button key={label} type="button" className="btn-outline" onClick={() => setPeriodDays(n)} style={{ minHeight: 34, padding: '4px 12px', fontSize: 13 }}>
+              {label}
+            </button>
+          ))}
+          <label style={{ marginBottom: 0 }}>
+            С
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </label>
+          <label style={{ marginBottom: 0 }}>
+            По
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </label>
+        </div>
       </div>
+
+      {selectedTask.startsWith('drilling:') && (
+        <div className="card" style={{ padding: 16, marginBottom: 24 }}>
+          {wellLoading || !wellData ? (
+            <div className="skeleton" style={{ height: 120, borderRadius: 'var(--radius-md)' }} />
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+                <h2 style={{ margin: 0, fontStyle: 'italic' }}>№{wellData.task.well_number}</h2>
+                <span className="text-muted">{wellData.siteName}</span>
+                <Link to={`/tasks/drilling/${wellData.task.id}/dashboard`} style={{ marginLeft: 'auto', fontSize: 13 }}>Открыть задание →</Link>
+              </div>
+              <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', marginBottom: 14 }}>
+                {[
+                  { label: 'Пробурено', value: `${round2(wellData.totals.meters)} м` },
+                  { label: 'От проекта', value: wellData.totals.percent != null ? `${wellData.totals.percent}%` : '—' },
+                  { label: 'Средний темп', value: `${wellData.totals.pace} м/сут` },
+                  { label: 'Смен', value: String(wellData.totals.shifts) },
+                  { label: 'Мастеров', value: String(wellData.masters.length) },
+                ].map((k) => (
+                  <div key={k.label} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
+                    <div className="num" style={{ fontSize: 18, fontWeight: 700 }}>{k.value}</div>
+                    <div className="text-muted" style={{ fontSize: 12 }}>{k.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="eyebrow" style={{ marginBottom: 6 }}>Темп бурения по дням (вся история скважины)</div>
+              <DailyBarsChart days={wellData.days} projectedDepth={wellData.task.projected_depth} />
+              {wellData.masters.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div className="eyebrow" style={{ marginBottom: 8 }}>Кто бурил</div>
+                  <HBars items={wellData.masters.map((m, i) => ({ label: shortName(m.name), value: m.meters, color: MASTER_COLORS[i % MASTER_COLORS.length], note: `${m.shifts} см.` }))} />
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 16 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, color: 'var(--color-text)' }}>
+                  <input type="checkbox" checked={withCosts} onChange={(e) => setWithCosts(e.target.checked)} style={{ width: 'auto' }} />
+                  Включить затраты
+                </label>
+                <Link to={`/reports/well/${wellData.task.id}${withCosts ? '?costs=1' : ''}`} style={{ marginLeft: 'auto' }}>
+                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                    <FileText size={16} /> Составить отчёт по скважине
+                  </button>
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {error && <p className="text-error">{error}</p>}
 
@@ -437,10 +530,10 @@ export default function SummaryReport() {
           </div>
 
           <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <TrendingUp size={18} className="text-muted" /> Темп бурения по дням
+            <TrendingUp size={18} className="text-muted" /> Темп бурения по дням (за выбранный период)
           </h2>
           <div className="card" style={{ padding: 16, marginBottom: 24 }}>
-            <TrendSparkline data={drillingTrend} />
+            <DailyBarsChart days={periodDays} />
           </div>
 
           <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -491,13 +584,13 @@ export default function SummaryReport() {
             <Download size={16} /> Экспорт в Excel ({reports.length} строк)
           </button>
 
-          <h2>Сводки за период</h2>
+          <h2>Последние сводки</h2>
           {reports.length === 0 ? (
             <p className="text-muted">За выбранный период и участок нет одобренных сводок.</p>
           ) : (
             <div className="card" style={{ padding: 4 }}>
               <ul>
-                {reports.map((r) => (
+                {[...reports].reverse().slice(0, showAllList ? reports.length : 10).map((r) => (
                   <li key={r.id} style={{ padding: '10px 12px' }}>
                     <span className="num">{r.report_date}</span>
                     {r.shift_number ? `, смена ${r.shift_number}` : ''} —{' '}
@@ -505,6 +598,11 @@ export default function SummaryReport() {
                   </li>
                 ))}
               </ul>
+              {reports.length > 10 && (
+                <button type="button" className="btn-outline" onClick={() => setShowAllList((v) => !v)} style={{ width: '100%', margin: '4px 0' }}>
+                  {showAllList ? 'Свернуть список' : `Показать все (${reports.length})`}
+                </button>
+              )}
             </div>
           )}
         </>

@@ -21,6 +21,7 @@ import ReportDetail from './routes/reports/ReportDetail'
 import PendingApprovals from './routes/reports/PendingApprovals'
 import MyReports from './routes/reports/MyReports'
 import DutySettings from './routes/duty/DutySettings'
+import WellReportPrint from './routes/reports/WellReportPrint'
 import GeologyDayReport from './routes/reports/GeologyDayReport'
 import ReportReview from './routes/reports/ReportReview'
 import SummaryReport from './routes/reports/SummaryReport'
@@ -142,6 +143,7 @@ function App() {
           />
           <Route path="/reports/mine" element={<MyReports />} />
           <Route path="/duty" element={<DutySettings />} />
+          <Route path="/reports/well/:taskId" element={<WellReportPrint />} />
           <Route path="/reports/geology" element={<GeologyDayReport />} />
           <Route path="/reports/pending" element={<PendingApprovals />} />
           <Route path="/reports/:reportId/review" element={<ReportReview />} />

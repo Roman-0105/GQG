@@ -2486,3 +2486,336 @@ a:focus:not(:focus-visible) {
   border-color: var(--color-border);
   color: var(--color-text-faint);
 }
+
+/* ==========================================================================
+   Промежуточный отчёт по скважине (PDF через печать, 06.10.2026)
+   ========================================================================== */
+.rp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.rp-pages {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  transform-origin: top center;
+}
+.rp-page {
+  width: 794px;
+  height: 1123px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  box-sizing: border-box;
+  padding: 40px 44px 34px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  color: var(--color-text);
+}
+.rp-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--color-primary);
+  margin-bottom: 18px;
+}
+.rp-head-title {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.rp-body {
+  flex: 1;
+  min-height: 0;
+}
+.rp-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--color-text-faint);
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
+}
+.rp-h2 {
+  font-size: 15px;
+  margin: 20px 0 10px;
+  color: var(--color-primary);
+}
+.rp-h2:first-child {
+  margin-top: 0;
+}
+.rp-lead {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  margin: 0 0 8px;
+}
+.rp-two {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 24px;
+  align-items: center;
+}
+.rp-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.rp-kpi {
+  border: 1px solid var(--color-border);
+  padding: 10px 12px;
+  background: var(--color-surface);
+}
+.rp-kpi-label {
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.rp-kpi-value {
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+.rp-kpi-unit {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+.rp-kpi-sub {
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+.rp-note {
+  border-left: 3px solid var(--color-accent);
+  padding: 8px 14px;
+  background: var(--color-surface);
+  display: grid;
+  gap: 6px;
+  font-size: 12.5px;
+}
+.rp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.rp-table th {
+  text-align: left;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+  padding: 7px 8px;
+}
+.rp-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+.rp-table tbody tr:nth-child(even) td {
+  background: #f7f6ef;
+}
+.rp-table-tight td {
+  padding: 4px 8px;
+}
+.rp-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+}
+.rp-struct {
+  height: 600px;
+}
+.rp-struct svg {
+  height: 100% !important;
+  width: 100% !important;
+}
+.rp-mini-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 11px;
+  margin: 4px 0 12px;
+  align-items: center;
+}
+.rp-mini-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 5px;
+}
+.rp-marker-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  display: grid;
+  gap: 3px;
+}
+.rp-marker-list b {
+  display: inline-block;
+  min-width: 18px;
+}
+.rp-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  border-left: 2px solid var(--color-border-strong);
+  padding-left: 14px;
+}
+.rp-sign {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  margin-top: 70px;
+}
+.rp-sign div {
+  border-top: 1px solid var(--color-text);
+  padding-top: 5px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+.rp-title {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-top: 24px;
+}
+.rp-title-company {
+  margin-top: 18px;
+  letter-spacing: 0.25em;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.rp-title-h1 {
+  font-size: 26px !important;
+  line-height: 1.25 !important;
+  margin: 34px 0 10px !important;
+  color: var(--color-primary);
+}
+.rp-title-well {
+  font-size: 22px;
+  font-weight: 700;
+  font-style: italic;
+  margin-bottom: 26px;
+}
+.rp-title-meta {
+  width: 100%;
+  max-width: 560px;
+  display: grid;
+  gap: 0;
+  text-align: left;
+  font-size: 12.5px;
+  border-top: 2px solid var(--color-primary);
+}
+.rp-title-meta div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--color-border);
+}
+.rp-title-meta span {
+  color: var(--color-text-muted);
+}
+.rp-title-date {
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+@page {
+  size: A4;
+  margin: 0;
+}
+@media print {
+  .sidebar,
+  .mobile-header,
+  .bottom-tabbar,
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+    background-image: none !important;
+    padding: 0 !important;
+  }
+  .app-shell {
+    display: block !important;
+  }
+  .page {
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .rp-pages {
+    zoom: 1 !important;
+    display: block;
+  }
+  .rp-page {
+    border: none;
+    margin: 0;
+    break-after: page;
+    page-break-after: always;
+    width: 210mm;
+    height: 297mm;
+  }
+  .rp-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+.report-filters {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 640px) {
+  .report-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.rp-title-map {
+  width: 100%;
+  max-width: 600px;
+  margin-top: 26px;
+  border: 1px solid var(--color-border-strong);
+}
+.rp-title-map-cap {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  padding: 5px 8px;
+  text-align: left;
+  background: var(--color-surface);
+}
+.rp-map-label {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #b03a2e;
+  color: #b03a2e;
+  box-shadow: none;
+}
+.rp-map .leaflet-control-attribution {
+  font-size: 8px;
+}
