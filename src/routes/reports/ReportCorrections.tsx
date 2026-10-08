@@ -574,7 +574,7 @@ export default function ReportCorrections() {
   return (
     <div>
       <h1 style={{ display: 'flex', alignItems: 'center', gap: 9, margin: '0 0 6px' }}>
-        <FilePen size={22} className="text-muted" /> Исправление сводок
+        <FilePen size={22} className="text-muted" /> БД сводок
       </h1>
       <p className="text-muted" style={{ fontSize: 12, marginTop: 0 }}>
         Только руководство. Любое изменение проверяется, фиксируется в журнале с причиной и пересчитывает забой следующих смен.

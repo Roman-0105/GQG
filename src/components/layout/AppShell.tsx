@@ -26,7 +26,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <div className="app-shell">
       <Sidebar />
       <MobileHeader />
-      <main className={`page${pathname === '/map' || pathname === '/org-chart' ? ' page-wide' : ''}`}>
+      <main className={`page${['/map', '/org-chart', '/reports/corrections'].includes(pathname) ? ' page-wide' : ''}`}>
         <AnimatePresence mode="wait">
           <motion.div
             key={pathname}
