@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import ReportGeologyExtras from '../../components/ReportGeologyExtras'
 import ReportHistory from '../../components/ReportHistory'
+import ReportEditLog from '../../components/ReportEditLog'
 import { isManagement } from '../../types/roles'
 import { ApprovalBadge } from '../../components/StatusBadge'
 import { buildDrillingShiftMessage } from '../../lib/whatsappMessage'
@@ -348,6 +349,7 @@ export default function ReportDetail() {
           )}
 
           {reportId && <ReportHistory reportId={reportId} reloadKey={historyKey} />}
+          {reportId && <ReportEditLog reportId={reportId} />}
 
           {costs.length > 0 && (
             <>

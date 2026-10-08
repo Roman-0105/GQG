@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { ReactElement } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ClipboardCheck, AlertTriangle, CalendarClock, ChevronRight, ChevronDown, Mountain, Layers, Scissors, FlaskConical } from 'lucide-react'
+import { Mountain, Layers, Scissors, FlaskConical } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { ROLE_LABELS, isManagement } from '../types/roles'
@@ -12,46 +11,10 @@ import { riseIn } from '../lib/motionVariants'
 import { coreProgress, sawingProgress, samplingProgress, fetchForeignDrillingProgress } from '../lib/taskProgress'
 import ProgressBar from '../components/ProgressBar'
 import ShiftDutyCard from '../components/ShiftDutyCard'
+import ManagementOverview from '../components/dashboard/ManagementOverview'
+import MasterOverview from '../components/dashboard/MasterOverview'
 import CircularProgress from '../components/CircularProgress'
 import type { CoreDescriptionTask, CoreSawingTask, DrillingTask, Report, SamplingTask, Site } from '../types/database'
-import type { TaskType } from '../types/taskType'
-
-const LIST_LIMIT = 4
-
-// Список "требует внимания" может разрастись (десяток заданий на участке —
-// десяток строк) — сворачиваем в первые LIST_LIMIT с разворотом по клику,
-// вместо длинной простыни на весь экран (см. отзыв 17.09.2026).
-function ExpandableList<T>({ items, renderItem }: { items: T[]; renderItem: (item: T) => ReactElement }) {
-  const [expanded, setExpanded] = useState(false)
-  const visible = expanded ? items : items.slice(0, LIST_LIMIT)
-  return (
-    <>
-      <ul>{visible.map(renderItem)}</ul>
-      {items.length > LIST_LIMIT && (
-        <button
-          type="button"
-          className="btn-outline"
-          onClick={() => setExpanded((v) => !v)}
-          style={{
-            marginTop: 8,
-            fontSize: 12,
-            padding: '5px 10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-          }}
-        >
-          <ChevronDown size={13} style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform .15s ease' }} />
-          {expanded ? 'Свернуть' : `Показать ещё ${items.length - LIST_LIMIT}`}
-        </button>
-      )}
-    </>
-  )
-}
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10)
-}
 
 function greeting() {
   const h = new Date().getHours()
@@ -59,21 +22,6 @@ function greeting() {
   if (h < 12) return 'Доброе утро'
   if (h < 18) return 'Добрый день'
   return 'Добрый вечер'
-}
-
-interface RevisionItem {
-  reportId: string
-  taskType: TaskType
-  taskId: string
-  label: string
-  reviewComment: string | null
-}
-
-interface ReminderItem {
-  taskType: TaskType
-  taskId: string
-  label: string
-  shift: number | null
 }
 
 // Сводный прогресс участка (25.09.2026, фаза 3 редизайна) — раньше
@@ -105,8 +53,6 @@ export default function Dashboard() {
 
   const [sites, setSites] = useState<Site[]>([])
   const [siteProgress, setSiteProgress] = useState<Map<string, SiteProgress>>(new Map())
-  const [revisionItems, setRevisionItems] = useState<RevisionItem[]>([])
-  const [reminderItems, setReminderItems] = useState<ReminderItem[]>([])
   const [loadingData, setLoadingData] = useState(true)
 
   useEffect(() => {
@@ -193,119 +139,6 @@ export default function Dashboard() {
         progress.set(t.site_id, entry)
       }
       setSiteProgress(progress)
-
-      if (profile?.role === 'party_chief') {
-        const rejected = (reportsRes.data ?? []).filter(
-          (r) => r.approval_status === 'rejected' && r.edit_unlocked && r.author_id === profile.id,
-        )
-        function reportTaskRef(r: Report): { taskType: TaskType; taskId: string } {
-          if (r.drilling_task_id) return { taskType: 'drilling', taskId: r.drilling_task_id }
-          if (r.core_description_task_id) return { taskType: 'core-description', taskId: r.core_description_task_id }
-          if (r.core_sawing_task_id) return { taskType: 'core-sawing', taskId: r.core_sawing_task_id }
-          return { taskType: 'sampling', taskId: r.sampling_task_id as string }
-        }
-        setRevisionItems(
-          rejected.map((r) => ({
-            reportId: r.id,
-            ...reportTaskRef(r),
-            label: `${r.report_date}${r.shift_number ? `, смена ${r.shift_number}` : ''}`,
-            reviewComment: r.review_comment,
-          })),
-        )
-
-        // Напоминание: по активному заданию сегодня ещё нет ни одной строки
-        // сводки (даже черновика) на ожидаемую смену — RLS уже отдал сюда
-        // только "мои" задания, отдельный фильтр по бригадиру не нужен.
-        const today = todayIso()
-        const todayReports = (reportsRes.data ?? []).filter((r) => r.report_date === today)
-        const reminders: ReminderItem[] = []
-
-        // Только мои скважины: геологу тоже видны скважины, где у него есть
-        // геологические работы, но сводки по бурению он не вносит.
-        for (const t of drillingTasks.filter((t) => t.status === 'in_progress' && t.foreman_id === profile!.id)) {
-          for (const shift of [1, 2]) {
-            const has = todayReports.some(
-              (r) => r.drilling_task_id === t.id && r.shift_number === shift,
-            )
-            if (!has) {
-              reminders.push({
-                taskType: 'drilling',
-                taskId: t.id,
-                label: `Скважина №${t.well_number}, смена ${shift}`,
-                shift,
-              })
-            }
-          }
-        }
-
-        for (const t of coreTasks) {
-          const wellLabel = t.drilling_task_id
-            ? `скв. №${drillingTasks.find((d) => d.id === t.drilling_task_id)?.well_number ?? '?'}`
-            : `скв. подрядчика №${t.external_well_number}`
-          if (t.shift_enabled) {
-            for (const shift of [1, 2]) {
-              const has = todayReports.some(
-                (r) => r.core_description_task_id === t.id && r.shift_number === shift,
-              )
-              if (!has) {
-                reminders.push({
-                  taskType: 'core-description',
-                  taskId: t.id,
-                  label: `Описание керна, ${wellLabel}, смена ${shift}`,
-                  shift,
-                })
-              }
-            }
-          } else {
-            const has = todayReports.some((r) => r.core_description_task_id === t.id)
-            if (!has) {
-              reminders.push({
-                taskType: 'core-description',
-                taskId: t.id,
-                label: `Описание керна, ${wellLabel}`,
-                shift: null,
-              })
-            }
-          }
-        }
-
-        // Распиловка — та же скважина, что и бурение, смены "день/ночь"
-        // (те же 1/2, только подпись другая) — напоминаем, только пока
-        // связанная скважина в работе, как и для самого бурения.
-        for (const t of sawingTasks) {
-          const linkedWell = drillingTasks.find((d) => d.id === t.drilling_task_id)
-          if (linkedWell?.status !== 'in_progress') continue
-          for (const shift of [1, 2]) {
-            const has = todayReports.some((r) => r.core_sawing_task_id === t.id && r.shift_number === shift)
-            if (!has) {
-              reminders.push({
-                taskType: 'core-sawing',
-                taskId: t.id,
-                label: `Распиловка, скв. №${linkedWell.well_number}, ${shift === 1 ? 'день' : 'ночь'}`,
-                shift,
-              })
-            }
-          }
-        }
-
-        // Опробование — без смен, одна запись в день.
-        for (const t of samplingTasks) {
-          const wellLabel = t.drilling_task_id
-            ? `скв. №${drillingTasks.find((d) => d.id === t.drilling_task_id)?.well_number ?? '?'}`
-            : `скв. подрядчика №${t.external_well_number}`
-          const has = todayReports.some((r) => r.sampling_task_id === t.id)
-          if (!has) {
-            reminders.push({
-              taskType: 'sampling',
-              taskId: t.id,
-              label: `Опробование, ${wellLabel}`,
-              shift: null,
-            })
-          }
-        }
-
-        setReminderItems(reminders)
-      }
 
       setLoadingData(false)
     }
@@ -403,123 +236,13 @@ export default function Dashboard() {
       )}
 
       <div style={{ display: 'grid', gap: 12, marginBottom: 28 }}>
-        {((profile.role === 'party_chief' && !isMobile) || isManagement(profile.role)) && (
+        {profile.role === 'party_chief' && !isMobile && (
           <motion.div {...riseIn(0, { duration: 0.3 })}>
             <ShiftDutyCard />
           </motion.div>
         )}
-        {isManagement(profile.role) && pendingApprovals > 0 && (
-          <motion.div {...riseIn(0, { duration: 0.3 })}>
-            <Link
-              to="/reports/pending"
-              className="card card-interactive"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '14px 16px',
-                textDecoration: 'none',
-              }}
-            >
-              <span
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  background: 'var(--color-primary-soft)',
-                  color: 'var(--color-primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <ClipboardCheck size={18} />
-              </span>
-              <span style={{ flex: 1, fontWeight: 700, color: 'var(--color-text)' }}>
-                <span className="num">{pendingApprovals}</span> сводок ожидает согласования
-              </span>
-              <ChevronRight size={18} className="text-faint" />
-            </Link>
-          </motion.div>
-        )}
-
-        {profile.role === 'party_chief' && reminderItems.length > 0 && (
-          <motion.div
-            className="card"
-            {...riseIn(0, { duration: 0.3, delay: 0.05 })}
-            style={{ padding: '14px 16px', borderLeft: '3px solid var(--color-warning)' }}
-          >
-            <p
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontWeight: 700,
-                color: 'var(--color-warning)',
-                margin: '0 0 8px',
-                fontSize: 14,
-              }}
-            >
-              <CalendarClock size={17} />
-              Сегодня ещё нет сводки
-              <span className="badge badge-warning num" style={{ marginLeft: 'auto' }}>
-                {reminderItems.length}
-              </span>
-            </p>
-            <ExpandableList
-              items={reminderItems}
-              renderItem={(item) => (
-                <li key={`${item.taskType}-${item.taskId}-${item.shift ?? 'x'}`}>
-                  <Link
-                    to={`/tasks/${item.taskType}/${item.taskId}/reports/new${item.shift ? `?shift=${item.shift}` : ''}`}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              )}
-            />
-          </motion.div>
-        )}
-
-        {profile.role === 'party_chief' && revisionItems.length > 0 && (
-          <motion.div
-            className="card"
-            {...riseIn(0, { duration: 0.3, delay: 0.1 })}
-            style={{ padding: '14px 16px', borderLeft: '3px solid var(--color-danger)' }}
-          >
-            <p
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontWeight: 700,
-                color: 'var(--color-danger)',
-                margin: '0 0 8px',
-                fontSize: 14,
-              }}
-            >
-              <AlertTriangle size={17} />
-              Нужно исправить и отправить заново
-              <span className="badge badge-danger num" style={{ marginLeft: 'auto' }}>
-                {revisionItems.length}
-              </span>
-            </p>
-            <ExpandableList
-              items={revisionItems}
-              renderItem={(item) => (
-                <li key={item.reportId}>
-                  <Link to={`/tasks/${item.taskType}/${item.taskId}/reports/${item.reportId}/edit`}>
-                    {item.label}
-                  </Link>
-                  {item.reviewComment && (
-                    <span className="text-muted"> — {item.reviewComment}</span>
-                  )}
-                </li>
-              )}
-            />
-          </motion.div>
-        )}
+        {isManagement(profile.role) && <ManagementOverview pendingApprovals={pendingApprovals} />}
+        {profile.role === 'party_chief' && <MasterOverview />}
       </div>
 
       {companyTotals && !loadingData && sites.length > 0 && (

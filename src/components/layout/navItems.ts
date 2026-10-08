@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   FileBarChart,
   FileClock,
+  FilePen,
   FlaskConical,
   Map as MapIcon,
   Network,
@@ -51,6 +52,7 @@ export const NAV_ITEMS: NavItem[] = [
     badgeKey: 'pendingApprovals',
   },
   { to: '/reports/summary', label: 'Отчёты', icon: FileBarChart, show: isManagement },
+  { to: '/reports/corrections', label: 'Исправление сводок', icon: FilePen, show: isManagement, desktopOnly: true },
   // Пользователи/Работники/Организации бурения/Статьи затрат — раньше 4
   // отдельных пункта меню, из-за которых у management-роли набегало 9
   // пунктов (см. отзыв 25.09.2026 про overflow "Ещё" в BottomTabBar).

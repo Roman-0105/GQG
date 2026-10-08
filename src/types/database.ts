@@ -262,6 +262,9 @@ export interface Report {
   shift_notes: string | null
   documentation_finished: boolean
   sampling_layout_done: boolean
+  // Исправления руководством после согласования (миграция 0035)
+  last_edited_at?: string | null
+  edit_count?: number
   created_at: string
   updated_at: string
 }
