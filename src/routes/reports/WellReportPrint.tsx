@@ -363,6 +363,27 @@ function buildPages(d: WellReportData, withCosts: boolean, colorOf: (id: string)
         </div>
         <SectionTitle>Проходка по неделям</SectionTitle>
         <HBars items={weekly.slice(-12).map((w) => ({ label: w.label, value: w.value, color: 'var(--color-primary)' }))} />
+        {d.brigades.length > 0 && (
+          <>
+            <SectionTitle>Бригады мастеров по периодам</SectionTitle>
+            <table className="rp-table rp-table-tight">
+              <thead>
+                <tr><th>Мастер</th><th>Работник</th><th>Должность</th><th>С</th><th>По</th></tr>
+              </thead>
+              <tbody>
+                {d.brigades.slice(0, 24).map((b, i) => (
+                  <tr key={i}>
+                    <td>{shortName(b.masterName)}</td>
+                    <td>{b.worker}</td>
+                    <td>{b.position}</td>
+                    <td className="num">{formatDateRu(b.from)}</td>
+                    <td className="num">{b.to ? formatDateRu(b.to) : 'по н.в.'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
         {d.crew.length > 0 && (
           <>
             <SectionTitle>Буровая бригада</SectionTitle>

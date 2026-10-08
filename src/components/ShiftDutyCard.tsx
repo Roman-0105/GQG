@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import { isManagement } from '../types/roles'
 import Modal from './Modal'
+import { formatRu, stayInfo } from '../lib/workerStay'
+import type { WorkerStay } from '../types/database'
 
 interface Handover {
   id: string
@@ -61,6 +63,8 @@ export default function ShiftDutyCard() {
   // остальных ответственных (другие должности) — например, если мастера-сменщика нет.
   const [showOthers, setShowOthers] = useState(false)
   const [comment, setComment] = useState('')
+  // Люди мастера при сдаче вахты: остаются (переходят к сменщику) или уезжают
+  const [crew, setCrew] = useState<{ id: string; name: string; pos: string; stay: WorkerStay | null; keep: boolean }[]>([])
   const [summary, setSummary] = useState<{ tasks: number; drafts: number } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -108,6 +112,27 @@ export default function ShiftDutyCard() {
         .in('status', ['in_progress', 'suspended']),
     ])
     setCandidates((cands ?? []) as Candidate[])
+    const { data: myWorkers } = await supabase
+      .from('workers')
+      .select('id, full_name, position_id, archived_at')
+      .eq('assigned_foreman_id', profile!.id)
+      .is('archived_at', null)
+      .order('full_name')
+    const wIds = (myWorkers ?? []).map((w) => w.id as string)
+    const [{ data: stayRows }, { data: posRows }] = await Promise.all([
+      wIds.length > 0 ? supabase.from('worker_stays').select('*').in('worker_id', wIds).is('departed_on', null) : Promise.resolve({ data: [] }),
+      supabase.from('positions').select('id, name'),
+    ])
+    const posName = new Map((posRows ?? []).map((p) => [p.id as string, p.name as string]))
+    setCrew(
+      (myWorkers ?? []).map((w) => ({
+        id: w.id as string,
+        name: w.full_name as string,
+        pos: posName.get(w.position_id as string) ?? '',
+        stay: ((stayRows ?? []) as WorkerStay[]).find((x) => x.worker_id === w.id) ?? null,
+        keep: true,
+      })),
+    )
     const ids = (tasksRes.data ?? []).map((t) => t.id as string)
     let drafts = 0
     if (ids.length > 0) {
@@ -131,14 +156,16 @@ export default function ShiftDutyCard() {
     const { data, error: rpcError } = await supabase.rpc('hand_over_shift', {
       p_to: toId,
       p_comment: comment.trim() || null,
+      p_keep: crew.filter((c) => c.keep).map((c) => c.id),
+      p_leave: crew.filter((c) => !c.keep).map((c) => c.id),
     })
     setBusy(false)
     if (rpcError) {
       setError(rpcError.message)
       return
     }
-    const r = data as { tasks: number; drafts: number }
-    setDone('Вахта сдана: скважин ' + r.tasks + ', черновиков ' + r.drafts + '. Вы на межвахте — доступ к сданным скважинам только для чтения.')
+    const r = data as { tasks: number; drafts: number; kept?: number; left?: number }
+    setDone('Вахта сдана: скважин ' + r.tasks + ', черновиков ' + r.drafts + (r.kept || r.left ? ', людей: остаются ' + (r.kept ?? 0) + ', уезжают ' + (r.left ?? 0) : '') + '. Вы на межвахте — доступ к сданным скважинам только для чтения.')
     await reload()
   }
 
@@ -286,6 +313,30 @@ export default function ShiftDutyCard() {
               Комментарий сменщику (по желанию)
               <textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} />
             </label>
+            {crew.length > 0 && (
+              <div style={{ display: 'grid', gap: 6 }}>
+                <div className="eyebrow">Бригада · {crew.length} чел.</div>
+                {crew.map((c) => {
+                  const info = c.stay ? stayInfo(c.stay) : null
+                  return (
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '8px 10px', background: 'var(--color-surface-muted)' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</div>
+                        <div className="text-muted" style={{ fontSize: 12 }}>
+                          {c.pos}{c.stay ? ' · вахта до ' + formatRu(c.stay.planned_departure).slice(0, 5) : ''}
+                          {info && info.overtime > 0 ? ' · +' + info.overtime + ' дн.' : ''}
+                        </div>
+                      </div>
+                      <div className="org-orient" role="group">
+                        <button type="button" className={c.keep ? 'is-on' : ''} onClick={() => setCrew((prev) => prev.map((x) => (x.id === c.id ? { ...x, keep: true } : x)))}>остаётся</button>
+                        <button type="button" className={!c.keep ? 'is-on' : ''} onClick={() => setCrew((prev) => prev.map((x) => (x.id === c.id ? { ...x, keep: false } : x)))}>уезжает</button>
+                      </div>
+                    </div>
+                  )
+                })}
+                <div className="text-muted" style={{ fontSize: 12 }}>Оставшиеся переходят к сменщику, уезжающим фиксируется выезд сегодняшней датой.</div>
+              </div>
+            )}
             {summary && (
               <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
                 Будет передано: скважин бурения — <b>{summary.tasks}</b>, неотправленных черновиков и сводок на правке — <b>{summary.drafts}</b>.

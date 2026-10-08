@@ -84,6 +84,8 @@ export interface WellReportData {
   samples: { name: string; quantity: number }[]
   geology: { core: number; photo: number; sawn: number; taken: number; submitted: number; any: boolean }
   crew: { role: string; shift: number | null; name: string; from: string; to: string | null }[]
+  // Состав бригад мастеров по периодам (журнал перемещений, миграция 0033)
+  brigades: { masterId: string; masterName: string; worker: string; position: string; from: string; to: string | null }[]
   totals: {
     meters: number
     hours: number
@@ -389,6 +391,28 @@ export async function loadWellReportData(taskId: string): Promise<WellReportData
     }
   }
 
+  // ---- бригады мастеров по периодам (журнал перемещений)
+  const brigades: WellReportData['brigades'] = []
+  const masterIds = masters.map((m) => m.id)
+  if (masterIds.length > 0) {
+    const { data: hist } = await supabase.from('worker_crew_history').select('worker_id, foreman_id, from_date, to_date').in('foreman_id', masterIds)
+    const rows = (hist ?? []).filter((h) => (h.to_date == null || String(h.to_date) >= startDate) && String(h.from_date) <= lastDate)
+    const hw = [...new Set(rows.map((h) => h.worker_id as string))]
+    if (hw.length > 0) {
+      const { data: wrows } = await supabase.from('workers').select('id, full_name, position_id').in('id', hw)
+      const { data: prows } = await supabase.from('positions').select('id, name')
+      const pn = new Map((prows ?? []).map((p) => [p.id as string, p.name as string]))
+      const wm = new Map((wrows ?? []).map((w) => [w.id as string, { name: w.full_name as string, pos: pn.get(w.position_id as string) ?? '' }]))
+      for (const h of rows) {
+        const w = wm.get(h.worker_id as string)
+        const m = masters.find((x) => x.id === h.foreman_id)
+        if (!w || !m) continue
+        brigades.push({ masterId: m.id, masterName: m.name, worker: w.name, position: w.pos, from: String(h.from_date), to: h.to_date ? String(h.to_date) : null })
+      }
+      brigades.sort((a, b) => a.masterName.localeCompare(b.masterName) || a.from.localeCompare(b.from))
+    }
+  }
+
   // ---- итоги
   const meters = totalDepth
   const hours = round2(reports.reduce((s, r) => s + (r.hours_worked ?? 0), 0))
@@ -430,6 +454,7 @@ export async function loadWellReportData(taskId: string): Promise<WellReportData
     samples,
     geology,
     crew,
+    brigades,
     totals: {
       meters,
       hours,

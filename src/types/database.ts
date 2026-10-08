@@ -33,6 +33,8 @@ export interface Profile {
   id: string
   full_name: string
   role: UserRole
+  // На вахте / на межвахте (миграция 0031)
+  on_duty?: boolean
   // Должность и "кому подчиняется" (25.09.2026, см. CLAUDE.md — переход
   // оргструктуры на person-centric модель) — ровно один из
   // reports_to_profile_id/reports_to_worker_id заполнен или ни одного
@@ -314,5 +316,36 @@ export interface ReportStatusLog {
   action: ReportLogAction
   actor_id: string | null
   comment: string | null
+  created_at: string
+}
+
+// Перемещения и вахты работников (миграция 0033).
+export interface WorkerCrewHistory {
+  id: string
+  worker_id: string
+  foreman_id: string | null
+  from_date: string
+  to_date: string | null
+  reason: string | null
+  moved_by: string | null
+}
+
+export interface WorkerStay {
+  id: string
+  worker_id: string
+  arrived_on: string
+  planned_days: number
+  planned_departure: string
+  departed_on: string | null
+  note: string | null
+}
+
+export interface WorkerEvent {
+  id: string
+  worker_id: string
+  kind: 'arrived' | 'extended' | 'departed' | 'transferred'
+  event_date: string
+  text: string
+  actor_id: string | null
   created_at: string
 }

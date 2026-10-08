@@ -27,6 +27,8 @@ export default function TaskReportsList() {
   const [statusFilter, setStatusFilter] = useState<ApprovalStatus | 'all'>('all')
 
   const [reports, setReports] = useState<Report[]>([])
+  // Закрытая скважина: новые сводки мастер не вносит
+  const [wellClosed, setWellClosed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,6 +46,10 @@ export default function TaskReportsList() {
         .order('report_date', { ascending: false })
         .order('shift_number', { ascending: false })
 
+      if (currentTaskType === 'drilling') {
+        const { data: tk } = await supabase.from('drilling_tasks').select('status, closed_reason').eq('id', taskId).single()
+        setWellClosed(!!tk && (tk.status === 'completed' || !!tk.closed_reason))
+      }
       if (fetchError) setError(fetchError.message)
       else setReports(data ?? [])
       const ids = [...new Set((data ?? []).flatMap((r) => [r.author_id, r.approved_by]).filter((x): x is string => !!x))]
@@ -73,11 +79,17 @@ export default function TaskReportsList() {
         <h1 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
           <FileText size={24} className="text-muted" /> Сводки по заданию
         </h1>
-        <Link to={`/tasks/${taskType}/${taskId}/reports/new`}>
-          <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {wellClosed && profile?.role === 'party_chief' ? (
+          <button type="button" disabled title="Скважина закрыта — новые сводки не вносятся" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Plus size={16} /> Новая сводка
           </button>
-        </Link>
+        ) : (
+          <Link to={`/tasks/${taskType}/${taskId}/reports/new`}>
+            <button type="button" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Plus size={16} /> Новая сводка
+            </button>
+          </Link>
+        )}
       </div>
       <p className="text-muted" style={{ fontSize: 13, marginTop: 6 }}>
         Клик по сводке открывает историю — что было заполнено, статус, комментарий согласования.

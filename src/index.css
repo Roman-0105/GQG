@@ -936,6 +936,12 @@ button.btn-outline {
   border: 1px solid var(--color-primary);
 }
 
+button.btn-outline:disabled {
+  background: transparent;
+  color: var(--color-text-faint);
+  border-color: var(--color-border-strong);
+}
+
 button.btn-outline:hover:not(:disabled) {
   background: var(--color-primary-soft);
 }
@@ -2818,4 +2824,594 @@ a:focus:not(:focus-visible) {
 }
 .rp-map .leaflet-control-attribution {
   font-size: 8px;
+}
+
+/* ==========================================================================
+   Оргструктура (07.10.2026): ПК — горизонтальная схема + карточка справа,
+   телефон — раскрывающееся дерево + шторка с карточкой человека.
+   ========================================================================== */
+.org-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.org-toolbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.org-toolbar-actions > * {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 13px;
+  min-height: 40px;
+}
+@media (max-width: 767px) {
+  .org-toolbar-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .org-toolbar-actions .org-tb-primary {
+    grid-column: 1 / -1;
+  }
+  .org-search {
+    max-width: none !important;
+  }
+}
+.org-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  padding: 0 12px;
+  flex: 1;
+  min-width: 220px;
+  max-width: 420px;
+}
+.org-search input {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding-left: 0;
+}
+.org-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.org-split.has-panel {
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+.org-panel-close {
+  all: unset;
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--color-text-muted);
+}
+.hz-scroll {
+  overflow-x: auto;
+  padding: 12px 4px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.hz-tree,
+.hz-kids {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.hz-tree {
+  display: inline-flex;
+  flex-direction: column;
+  padding: 4px 12px;
+}
+.hz-row {
+  display: flex;
+  align-items: center;
+}
+.hz-kids {
+  position: relative;
+  margin-left: 24px;
+  display: flex;
+  flex-direction: column;
+}
+.hz-kids::before {
+  content: '';
+  position: absolute;
+  left: -24px;
+  top: 50%;
+  width: 24px;
+  border-top: 1px solid var(--color-border-strong);
+}
+.hz-kids > .hz-item {
+  position: relative;
+  padding: 5px 0 5px 24px;
+}
+.hz-kids > .hz-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 24px;
+  border-top: 1px solid var(--color-border-strong);
+}
+.hz-kids > .hz-item::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--color-border-strong);
+}
+.hz-kids > .hz-item:first-child::after {
+  top: 50%;
+}
+.hz-kids > .hz-item:last-child::after {
+  bottom: 50%;
+}
+.hz-kids > .hz-item:only-child::after {
+  display: none;
+}
+.hz-item {
+  list-style: none;
+}
+.hz-card {
+  width: 192px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  overflow: hidden;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+.hz-card.is-chief {
+  border-color: var(--color-accent);
+}
+.hz-card.is-selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-soft);
+}
+.hz-card.is-dim {
+  opacity: 0.3;
+}
+.hz-card-main,
+.mo-main {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  width: 100%;
+  color: var(--color-text);
+}
+.hz-card-main:hover,
+.mo-main:hover {
+  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+}
+.hz-av {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.hz-av-lg {
+  width: 40px;
+  height: 40px;
+  font-size: 13px;
+}
+.hz-txt {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+.hz-name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.hz-pos {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.25;
+}
+.hz-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 10px 7px;
+  font-size: 11px;
+}
+.hz-wells {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+.org-duty {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 8px;
+}
+.org-duty i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.org-duty[data-on='1'] {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.org-duty[data-on='0'] {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.hz-crew-btn {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--color-border);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-muted);
+}
+.hz-crew {
+  padding: 6px 10px 8px;
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: 6px;
+}
+.hz-crew-h {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+.hz-crew-p {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  font-size: 12px;
+  color: var(--color-text);
+  padding: 1px 0;
+}
+.hz-crew-p span {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+.hz-crew-p {
+  padding: 3px 0;
+}
+.hz-crew-p:hover {
+  color: var(--color-primary);
+}
+.org-panel {
+  position: sticky;
+  /* для кнопки закрытия */
+  top: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: 16px;
+}
+.org-panel-body {
+  display: grid;
+  gap: 14px;
+}
+.org-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.org-link {
+  all: unset;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-primary);
+  line-height: 1.4;
+  display: block;
+}
+.org-link:hover {
+  text-decoration: underline;
+}
+.mo-list {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+.mo-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid var(--color-border);
+}
+.mo-row.is-selected {
+  background: var(--color-primary-soft);
+}
+.mo-chev {
+  all: unset;
+  width: 30px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.mo-main {
+  min-height: 48px;
+}
+.mo-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.mo-dot[data-on='1'] {
+  background: var(--color-success);
+}
+.mo-dot[data-on='0'] {
+  background: var(--color-danger);
+}
+.mo-count {
+  font-size: 11px;
+  background: var(--color-surface-muted);
+  border-radius: 8px;
+  padding: 1px 8px;
+  color: var(--color-text-muted);
+}
+.hz-tree li,
+.hz-kids li {
+  border-bottom: none;
+}
+.hz-item {
+  font-size: 13px;
+}
+
+/* Оргструктура: «безрамочные» кнопки не должны подхватывать общий hover/disabled кнопок */
+button.hz-card-main:hover:not(:disabled),
+button.mo-main:hover:not(:disabled),
+button.mo-chev:hover:not(:disabled),
+button.org-link:hover:not(:disabled),
+button.hz-crew-btn:hover:not(:disabled),
+button.hz-crew-p:hover:not(:disabled),
+button.org-panel-close:hover:not(:disabled) {
+  background: transparent;
+  box-shadow: none;
+}
+button.hz-card-main:hover:not(:disabled),
+button.mo-main:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+button.hz-crew-btn:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+}
+button.mo-chev:disabled,
+button.mo-chev {
+  background: transparent;
+}
+button.mo-chev:disabled {
+  color: transparent;
+}
+button.hz-card-main:active:not(:disabled),
+button.mo-main:active:not(:disabled) {
+  transform: none;
+}
+
+.page.page-wide .hz-scroll {
+  width: 100%;
+}
+
+/* Переключатель ориентации схемы и вертикальный вариант дерева */
+.org-orient {
+  display: inline-flex;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+.org-orient button {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.org-orient button + button {
+  border-left: 1px solid var(--color-border-strong);
+}
+.org-orient button.is-on {
+  background: var(--color-primary);
+  color: #fff;
+}
+button.org-orient-btn:hover {
+  background: transparent;
+}
+.hz-tree.is-vertical {
+  flex-direction: row;
+  display: inline-flex;
+  align-items: flex-start;
+}
+.is-vertical .hz-row {
+  flex-direction: column;
+  align-items: center;
+}
+.is-vertical .hz-kids {
+  margin: 24px 0 0;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+}
+.is-vertical .hz-kids::before {
+  left: 50%;
+  top: -24px;
+  width: 0;
+  height: 24px;
+  border-top: none;
+  border-left: 1px solid var(--color-border-strong);
+}
+.is-vertical .hz-kids > .hz-item {
+  padding: 24px 6px 0;
+}
+.is-vertical .hz-kids > .hz-item::before {
+  left: 50%;
+  top: 0;
+  width: 0;
+  height: 24px;
+  border-top: none;
+  border-left: 1px solid var(--color-border-strong);
+}
+.is-vertical .hz-kids > .hz-item::after {
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: auto;
+  height: 0;
+  border-left: none;
+  border-top: 1px solid var(--color-border-strong);
+}
+.is-vertical .hz-kids > .hz-item:first-child::after {
+  top: 0;
+  left: 50%;
+}
+.is-vertical .hz-kids > .hz-item:last-child::after {
+  bottom: auto;
+  right: 50%;
+}
+.is-vertical .hz-kids > .hz-item:only-child::after {
+  display: none;
+}
+
+/* Вертикальная схема — по центру окна (без обрезки слева, если шире окна) */
+.hz-tree.is-vertical {
+  display: flex;
+  width: max-content;
+  margin: 0 auto;
+}
+
+/* Оргструктура: переключатель вида, вахты персонала, отметка переработки */
+.org-views {
+  display: inline-flex;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+  gap: 4px;
+}
+.org-views button {
+  all: unset;
+  cursor: pointer;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  border-bottom: 2px solid transparent;
+  position: relative;
+}
+.org-views button.is-on {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  font-weight: 600;
+}
+.org-views-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-warning);
+  margin-left: 6px;
+}
+.hz-ot {
+  color: var(--color-warning);
+  font-weight: 700;
+  font-size: 11px;
+}
+.org-stays {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: 14px;
+}
+.org-stays-list {
+  display: grid;
+}
+button.org-stay-row {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 54px;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: 13px;
+}
+button.org-stay-row:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+}
+.org-stay-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.org-stay-name span {
+  font-size: 12px;
+}
+.org-stay-bar {
+  display: grid;
+  gap: 3px;
+}
+.org-stay-bar i {
+  display: block;
+  height: 100%;
+}
+.org-stay-bar small {
+  font-size: 11px;
+}
+.org-stay-date {
+  text-align: right;
+}
+@media (max-width: 767px) {
+  button.org-stay-row {
+    grid-template-columns: minmax(0, 1fr) 50px;
+  }
+  .org-stay-bar {
+    grid-column: 1 / -1;
+    order: 3;
+  }
 }

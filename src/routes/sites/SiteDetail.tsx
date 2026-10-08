@@ -6,6 +6,7 @@ import { ChevronLeft, Layers, Plus, ChevronRight, Lock, Unlock, Scissors, FlaskC
 import Modal from '../../components/Modal'
 import SiteOverview from '../../components/SiteOverview'
 import StartDrillingModal from '../../components/StartDrillingModal'
+import MasterStartDrilling from '../../components/MasterStartDrilling'
 import { useIsMobile } from '../../hooks/useMediaQuery'
 import type { DrillingTask as DrillingTaskRow } from '../../types/database'
 import type { LucideIcon } from 'lucide-react'
@@ -373,6 +374,13 @@ export default function SiteDetail() {
             </div>
           </Modal>
 
+          {profile?.role === 'party_chief' && (
+            <MasterStartDrilling
+              plannedWells={drillingTasks.filter((t) => t.status === 'planned') as unknown as DrillingTask[]}
+              onStarted={(updated) => setDrillingTasks((prev) => prev.map((t) => (t.id === updated.id ? ({ ...t, ...updated } as typeof t) : t)))}
+            />
+          )}
+
           {startingWell && (
             <StartDrillingModal
               well={startingWell}
@@ -519,11 +527,17 @@ export default function SiteDetail() {
                           <>
                             {/* Полевой режим (30.09.2026): новая сводка — одним касанием
                                 прямо с карточки скважины, история — отдельной иконкой. */}
-                            <Link to={`/tasks/drilling/${t.id}/reports/new`}>
-                              <button type="button" style={{ fontSize: 13, padding: '8px 12px', minHeight: 40, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            {t.status === 'completed' || t.closed_reason ? (
+                              <button type="button" disabled title="Скважина закрыта — новые сводки не вносятся" style={{ fontSize: 13, padding: '8px 12px', minHeight: 40, display: 'flex', alignItems: 'center', gap: 5 }}>
                                 <Plus size={15} /> Сводка
                               </button>
-                            </Link>
+                            ) : (
+                              <Link to={`/tasks/drilling/${t.id}/reports/new`}>
+                                <button type="button" style={{ fontSize: 13, padding: '8px 12px', minHeight: 40, display: 'flex', alignItems: 'center', gap: 5 }}>
+                                  <Plus size={15} /> Сводка
+                                </button>
+                              </Link>
+                            )}
                             <Link to={`/tasks/drilling/${t.id}/reports`} title="История сводок" aria-label="История сводок" style={{ display: 'flex', padding: 8 }}>
                               <History size={18} className="text-faint" />
                             </Link>

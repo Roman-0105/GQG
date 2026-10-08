@@ -576,6 +576,15 @@ export default function DailyReportForm() {
   if (profile && profile.role !== 'party_chief') {
     return <p>Сводки вносит только назначенный ответственный.</p>
   }
+  // Закрытая скважина: новую сводку мастер уже не вносит (правка прежних — как раньше)
+  if (!isEditMode && taskType === 'drilling' && drillingTask && (drillingTask.status === 'completed' || drillingTask.closed_reason)) {
+    return (
+      <div>
+        <p>Скважина закрыта — новые сводки не вносятся.</p>
+        <Link to={`/tasks/${taskType}/${taskId}/reports`}>К списку сводок</Link>
+      </div>
+    )
+  }
 
   const wellLabel =
     taskType === 'drilling'

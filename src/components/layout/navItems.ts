@@ -58,7 +58,7 @@ export const NAV_ITEMS: NavItem[] = [
   // (/users, /settings/workers, /settings/organizations, /settings/costs)
   // НЕ переехали, только перестали быть пунктами верхнего уровня.
   { to: '/settings', label: 'Настройки', icon: Settings, show: isManagement },
-  { to: '/org-chart', label: 'Оргструктура', icon: Network, show: () => true, desktopOnly: true },
+  { to: '/org-chart', label: 'Оргструктура', icon: Network, show: () => true },
 ]
 
 export function isNavItemActive(pathname: string, to: string) {

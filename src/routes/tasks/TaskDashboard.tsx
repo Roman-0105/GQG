@@ -354,6 +354,9 @@ export default function TaskDashboard() {
   const effectiveStatus =
     drillingTask?.status ?? linkedDrillingTask?.status ?? 'in_progress'
   const isActiveStatus = effectiveStatus === 'in_progress'
+  // Закрытая скважина (по любой причине): мастер больше не вносит сводки и не правит состав бригады
+  const wellClosed = isDrilling && !!drillingTask && (drillingTask.status === 'completed' || !!drillingTask.closed_reason)
+  const chiefBlocked = wellClosed && profile?.role === 'party_chief'
   const lastDate = isActiveStatus
     ? lastReportDate && lastReportDate > todayIso()
       ? lastReportDate
@@ -635,19 +638,24 @@ export default function TaskDashboard() {
 
         {/* Кнопки действий — столбиком справа, одинаковой ширины */}
         <div style={{ width: 152, flexShrink: 0, display: 'grid', gap: 8 }}>
-          {profile?.role === 'party_chief' && (
-            <Link to={`/tasks/${taskType}/${taskId}/reports/new`} style={{ display: 'block' }}>
-              <button type="button" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', width: '100%' }}>
+          {profile?.role === 'party_chief' &&
+            (chiefBlocked ? (
+              <button type="button" disabled title="Скважина закрыта — новые сводки не вносятся" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', width: '100%' }}>
                 <Plus size={15} /> Новая сводка
               </button>
-            </Link>
-          )}
+            ) : (
+              <Link to={`/tasks/${taskType}/${taskId}/reports/new`} style={{ display: 'block' }}>
+                <button type="button" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', width: '100%' }}>
+                  <Plus size={15} /> Новая сводка
+                </button>
+              </Link>
+            ))}
           <Link to={`/tasks/${taskType}/${taskId}/reports`} style={{ display: 'block' }}>
             <button type="button" className="btn-outline" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', width: '100%' }}>
               <FileText size={15} /> Все сводки
             </button>
           </Link>
-          <button type="button" className="btn-outline" onClick={() => setCrewOpen(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', width: '100%' }}>
+          <button type="button" className="btn-outline" disabled={chiefBlocked} title={chiefBlocked ? 'Скважина закрыта — состав бригады недоступен' : undefined} onClick={() => setCrewOpen(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', width: '100%' }}>
             <Users size={15} /> Состав бригады
           </button>
           {/* Редактирование задания — руководству, для всех четырёх видов заданий */}
@@ -766,7 +774,7 @@ export default function TaskDashboard() {
             taskType={taskType}
             taskId={taskId}
             foremanId={foreman?.id ?? null}
-            canEdit={isManagement(profile?.role) || (foreman != null && foreman.id === profile?.id)}
+            canEdit={!chiefBlocked && (isManagement(profile?.role) || (foreman != null && foreman.id === profile?.id))}
           />
           {isDrilling && attachedGeoCore && (
             <CrewAssignmentSection
