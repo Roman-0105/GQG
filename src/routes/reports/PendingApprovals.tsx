@@ -4,10 +4,10 @@ import { motion } from 'framer-motion'
 import { CheckCheck, ClipboardCheck, ChevronDown, ChevronRight, PartyPopper, X } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
-import { isManagement } from '../../types/roles'
 import { riseIn } from '../../lib/motionVariants'
 import { notifyReportsChanged } from '../../hooks/useReportCounts'
 import type { Report } from '../../types/database'
+import { shortName } from '../../lib/shortName'
 
 type SubtaskKey = 'drilling' | 'core-geological' | 'core-geotechnical' | 'sawing' | 'sampling'
 
@@ -100,7 +100,7 @@ function shiftLabel(r: Report, subtaskKey: SubtaskKey) {
 }
 
 export default function PendingApprovals() {
-  const { session, profile, loading: authLoading } = useAuth()
+  const { session, profile, can, loading: authLoading } = useAuth()
   const [reports, setReports] = useState<EnrichedReport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -116,7 +116,7 @@ export default function PendingApprovals() {
   const [bulkMsg, setBulkMsg] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!session || !isManagement(profile?.role)) return
+    if (!session || !can('approve_reports')) return
 
     async function load() {
       setLoading(true)
@@ -190,7 +190,7 @@ export default function PendingApprovals() {
         : { data: [] }
 
       const authorMap = new Map(
-        (authorsRes.data ?? []).map((a) => [a.id, a.full_name]),
+        (authorsRes.data ?? []).map((a) => [a.id, shortName(a.full_name)]),
       )
       const siteMap = new Map((sitesRes.data ?? []).map((s) => [s.id, s.name]))
       const drillingMap = new Map(
@@ -265,7 +265,7 @@ export default function PendingApprovals() {
 
   if (authLoading) return <p>Загрузка…</p>
   if (!session) return <Navigate to="/login" replace />
-  if (!isManagement(profile?.role)) {
+  if (!can('approve_reports')) {
     return <p>Согласование доступно только гендиру/техдиру.</p>
   }
 

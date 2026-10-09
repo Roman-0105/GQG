@@ -9,6 +9,7 @@ import { ApprovalBadge } from '../../components/StatusBadge'
 import { TASK_TYPE_REPORT_COLUMN, type TaskType } from '../../types/taskType'
 import { isManagement } from '../../types/roles'
 import type { ApprovalStatus, Report } from '../../types/database'
+import { shortName } from '../../lib/shortName'
 
 function shiftLabel(taskType: TaskType, shiftNumber: number | null) {
   if (!shiftNumber) return ''
@@ -55,7 +56,7 @@ export default function TaskReportsList() {
       const ids = [...new Set((data ?? []).flatMap((r) => [r.author_id, r.approved_by]).filter((x): x is string => !!x))]
       if (ids.length > 0) {
         const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', ids)
-        setNames(new Map((profs ?? []).map((p) => [p.id as string, p.full_name as string])))
+        setNames(new Map((profs ?? []).map((p) => [p.id as string, shortName(p.full_name as string)])))
       }
       setLoading(false)
     }

@@ -13,12 +13,13 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import type { UserRole } from '../../types/roles'
 import { isManagement } from '../../types/roles'
+import type { WorkArea } from '../../types/database'
 
 export interface NavItem {
   to: string
   label: string
   icon: LucideIcon
-  show: (role: UserRole | null | undefined) => boolean
+  show: (role: UserRole | null | undefined, can: (cap: string) => boolean, area?: WorkArea | null) => boolean
   badgeKey?: 'pendingApprovals'
   // Только для ПК: на телефоне (нижний таб-бар) пункт не показывается —
   // полевому работнику он не нужен (решение 30.09.2026).
@@ -35,24 +36,24 @@ export const NAV_ITEMS: NavItem[] = [
     to: '/reports/mine',
     label: 'Мои сводки',
     icon: FileClock,
-    show: (role) => role === 'party_chief',
+    show: (role, _can, area) => role === 'party_chief' && area !== 'geology',
   },
   { to: '/map', label: 'Карта', icon: MapIcon, show: () => true },
   {
     to: '/reports/geology',
     label: 'Геология',
     icon: FlaskConical,
-    show: (role) => role === 'party_chief',
+    show: (role, _can, area) => role === 'party_chief' && area !== 'drilling',
   },
   {
     to: '/reports/pending',
     label: 'Согласование',
     icon: ClipboardCheck,
-    show: isManagement,
+    show: (_role, can) => can('approve_reports'),
     badgeKey: 'pendingApprovals',
   },
-  { to: '/reports/summary', label: 'Отчёты', icon: FileBarChart, show: isManagement },
-  { to: '/reports/corrections', label: 'БД сводок', icon: FilePen, show: isManagement, desktopOnly: true },
+  { to: '/reports/summary', label: 'Отчёты', icon: FileBarChart, show: (role, can) => isManagement(role) || can('view_all_data') },
+  { to: '/reports/corrections', label: 'БД сводок', icon: FilePen, show: (_role, can) => can('corrections_db'), desktopOnly: true },
   // Пользователи/Работники/Организации бурения/Статьи затрат — раньше 4
   // отдельных пункта меню, из-за которых у management-роли набегало 9
   // пунктов (см. отзыв 25.09.2026 про overflow "Ещё" в BottomTabBar).

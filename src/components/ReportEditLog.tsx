@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { shortName } from '../lib/shortName'
 
 interface Row {
   id: string
@@ -44,7 +45,7 @@ export default function ReportEditLog({ reportId }: { reportId: string }) {
       let map: Record<string, string> = {}
       if (ids.size > 0) {
         const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', [...ids])
-        map = Object.fromEntries((profs ?? []).map((p) => [p.id as string, p.full_name as string]))
+        map = Object.fromEntries((profs ?? []).map((p) => [p.id as string, shortName(p.full_name as string)]))
       }
       if (!cancelled) {
         setRows(list)

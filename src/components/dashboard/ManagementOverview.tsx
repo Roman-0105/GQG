@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabaseClient'
 import { round2 } from '../../lib/taskProgress'
 import { addDaysIso, formatRu, stayInfo, todayIso } from '../../lib/workerStay'
 import type { DrillingTask, Profile, WorkerStay } from '../../types/database'
+import { shortName } from '../../lib/shortName'
 
 interface Rep {
   id: string
@@ -112,7 +113,7 @@ export default function ManagementOverview({ pendingApprovals }: { pendingApprov
   const planDaily = active.reduce((s, t) => s + (t.planned_daily_meters ?? 0), 0)
   const maxBar = Math.max(...days.map((d) => d.m), planDaily, 10)
 
-  const nameOf = new Map(chiefs.map((c) => [c.id, c.full_name]))
+  const nameOf = new Map(chiefs.map((c) => [c.id, shortName(c.full_name)]))
   const wellsRows = active.map((t) => {
     const mine = approved.filter((r) => r.drilling_task_id === t.id)
     const depth = round2(mine.reduce((s, r) => s + (r.drilling_meters ?? 0), 0))
@@ -193,7 +194,7 @@ export default function ManagementOverview({ pendingApprovals }: { pendingApprov
             <div key={c.id} className="dash-row">
               <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 <i className="dash-dot" data-on={c.on_duty ? '1' : '0'} />
-                {c.full_name}
+                {shortName(c.full_name)}
               </span>
               <span className="text-muted" style={{ fontSize: 12 }}>
                 {tasks.filter((t) => t.foreman_id === c.id && t.status === 'in_progress').map((t) => t.well_number).join(', ') || (c.on_duty ? 'на вахте' : 'межвахта')}

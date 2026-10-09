@@ -28,7 +28,7 @@ function readCollapsed(): boolean | null {
 // в localStorage, а не в БД.
 export default function Sidebar() {
   const { pathname } = useLocation()
-  const { session, profile } = useAuth()
+  const { session, profile, can, workArea } = useAuth()
   const { pendingApprovals } = useReportCounts()
   const [manual, setManual] = useState<boolean | null>(readCollapsed)
   const narrow = useIsNarrowDesktop()
@@ -56,7 +56,7 @@ export default function Sidebar() {
     )
   }
 
-  const items = NAV_ITEMS.filter((item) => item.show(profile.role))
+  const items = NAV_ITEMS.filter((item) => item.show(profile.role, can, workArea))
 
   return (
     <aside className={`sidebar${collapsed ? ' is-collapsed' : ''}`}>

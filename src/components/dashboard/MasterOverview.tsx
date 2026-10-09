@@ -7,6 +7,7 @@ import { round2 } from '../../lib/taskProgress'
 import { formatRu, stayInfo, todayIso } from '../../lib/workerStay'
 import MasterStartDrilling from '../MasterStartDrilling'
 import type { DrillingTask, Report, Worker, WorkerStay } from '../../types/database'
+import { shortName } from '../../lib/shortName'
 
 // Верх дашборда мастера (08.10.2026): одна главная задача на сегодня —
 // «Моя скважина» с кнопкой новой сводки, что нужно исправить, бригада и
@@ -132,7 +133,7 @@ export default function MasterOverview() {
           <div className="eyebrow" style={{ marginBottom: 6 }}>Моя бригада</div>
           {crewRows.map(({ w, info }) => (
             <div key={w.id} className="dash-row">
-              <span>{w.full_name}</span>
+              <span>{shortName(w.full_name)}</span>
               {info ? (
                 info.overtime > 0 ? (
                   <span className="badge badge-warning">+{info.overtime} дн. переработки</span>

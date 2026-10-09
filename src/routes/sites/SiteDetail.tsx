@@ -26,6 +26,7 @@ import type {
   SamplingTask,
   Site,
 } from '../../types/database'
+import { shortName } from '../../lib/shortName'
 
 // Формулы прогресса — общие с Dashboard.tsx, см. src/lib/taskProgress.ts
 // (вынесены туда 25.09.2026, фаза 3 редизайна: сводный прогресс участка
@@ -110,7 +111,7 @@ export default function SiteDetail() {
       .select('id, full_name')
       .in('id', ids)
       .then(({ data }) =>
-        setAuthorNames(Object.fromEntries(((data ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, p.full_name]))),
+        setAuthorNames(Object.fromEntries(((data ?? []) as { id: string; full_name: string }[]).map((p) => [p.id, shortName(p.full_name)]))),
       )
   }, [drillingTasks, profile])
 

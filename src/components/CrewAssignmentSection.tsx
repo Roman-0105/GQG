@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { TASK_TYPE_REPORT_COLUMN, type TaskType } from '../types/taskType'
 import type { Position, TaskWorkerAssignment, Worker, WorkerRole } from '../types/database'
+import { shortName } from '../lib/shortName'
 
 const ROLE_SLOTS: Record<TaskType, { value: WorkerRole; label: string }[]> = {
   drilling: [
@@ -122,7 +123,7 @@ export default function CrewAssignmentSection({ taskType, taskId, foremanId, can
     setAssignments((prev) => prev.map((a) => (a.id === id ? data : a)))
   }
 
-  const workerName = (id: string) => brigadeWorkers.find((w) => w.id === id)?.full_name ?? '—'
+  const workerName = (id: string) => shortName(brigadeWorkers.find((w) => w.id === id)?.full_name) || '—'
 
   // Для буровика и помбура — только работники с должностью нужной роли в
   // бригаде; «Показать всех» снимает фильтр.
@@ -319,7 +320,7 @@ function RoleSlot({
           <option value="">+ добавить работника</option>
           {availableToAdd.map((w) => (
             <option key={w.id} value={w.id}>
-              {w.full_name}
+              {shortName(w.full_name)}
             </option>
           ))}
         </select>

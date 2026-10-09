@@ -3,6 +3,7 @@ import { FlaskConical, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import type { Profile, SamplingTask } from '../types/database'
+import { shortName } from '../lib/shortName'
 
 interface Props {
   siteId: string
@@ -101,7 +102,7 @@ export default function AttachedSamplingCard({
           <option value="">— выбрать —</option>
           {partyChiefs.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.full_name}
+              {shortName(p.full_name)}
             </option>
           ))}
         </select>

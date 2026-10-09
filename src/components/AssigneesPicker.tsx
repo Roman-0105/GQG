@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
 import type { Profile } from '../types/database'
+import { shortName } from '../lib/shortName'
 
 // Выбор нескольких ответственных (03.10.2026): чипы выбранных людей с
 // крестиком + select «добавить». Используется при назначении геологов на
@@ -30,7 +31,7 @@ export default function AssigneesPicker({
               className="badge badge-primary"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 8px 5px 10px', fontSize: 13 }}
             >
-              {byId.get(id)?.full_name ?? 'Неизвестный пользователь'}
+              {shortName(byId.get(id)?.full_name) || 'Неизвестный пользователь'}
               {!disabled && (
                 <button
                   type="button"
@@ -63,7 +64,7 @@ export default function AssigneesPicker({
           <option value="">{available.length === 0 ? 'Все доступные уже добавлены' : placeholder}</option>
           {available.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.full_name}
+              {shortName(c.full_name)}
             </option>
           ))}
         </select>

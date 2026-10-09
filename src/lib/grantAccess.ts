@@ -48,6 +48,20 @@ async function signUpAndInsertProfile(params: {
   return { profile }
 }
 
+// Сотрудник с логином за один шаг (мастер «Добавить сотрудника»):
+// должность и руководитель задаются сразу.
+export async function createEmployeeWithLogin(params: {
+  fullName: string
+  email: string
+  password: string
+  role: UserRole
+  positionId: string | null
+  reportsToProfileId: string | null
+  reportsToWorkerId: string | null
+}): Promise<{ profile: Profile } | { error: string }> {
+  return signUpAndInsertProfile({ ...params, personId: null })
+}
+
 // Создать логин-пользователя с нуля (без привязки к реестру работников) —
 // вынесено 25.09.2026 из UsersList.tsx, чтобы тот же путь мог использовать
 // и OrgChart.tsx ("+ Добавить человека"). Должность/руководитель здесь

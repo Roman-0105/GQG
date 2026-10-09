@@ -12,6 +12,7 @@ import type { WellProgressInfo } from '../../components/WellMapCard'
 import { TaskStatusBadge } from '../../components/StatusBadge'
 import type { DrillingChartRow } from '../../components/DrillingProgressChart'
 import type { DrillingTask, Profile, Site } from '../../types/database'
+import { shortName } from '../../lib/shortName'
 
 // Карта участков (03.10.2026, переработана 04.10.2026). Слева — карта (точки
 // скважин по WGS-84, контур участка, две подложки), справа на ПК — панель:
@@ -231,7 +232,7 @@ export default function SiteMap() {
         const ids = [...new Set(wellList.flatMap((w) => [w.foreman_id, w.created_by]).filter((x): x is string => Boolean(x)))]
         if (ids.length > 0) {
           const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', ids)
-          if (!cancelled) setForemen(Object.fromEntries(((profs ?? []) as Pick<Profile, 'id' | 'full_name'>[]).map((p) => [p.id, p.full_name])))
+          if (!cancelled) setForemen(Object.fromEntries(((profs ?? []) as Pick<Profile, 'id' | 'full_name'>[]).map((p) => [p.id, shortName(p.full_name)])))
         }
       }
       setLoading(false)

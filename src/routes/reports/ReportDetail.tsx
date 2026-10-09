@@ -13,6 +13,7 @@ import { loadShiftDiameterInfo } from '../../lib/drillDiameters'
 import { loadReportSiteAndWellLabel } from '../../lib/reportLabel'
 import { notifyReportsChanged } from '../../hooks/useReportCounts'
 import { round2 } from '../../lib/taskProgress'
+import { shortName } from '../../lib/shortName'
 import type { TaskType } from '../../types/taskType'
 import type { CostItem, DrillingTask, Report, ReportCost } from '../../types/database'
 
@@ -85,7 +86,7 @@ export default function ReportDetail() {
         supabase.from('report_costs').select('*').eq('report_id', reportId),
         loadReportSiteAndWellLabel(r),
       ])
-      if (authorRes.data) setAuthorName(authorRes.data.full_name)
+      if (authorRes.data) setAuthorName(shortName(authorRes.data.full_name))
       setSiteName(siteAndWell.siteName)
       setWellLabel(siteAndWell.wellLabel)
 

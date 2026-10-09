@@ -1,6 +1,8 @@
 import { ROLE_LABELS } from '../types/roles'
-import type { Profile, Worker } from '../types/database'
+import type { Position, Profile, Worker } from '../types/database'
+import { SUPERVISOR_LEVELS, levelOfPosition } from '../lib/accessLevels'
 import { profileValue, workerValue } from '../lib/personRef'
+import { shortName } from '../lib/shortName'
 
 // Select "Пользователь/Работник" с группировкой по optgroup — используется
 // и для "Должность держит..."-подобных полей, и как select "Руководитель"
@@ -18,6 +20,8 @@ export default function PersonSelect({
   excludeKeys,
   noneLabel = '— не выбран —',
   disabled,
+  positions,
+  forLevel,
 }: {
   profiles: Profile[]
   workers: Worker[]
@@ -26,10 +30,16 @@ export default function PersonSelect({
   excludeKeys?: Set<string>
   noneLabel?: string
   disabled?: boolean
+  // Подчинение: допустимые уровни руководителя задаёт SUPERVISOR_LEVELS.
+  positions?: Position[]
+  forLevel?: number
 }) {
-  const visibleProfiles = profiles.filter((p) => !excludeKeys?.has(profileValue(p.id)))
+  const allowedLevels = forLevel != null ? SUPERVISOR_LEVELS[forLevel] ?? [] : null
+  const fits = (positionId: string | null, key: string) =>
+    allowedLevels == null || !positions || key === value || allowedLevels.includes(levelOfPosition(positions, positionId))
+  const visibleProfiles = profiles.filter((p) => !excludeKeys?.has(profileValue(p.id)) && fits(p.position_id, profileValue(p.id)))
   const visibleWorkers = workers.filter(
-    (w) => (!w.archived_at || workerValue(w.id) === value) && !excludeKeys?.has(workerValue(w.id)),
+    (w) => (!w.archived_at || workerValue(w.id) === value) && !excludeKeys?.has(workerValue(w.id)) && fits(w.position_id, workerValue(w.id)),
   )
 
   return (
@@ -39,7 +49,7 @@ export default function PersonSelect({
         <optgroup label="Пользователи (вход в систему)">
           {visibleProfiles.map((p) => (
             <option key={p.id} value={profileValue(p.id)}>
-              {p.full_name} — {ROLE_LABELS[p.role]}
+              {shortName(p.full_name)} — {ROLE_LABELS[p.role]}
             </option>
           ))}
         </optgroup>
@@ -48,7 +58,7 @@ export default function PersonSelect({
         <optgroup label="Работники">
           {visibleWorkers.map((w) => (
             <option key={w.id} value={workerValue(w.id)}>
-              {w.full_name}
+              {shortName(w.full_name)}
               {w.archived_at ? ' (архивирован)' : ''}
             </option>
           ))}

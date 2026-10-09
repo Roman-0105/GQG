@@ -8,6 +8,7 @@ import { isManagement } from '../../types/roles'
 import { useAreaCandidates } from '../../hooks/useAreaCandidates'
 import AreaFilterHint from '../../components/AreaFilterHint'
 import type { DrillingOrganization, DrillingTask } from '../../types/database'
+import { shortName } from '../../lib/shortName'
 
 type WellSource = 'own' | 'external'
 
@@ -175,7 +176,7 @@ export default function SamplingTaskForm() {
               <option value="">— выбрать —</option>
               {areaPick.candidates.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.full_name}
+                  {shortName(p.full_name)}
                 </option>
               ))}
             </select>

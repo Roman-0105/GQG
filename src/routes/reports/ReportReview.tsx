@@ -5,10 +5,10 @@ import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import ReportGeologyExtras from '../../components/ReportGeologyExtras'
 import { notifyReportsChanged } from '../../hooks/useReportCounts'
-import { isManagement } from '../../types/roles'
 import { loadReportSiteAndWellLabel } from '../../lib/reportLabel'
 import { round2 } from '../../lib/taskProgress'
 import type { CostItem, Report, ReportCost } from '../../types/database'
+import { shortName } from '../../lib/shortName'
 
 interface EnrichedCost extends ReportCost {
   categoryName: string
@@ -16,7 +16,7 @@ interface EnrichedCost extends ReportCost {
 
 export default function ReportReview() {
   const { reportId } = useParams<{ reportId: string }>()
-  const { session, profile, loading: authLoading } = useAuth()
+  const { session, profile, can, loading: authLoading } = useAuth()
   const navigate = useNavigate()
 
   const [report, setReport] = useState<Report | null>(null)
@@ -31,7 +31,7 @@ export default function ReportReview() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!session || !reportId || !isManagement(profile?.role)) return
+    if (!session || !reportId || !can('approve_reports')) return
 
     async function load() {
       setLoading(true)
@@ -47,7 +47,7 @@ export default function ReportReview() {
           supabase.from('profiles').select('full_name').eq('id', r.author_id).single(),
           loadReportSiteAndWellLabel(r),
         ])
-        if (authorRes.data) setAuthorName(authorRes.data.full_name)
+        if (authorRes.data) setAuthorName(shortName(authorRes.data.full_name))
         setSiteName(siteAndWell.siteName)
         setWellLabel(siteAndWell.wellLabel)
 
@@ -87,7 +87,7 @@ export default function ReportReview() {
   if (authLoading) return <p>Загрузка…</p>
   if (!session) return <Navigate to="/login" replace />
   if (!reportId) return <p>Не указана сводка.</p>
-  if (!isManagement(profile?.role)) {
+  if (!can('approve_reports')) {
     return <p>Согласование доступно только гендиру/техдиру.</p>
   }
 

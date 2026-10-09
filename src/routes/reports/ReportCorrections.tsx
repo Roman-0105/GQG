@@ -5,14 +5,14 @@ import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
 import { useIsMobile, useMediaQuery } from '../../hooks/useMediaQuery'
 import CorrectionWellDiagram from '../../components/report/CorrectionWellDiagram'
-import { isManagement } from '../../types/roles'
 import SearchSelect from '../../components/SearchSelect'
 import Modal from '../../components/Modal'
-import { MASTER_COLORS, shortName } from '../../components/report/ReportCharts'
+import { MASTER_COLORS } from '../../components/report/ReportCharts'
 import { DRILL_DIAMETERS, paintIntervals, type DiamInterval } from '../../lib/drillDiameters'
 import { round2 } from '../../lib/taskProgress'
 import { formatRu } from '../../lib/workerStay'
 import type { CostCategory, CostItem, DrillingTask, Profile, Report, Site } from '../../types/database'
+import { shortName } from '../../lib/shortName'
 
 interface DiamRow {
   from: string
@@ -89,7 +89,7 @@ const labelOf = (f: Fields) => (f.shift ? `${dm(f.date)}, смена ${f.shift}`
 // боковой редактор смены, мини-схема скважины с подсветкой изменений,
 // подтверждение «что изменится» и журнал лентой по дням с фильтрами.
 export default function ReportCorrections() {
-  const { session, profile, loading: authLoading } = useAuth()
+  const { session, can, loading: authLoading } = useAuth()
   const isMobile = useIsMobile()
   // На узком экране карточка смены открывается шторкой, а не колонкой справа
   const narrow = useMediaQuery('(max-width: 1279px)')
@@ -196,7 +196,7 @@ export default function ReportCorrections() {
     }
     if (pids.length) {
       const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', [...new Set(pids)])
-      setNames(Object.fromEntries((profs ?? []).map((p) => [p.id as string, p.full_name as string])))
+      setNames(Object.fromEntries((profs ?? []).map((p) => [p.id as string, shortName(p.full_name as string)])))
     }
     setLoading(false)
   }, [taskId])
@@ -372,7 +372,7 @@ export default function ReportCorrections() {
 
   if (authLoading) return <p>Загрузка…</p>
   if (!session) return <Navigate to="/login" replace />
-  if (!isManagement(profile?.role)) return <p>Исправлять сводки может только руководство.</p>
+  if (!can('corrections_db')) return <p>Исправлять сводки может только руководство.</p>
 
   const panelReport = reports.find((r) => r.id === panelId) ?? null
   const siteOptions = sites.map((s) => ({ value: s.id, label: s.name }))
@@ -385,7 +385,7 @@ export default function ReportCorrections() {
   const canOpenConfirm = editedCount > 0 && !!val && !hasErrors
   const canApply = canOpenConfirm && reason.trim().length >= 3 && (!needAck || ack) && !busy
   const colorOf = (id: string) => MASTER_COLORS[Math.max(0, masters.findIndex((m) => m.id === id)) % MASTER_COLORS.length]
-  const nameOf = (id: string) => names[id] ?? masters.find((m) => m.id === id)?.full_name ?? '—'
+  const nameOf = (id: string) => names[id] ?? (shortName(masters.find((m) => m.id === id)?.full_name) || '—')
   const itemName = (id: string) => {
     const it = costItems.find((x) => x.id === id)
     return it ? `${costCats.find((c) => c.id === it.category_id)?.name ?? ''} — ${it.name}` : '—'
@@ -461,7 +461,7 @@ export default function ReportCorrections() {
           <label>Мастер
             <select className={'corr-in' + ch('authorId')} value={f.authorId} onChange={(e) => setField(r.id, 'authorId', e.target.value)}>
               {masters.some((m) => m.id === f.authorId) ? null : <option value={f.authorId}>{nameOf(f.authorId)}</option>}
-              {masters.map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+              {masters.map((m) => <option key={m.id} value={m.id}>{shortName(m.full_name)}</option>)}
             </select>
           </label>
           <label>Метры
@@ -623,7 +623,7 @@ export default function ReportCorrections() {
                 ))}
                 <select value={logMaster} onChange={(e) => setLogMaster(e.target.value)} style={{ maxWidth: 220, minHeight: 32, fontSize: 13 }} aria-label="Мастер">
                   <option value="">Все мастера</option>
-                  {masters.map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+                  {masters.map((m) => <option key={m.id} value={m.id}>{shortName(m.full_name)}</option>)}
                 </select>
               </div>
               {logDays.length === 0 ? (
@@ -708,7 +708,7 @@ export default function ReportCorrections() {
                                 <td onClick={(e) => e.stopPropagation()}>
                                   <select className={'corr-cell' + ch('authorId')} value={f.authorId} onChange={(e) => setField(r.id, 'authorId', e.target.value)}>
                                     {masters.some((m) => m.id === f.authorId) ? null : <option value={f.authorId}>{nameOf(f.authorId)}</option>}
-                                    {masters.map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+                                    {masters.map((m) => <option key={m.id} value={m.id}>{shortName(m.full_name)}</option>)}
                                   </select>
                                   {'authorId' in ed && <span className="corr-was"> ← {shortName(nameOf(orig[r.id].authorId))}</span>}
                                 </td>

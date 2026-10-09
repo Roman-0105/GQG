@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { LogOut } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { ROLE_LABELS } from '../../types/roles'
+import { shortName } from '../../lib/shortName'
 
 function initials(fullName: string) {
   const parts = fullName.trim().split(/\s+/)
@@ -58,7 +59,7 @@ export default function UserMenu({ placement = 'down', showLabel = false }: User
         {showLabel && (
           <span style={{ minWidth: 0, textAlign: 'left' }}>
             <span style={{ display: 'block', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {profile.full_name}
+              {shortName(profile.full_name)}
             </span>
             <span className="text-muted" style={{ display: 'block', fontSize: 11 }}>
               {ROLE_LABELS[profile.role]}
@@ -77,7 +78,7 @@ export default function UserMenu({ placement = 'down', showLabel = false }: User
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="user-menu-header">
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{profile.full_name}</div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{shortName(profile.full_name)}</div>
               <div className="text-muted" style={{ fontSize: 12 }}>
                 {ROLE_LABELS[profile.role]}
               </div>

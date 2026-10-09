@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react'
+import { shortName } from '../../lib/shortName'
 import type { FormEvent } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { UserPlus, Crown, Shield, HardHat, Trash2, Pencil, Briefcase, Network } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
-import { createAuxSupabaseClient } from '../../lib/supabaseAuxClient'
-import { grantAccessToWorker } from '../../lib/grantAccess'
 import { useAuth } from '../../context/AuthContext'
 import { isManagement, ROLE_LABELS, ROLE_OPTIONS, type UserRole } from '../../types/roles'
 import { riseIn } from '../../lib/motionVariants'
 import { buildPersonNodes, collectDescendantKeys, parsePersonValue, profileValue, reportsToValue } from '../../lib/personRef'
 import { CREW_ROLE_LABELS, WORK_AREA_LABELS } from '../../types/database'
-import type { CrewRole, Position, Profile, Worker, WorkArea } from '../../types/database'
+import type { CrewRole, DrillingOrganization, Position, Profile, Worker, WorkArea } from '../../types/database'
 import Modal from '../../components/Modal'
+import { levelOfPosition } from '../../lib/accessLevels'
+import CapsEditor from '../../components/CapsEditor'
+import AddEmployeeWizard from '../../components/AddEmployeeWizard'
 import PersonSelect from '../../components/PersonSelect'
+import { LEVEL_LABELS } from '../../lib/accessLevels'
 
 // 'developer' сюда не попадёт по факту (RLS не отдаёт такой профиль
 // этому экрану вообще, см. миграцию 0012) — запись нужна только чтобы
@@ -23,6 +26,7 @@ const ROLE_ICON: Record<UserRole, typeof Crown> = {
   technical_director: Shield,
   party_chief: HardHat,
   developer: Crown,
+  senior_itr: Shield,
 }
 
 function initials(fullName: string) {
@@ -49,6 +53,8 @@ function PositionsManagerModal({
   const [newName, setNewName] = useState('')
   const [newArea, setNewArea] = useState<WorkArea>('other')
   const [renameArea, setRenameArea] = useState<WorkArea>('other')
+  const [newLevel, setNewLevel] = useState(5)
+  const [renameLevel, setRenameLevel] = useState(5)
   const [newCrewRole, setNewCrewRole] = useState<CrewRole | ''>('')
   const [renameCrewRole, setRenameCrewRole] = useState<CrewRole | ''>('')
   const [adding, setAdding] = useState(false)
@@ -63,7 +69,7 @@ function PositionsManagerModal({
     e.preventDefault()
     setAdding(true)
     setAddError(null)
-    const { data, error } = await supabase.from('positions').insert({ name: newName.trim(), work_area: newArea, crew_role: newCrewRole || null }).select().single()
+    const { data, error } = await supabase.from('positions').insert({ name: newName.trim(), work_area: newArea, crew_role: newCrewRole || null, level: newLevel }).select().single()
     setAdding(false)
     if (error) {
       setAddError(error.code === '23505' ? 'Такая должность уже есть в списке.' : error.message)
@@ -73,6 +79,7 @@ function PositionsManagerModal({
     setNewName('')
     setNewArea('other')
     setNewCrewRole('')
+    setNewLevel(5)
   }
 
   function startRename(p: Position) {
@@ -80,6 +87,7 @@ function PositionsManagerModal({
     setRenameValue(p.name)
     setRenameArea(p.work_area ?? 'other')
     setRenameCrewRole(p.crew_role ?? '')
+    setRenameLevel(p.level ?? 5)
     setRenameError(null)
   }
 
@@ -90,7 +98,7 @@ function PositionsManagerModal({
     setRenameError(null)
     const { data, error } = await supabase
       .from('positions')
-      .update({ name: renameValue.trim(), work_area: renameArea, crew_role: renameCrewRole || null })
+      .update({ name: renameValue.trim(), work_area: renameArea, crew_role: renameCrewRole || null, level: renameLevel })
       .eq('id', renamingId)
       .select()
       .single()
@@ -110,7 +118,7 @@ function PositionsManagerModal({
       <div style={{ display: 'grid', gap: 14 }}>
         <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
           Названия должностей — общий список для Пользователей, Работников и
-          Оргструктуры. Права доступа они не меняют (за это отвечает роль).
+          Оргструктуры. «Уровень» (1–5) задаёт права по умолчанию: 1–2 полный доступ, 3 распределение людей, 4 сводки, 5 без входа.
           «Направление» нужно для списков выбора: геологов предлагают только
           при назначении геологических работ, мастеров — на бурении.
           «Роль в бригаде» (буровик / помощник бурильщика) — для состава бригады:
@@ -142,6 +150,11 @@ function PositionsManagerModal({
                       <option key={r} value={r}>{CREW_ROLE_LABELS[r]}</option>
                     ))}
                   </select>
+                  <select value={renameLevel} onChange={(e) => setRenameLevel(Number(e.target.value))} style={{ width: 'auto' }} title="Уровень доступа">
+                    {[1, 2, 3, 4, 5].map((l) => (
+                      <option key={l} value={l}>Ур. {l} · {LEVEL_LABELS[l]}</option>
+                    ))}
+                  </select>
                   <button type="submit" disabled={renaming} style={{ fontSize: 13 }}>
                     {renaming ? 'Сохраняем…' : 'Сохранить'}
                   </button>
@@ -165,6 +178,7 @@ function PositionsManagerModal({
                     <span className={`badge badge-${p.work_area === 'other' || !p.work_area ? 'neutral' : 'primary'}`}>
                       {WORK_AREA_LABELS[p.work_area ?? 'other']}
                     </span>
+                    <span className="badge badge-neutral">Ур. {p.level ?? 5}</span>
                     {p.crew_role && <span className="badge badge-primary">{CREW_ROLE_LABELS[p.crew_role]}</span>}
                   </span>
                   <button
@@ -207,6 +221,11 @@ function PositionsManagerModal({
               <option key={r} value={r}>{CREW_ROLE_LABELS[r]}</option>
             ))}
           </select>
+          <select value={newLevel} onChange={(e) => setNewLevel(Number(e.target.value))} style={{ width: 'auto' }} title="Уровень доступа">
+              {[1, 2, 3, 4, 5].map((l) => (
+                <option key={l} value={l}>Ур. {l} · {LEVEL_LABELS[l]}</option>
+              ))}
+            </select>
           <button type="submit" disabled={adding} style={{ whiteSpace: 'nowrap' }}>
             {adding ? 'Добавляем…' : '+ Добавить'}
           </button>
@@ -343,7 +362,7 @@ function UserCard({
         <span className="user-avatar">{initials(user.full_name)}</span>
         <span style={{ minWidth: 0, flex: 1 }}>
           <span style={{ display: 'block', fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {user.full_name}
+            {shortName(user.full_name)}
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
             <RoleIcon size={12} /> {ROLE_LABELS[user.role]}
@@ -438,11 +457,14 @@ function UserCard({
               profiles={allProfiles}
               workers={workers}
               value={editReportsTo}
+              positions={positions}
+              forLevel={levelOfPosition(positions, editPositionId)}
               onChange={setEditReportsTo}
               excludeKeys={excludeKeys}
               noneLabel="— не назначен —"
             />
           </label>
+          <CapsEditor profileId={user.id} role={user.role} />
           {editError && <p className="text-error" style={{ margin: 0 }}>{editError}</p>}
           <button type="submit" disabled={editSaving}>
             {editSaving ? 'Сохраняем…' : 'Сохранить'}
@@ -492,30 +514,18 @@ export default function UsersList() {
   const [listError, setListError] = useState<string | null>(null)
   const [positionsOpen, setPositionsOpen] = useState(false)
 
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [role, setRole] = useState<UserRole>('party_chief')
-  const [positionId, setPositionId] = useState('')
-  const [reportsTo, setReportsTo] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [organizations, setOrganizations] = useState<DrillingOrganization[]>([])
   const [addOpen, setAddOpen] = useState(false)
-
-  // "Существующий работник" (25.09.2026) — выдать доступ уже заведённому
-  // в "Работниках" человеку вместо повторного ввода ФИО с нуля, см.
-  // grantAccess.ts. 'scratch' — прежний путь, ничего не меняется.
-  const [createMode, setCreateMode] = useState<'scratch' | 'existing'>('scratch')
-  const [existingWorkerId, setExistingWorkerId] = useState('')
 
   async function loadUsers() {
     setLoadingUsers(true)
-    const [usersRes, positionsRes, workersRes] = await Promise.all([
+    const [usersRes, positionsRes, workersRes, orgsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('full_name'),
       supabase.from('positions').select('*').order('name'),
       supabase.from('workers').select('*').order('full_name'),
+      supabase.from('drilling_organizations').select('*').order('name'),
     ])
+    setOrganizations(orgsRes.data ?? [])
     if (usersRes.error) setListError(usersRes.error.message)
     else setUsers(usersRes.data ?? [])
     setPositions(positionsRes.data ?? [])
@@ -531,83 +541,6 @@ export default function UsersList() {
   if (!session) return <Navigate to="/login" replace />
   if (!isManagement(profile?.role)) {
     return <p>Управлять пользователями могут только гендир/техдир.</p>
-  }
-
-  async function handleCreate(e: FormEvent) {
-    e.preventDefault()
-    setSubmitting(true)
-    setFormError(null)
-    setSuccessMsg(null)
-
-    const reportsToNew = parsePersonValue(reportsTo)
-
-    if (createMode === 'existing') {
-      const worker = workers.find((w) => w.id === existingWorkerId)
-      if (!worker) {
-        setFormError('Выберите работника из списка.')
-        setSubmitting(false)
-        return
-      }
-      const result = await grantAccessToWorker({
-        worker,
-        email,
-        password,
-        role,
-        positionId: positionId || null,
-        reportsToProfileId: reportsToNew?.kind === 'profile' ? reportsToNew.id : null,
-        reportsToWorkerId: reportsToNew?.kind === 'worker' ? reportsToNew.id : null,
-      })
-      if ('error' in result) {
-        setFormError(result.error)
-        setSubmitting(false)
-        return
-      }
-    } else {
-      // Изолированный клиент — регистрация нового сотрудника не должна
-      // затронуть текущую сессию гендира (см. lib/supabaseAuxClient.ts).
-      const auxClient = createAuxSupabaseClient()
-      const { data: signUpData, error: signUpError } =
-        await auxClient.auth.signUp({ email, password })
-
-      if (signUpError || !signUpData.user) {
-        setFormError(signUpError?.message ?? 'Не удалось создать учётную запись')
-        setSubmitting(false)
-        return
-      }
-
-      // Профиль создаём уже от имени гендира (основной, авторизованный
-      // клиент) — RLS разрешает это только management.
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: signUpData.user.id,
-        full_name: fullName,
-        role,
-        position_id: positionId || null,
-        reports_to_profile_id: reportsToNew?.kind === 'profile' ? reportsToNew.id : null,
-        reports_to_worker_id: reportsToNew?.kind === 'worker' ? reportsToNew.id : null,
-      })
-
-      if (profileError) {
-        setFormError(
-          `Учётная запись создана, но не удалось сохранить профиль: ${profileError.message}`,
-        )
-        setSubmitting(false)
-        return
-      }
-    }
-
-    setSuccessMsg(
-      `Пользователь создан. Сообщите ему email и пароль отдельно (лично/мессенджером) — здесь они не сохраняются.`,
-    )
-    setFullName('')
-    setEmail('')
-    setPassword('')
-    setRole('party_chief')
-    setPositionId('')
-    setReportsTo('')
-    setCreateMode('scratch')
-    setExistingWorkerId('')
-    setSubmitting(false)
-    loadUsers()
   }
 
   return (
@@ -628,7 +561,7 @@ export default function UsersList() {
             onClick={() => setAddOpen(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
           >
-            <UserPlus size={16} /> Добавить пользователя
+            <UserPlus size={16} /> Добавить сотрудника
           </button>
         </div>
       </div>
@@ -647,129 +580,15 @@ export default function UsersList() {
         onPositionsChange={setPositions}
       />
 
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Добавить пользователя">
-      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-        <button
-          type="button"
-          className={createMode === 'scratch' ? '' : 'btn-outline'}
-          onClick={() => setCreateMode('scratch')}
-          style={{ flex: 1, fontSize: 13 }}
-        >
-          Новый человек
-        </button>
-        <button
-          type="button"
-          className={createMode === 'existing' ? '' : 'btn-outline'}
-          onClick={() => setCreateMode('existing')}
-          style={{ flex: 1, fontSize: 13 }}
-        >
-          Существующий работник
-        </button>
-      </div>
-      <form
-        onSubmit={handleCreate}
-        style={{ display: 'grid', gap: 12 }}
-      >
-        {createMode === 'existing' ? (
-          <label>
-            Работник
-            <select
-              required
-              value={existingWorkerId}
-              onChange={(e) => {
-                const id = e.target.value
-                setExistingWorkerId(id)
-                const worker = workers.find((w) => w.id === id)
-                if (worker) {
-                  setPositionId(worker.position_id ?? '')
-                  setReportsTo(reportsToValue(worker.reports_to_profile_id, worker.reports_to_worker_id))
-                }
-              }}
-            >
-              <option value="">— выбрать —</option>
-              {workers
-                .filter((w) => !w.archived_at && !users.some((u) => u.person_id === w.id))
-                .map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.full_name}
-                  </option>
-                ))}
-            </select>
-          </label>
-        ) : (
-          <label>
-            ФИО
-            <input
-              required
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-            />
-          </label>
-        )}
-        <label>
-          Email
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
-        <label>
-          Временный пароль
-          <input
-            type="text"
-            required
-            minLength={6}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
-        <label>
-          Роль
-          <select value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
-            {ROLE_OPTIONS.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABELS[r]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Должность
-          <select value={positionId} onChange={(e) => setPositionId(e.target.value)}>
-            <option value="">— не указана —</option>
-            {positions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Руководитель
-          <PersonSelect
-            profiles={users}
-            workers={workers}
-            value={reportsTo}
-            onChange={setReportsTo}
-            noneLabel="— не назначен —"
-          />
-        </label>
-
-        {formError && <p className="text-error">{formError}</p>}
-        {successMsg && <p className="text-success">{successMsg}</p>}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
-        >
-          {submitting ? <span className="spinner" style={{ marginRight: 0 }} /> : <UserPlus size={16} />}
-          {submitting ? 'Создаём…' : 'Создать пользователя'}
-        </button>
-      </form>
-      </Modal>
+      <AddEmployeeWizard
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        positions={positions}
+        profiles={users}
+        workers={workers}
+        organizations={organizations}
+        onCreated={() => void loadUsers()}
+      />
 
       <h2>Список пользователей</h2>
       {listError && <p className="text-error">{listError}</p>}

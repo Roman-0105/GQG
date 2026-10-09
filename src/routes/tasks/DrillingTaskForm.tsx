@@ -16,6 +16,7 @@ import DiameterIntervalsEditor, {
   emptyDiameterRow,
   type DiameterRow,
 } from '../../components/DiameterIntervalsEditor'
+import { shortName } from '../../lib/shortName'
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'planned', label: 'Запланировано' },
@@ -351,7 +352,7 @@ export default function DrillingTaskForm() {
               <option value="">— выбрать —</option>
               {areaPick.candidates.map((f) => (
                 <option key={f.id} value={f.id}>
-                  {f.full_name}
+                  {shortName(f.full_name)}
                 </option>
               ))}
             </select>

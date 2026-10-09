@@ -40,6 +40,7 @@ import type {
   Report,
   SamplingTask,
 } from '../../types/database'
+import { shortName } from '../../lib/shortName'
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
@@ -630,7 +631,7 @@ export default function TaskDashboard() {
             )}
             {foreman && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-text-muted)' }}>
-                <HardHat size={13} /> {foreman.full_name}
+                <HardHat size={13} /> {shortName(foreman.full_name)}
               </span>
             )}
           </p>

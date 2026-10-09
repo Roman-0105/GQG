@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import type { ReportLogAction, ReportStatusLog } from '../types/database'
+import { shortName } from '../lib/shortName'
 
 const ACTION_LABEL: Record<ReportLogAction, { text: string; color: string }> = {
   submitted: { text: 'Отправлена на согласование', color: 'var(--color-primary)' },
@@ -33,7 +34,7 @@ export default function ReportHistory({ reportId, reloadKey = 0 }: { reportId: s
       const names = new Map<string, string>()
       if (ids.length > 0) {
         const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', ids)
-        for (const p of profs ?? []) names.set(p.id as string, p.full_name as string)
+        for (const p of profs ?? []) names.set(p.id as string, shortName(p.full_name as string))
       }
       if (!cancelled) setRows(logs.map((l) => ({ ...l, actorName: l.actor_id ? (names.get(l.actor_id) ?? '—') : '—' })))
     }

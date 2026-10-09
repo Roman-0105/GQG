@@ -6,6 +6,7 @@ import { isManagement } from '../types/roles'
 import Modal from './Modal'
 import { formatRu, stayInfo } from '../lib/workerStay'
 import type { WorkerStay } from '../types/database'
+import { shortName } from '../lib/shortName'
 
 interface Handover {
   id: string
@@ -127,7 +128,7 @@ export default function ShiftDutyCard() {
     setCrew(
       (myWorkers ?? []).map((w) => ({
         id: w.id as string,
-        name: w.full_name as string,
+        name: shortName(w.full_name as string),
         pos: posName.get(w.position_id as string) ?? '',
         stay: ((stayRows ?? []) as WorkerStay[]).find((x) => x.worker_id === w.id) ?? null,
         keep: true,
@@ -215,7 +216,7 @@ export default function ShiftDutyCard() {
           {chiefs.map((c) => (
             <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center' }}>
               <DutyDot on={c.on_duty} />
-              {c.full_name}
+              {shortName(c.full_name)}
               <span className="text-muted" style={{ marginLeft: 6, fontSize: 12 }}>{c.on_duty ? 'на вахте' : 'межвахта'}</span>
             </span>
           ))}
@@ -286,7 +287,7 @@ export default function ShiftDutyCard() {
                         fontSize: 14,
                       }}
                     >
-                      <span style={{ fontWeight: selected ? 700 : 500 }}>{c.full_name}</span>
+                      <span style={{ fontWeight: selected ? 700 : 500 }}>{shortName(c.full_name)}</span>
                       <span className="text-muted" style={{ fontSize: 13 }}>{c.position_name ?? '—'}</span>
                       <span className={'badge ' + (c.on_duty ? 'badge-success' : 'badge-danger')} style={{ justifySelf: 'start' }}>
                         {c.on_duty ? 'На вахте' : 'Не на вахте'}

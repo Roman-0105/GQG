@@ -12,6 +12,7 @@ import DiameterIntervalsEditor, {
   emptyDiameterRow,
   type DiameterRow,
 } from '../../components/DiameterIntervalsEditor'
+import { shortName } from '../../lib/shortName'
 
 type WellSource = 'own' | 'external'
 
@@ -437,7 +438,7 @@ export default function CoreDescriptionTaskForm() {
                   <option value="">— выбрать —</option>
                   {areaPick.candidates.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.full_name}
+                      {shortName(p.full_name)}
                     </option>
                   ))}
                 </select>

@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient'
 import { paintIntervals, type DiamInterval } from './drillDiameters'
 import { round2 } from './taskProgress'
 import type { DrillingTask, Report } from '../types/database'
+import { shortName } from './shortName'
 
 // Данные для промежуточного отчёта по скважине (PDF) и мини-дашборда вкладки
 // «Отчёты». Учитываются только СОГЛАСОВАННЫЕ сводки (решение 06.10.2026).
@@ -162,7 +163,7 @@ export async function loadWellReportData(taskId: string): Promise<WellReportData
   const names = new Map<string, string>()
   if (authorIds.length > 0) {
     const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', authorIds)
-    for (const p of profs ?? []) names.set(p.id as string, p.full_name as string)
+    for (const p of profs ?? []) names.set(p.id as string, shortName(p.full_name as string))
   }
 
   // ---- дни и накопленная проходка
@@ -379,7 +380,7 @@ export async function loadWellReportData(taskId: string): Promise<WellReportData
   const wIds = [...new Set((asg ?? []).map((a) => a.worker_id as string))]
   if (wIds.length > 0) {
     const { data: ws } = await supabase.from('workers').select('id, full_name').in('id', wIds)
-    const wn = new Map((ws ?? []).map((w) => [w.id as string, w.full_name as string]))
+    const wn = new Map((ws ?? []).map((w) => [w.id as string, shortName(w.full_name as string)]))
     for (const a of asg ?? []) {
       crew.push({
         role: a.role === 'driller' ? 'Буровик' : 'Помощник бурильщика',
@@ -402,7 +403,7 @@ export async function loadWellReportData(taskId: string): Promise<WellReportData
       const { data: wrows } = await supabase.from('workers').select('id, full_name, position_id').in('id', hw)
       const { data: prows } = await supabase.from('positions').select('id, name')
       const pn = new Map((prows ?? []).map((p) => [p.id as string, p.name as string]))
-      const wm = new Map((wrows ?? []).map((w) => [w.id as string, { name: w.full_name as string, pos: pn.get(w.position_id as string) ?? '' }]))
+      const wm = new Map((wrows ?? []).map((w) => [w.id as string, { name: shortName(w.full_name as string), pos: pn.get(w.position_id as string) ?? '' }]))
       for (const h of rows) {
         const w = wm.get(h.worker_id as string)
         const m = masters.find((x) => x.id === h.foreman_id)
@@ -441,7 +442,7 @@ export async function loadWellReportData(taskId: string): Promise<WellReportData
     siteWells,
     rigLabel: rigRes.data ? `${(rigRes.data as { rig_number: string; model: string | null }).rig_number}${(rigRes.data as { model: string | null }).model ? ` (${(rigRes.data as { model: string | null }).model})` : ''}` : null,
     orgName: (orgRes.data as { name: string } | null)?.name ?? null,
-    foremanName: (foremanRes.data as { full_name: string } | null)?.full_name ?? null,
+    foremanName: (foremanRes.data as { full_name: string } | null)?.full_name ? shortName((foremanRes.data as { full_name: string }).full_name) : null,
     reports,
     days,
     masters,

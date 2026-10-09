@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { shortName } from '../../lib/shortName'
 import { drillDiameterMm } from '../../lib/drillDiameters'
 import { round2 } from '../../lib/taskProgress'
 import type { DayRow, WellReportData } from '../../lib/wellReportData'
@@ -491,8 +492,4 @@ export function StructureDiagram({ data, colorOf }: { data: WellReportData; colo
   )
 }
 
-export function shortName(full: string) {
-  const parts = full.split(' ').filter(Boolean)
-  if (parts.length <= 1) return full
-  return `${parts[0]} ${parts.slice(1).map((p) => p[0] + '.').join('')}`
-}
+export { shortName }

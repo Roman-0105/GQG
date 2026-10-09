@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
 import Modal from './Modal'
 import type { DrillingTask, Position, Worker } from '../types/database'
+import { shortName } from '../lib/shortName'
 
 type Role = 'driller' | 'assistant_driller'
 const SLOTS: { role: Role; shift: 1 | 2; label: string }[] = [
@@ -148,7 +149,7 @@ export default function MasterStartDrilling({ plannedWells, onStarted }: Props) 
                   <option value="">{s.shift === 1 ? 'Выберите работника…' : 'Не назначать'}</option>
                   {options.map((w) => (
                     <option key={w.id} value={w.id}>
-                      {w.full_name}
+                      {shortName(w.full_name)}
                       {w.assigned_foreman_id ? ' · моя бригада' : ' · без бригады'}
                       {posName.get(w.position_id ?? '') ? ` · ${posName.get(w.position_id ?? '')}` : ''}
                     </option>

@@ -10,6 +10,7 @@ import DerrickIcon from '../../components/icons/DerrickIcon'
 import { useAreaCandidates } from '../../hooks/useAreaCandidates'
 import AreaFilterHint from '../../components/AreaFilterHint'
 import type { DrillingTask } from '../../types/database'
+import { shortName } from '../../lib/shortName'
 
 // Мастер создания геологических работ на скважине (03.10.2026).
 // Шаги: 1 — скважина, 2 — какие работы и кто ответственный, 3 — проверка.
@@ -201,7 +202,7 @@ export default function GeologyTaskWizard() {
   // Для керна и опробования ответственный обязателен (в таблицах колонка
   // используется для доступа); у распиловки допускается пустой список.
   const missingAssignee = enabledWorks.filter((w) => w.key !== 'sawing' && works[w.key].assignees.length === 0)
-  const nameOf = (id: string) => areaPick.all.find((g) => g.id === id)?.full_name ?? '—'
+  const nameOf = (id: string) => shortName(areaPick.all.find((g) => g.id === id)?.full_name) || '—'
 
   function setWork(key: WorkKey, patch: Partial<WorkState>) {
     setWorks((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }))

@@ -2,13 +2,18 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
-import type { Profile } from '../types/database'
+import type { Profile, WorkArea } from '../types/database'
+import { isManagement } from '../types/roles'
 
 interface AuthContextValue {
   session: Session | null
   profile: Profile | null
   profileError: string | null
   loading: boolean
+  // Индивидуальные возможности (profile_caps); начальство имеет все.
+  can: (cap: string) => boolean
+  // Профиль работ из должности: drilling / geology / other (null — должности нет).
+  workArea: WorkArea | null
   signOut: () => Promise<void>
 }
 
@@ -19,6 +24,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileError, setProfileError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [workArea, setWorkArea] = useState<WorkArea | null>(null)
+  const [caps, setCaps] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -44,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, role, on_duty, created_at')
+        .select('id, full_name, role, on_duty, created_at, position_id')
         .eq('id', session.user.id)
         .single()
 
@@ -64,6 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setProfile(data as Profile)
       setProfileError(null)
+      const posId = (data as { position_id?: string | null }).position_id
+      if (posId) {
+        const { data: pos } = await supabase.from('positions').select('work_area').eq('id', posId).single()
+        if (!cancelled) setWorkArea((pos?.work_area as WorkArea | undefined) ?? null)
+      } else setWorkArea(null)
+      // Таблица может отсутствовать, пока не применена миграция 0038 — тогда прав нет.
+      const { data: capRows } = await supabase.from('profile_caps').select('cap, allowed').eq('profile_id', session.user.id)
+      if (!cancelled) setCaps(new Set((capRows ?? []).filter((c) => c.allowed).map((c) => c.cap as string)))
     }
 
     loadProfile()
@@ -71,6 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true
     }
   }, [session])
+
+  const can = (cap: string) => isManagement(profile?.role) || caps.has(cap)
 
   const signOut = async () => {
     await supabase.auth.signOut()
@@ -81,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // иначе на долю секунды после входа мелькала служебная панель «профиль не
     // загрузился… Диагностика» (05.10.2026).
     <AuthContext.Provider
-      value={{ session, profile, profileError, loading: loading || (!!session && !profile && !profileError), signOut }}
+      value={{ session, profile, profileError, loading: loading || (!!session && !profile && !profileError), can, workArea, signOut }}
     >
       {children}
     </AuthContext.Provider>

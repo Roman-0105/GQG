@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { shortName } from '../../lib/shortName'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
@@ -11,6 +12,7 @@ import { buildPersonNodes, collectDescendantKeys, parsePersonValue, reportsToVal
 import { grantAccessToWorker } from '../../lib/grantAccess'
 import type { DrillingOrganization, Position, Profile, Worker } from '../../types/database'
 import Modal from '../../components/Modal'
+import { levelOfPosition } from '../../lib/accessLevels'
 import PersonSelect from '../../components/PersonSelect'
 
 // Карточка работника — своё состояние для удаления в два шага (тот же
@@ -169,7 +171,7 @@ function WorkerCard({
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div>
           <span style={{ display: 'block', fontWeight: 600, fontSize: 14 }}>
-            {worker.full_name}
+            {shortName(worker.full_name)}
             {worker.archived_at && (
               <span className="badge badge-neutral" style={{ marginLeft: 6, fontSize: 11 }}>
                 архивирован
@@ -224,7 +226,7 @@ function WorkerCard({
         </div>
       </div>
 
-      <Modal open={grantOpen} onClose={() => setGrantOpen(false)} title={`Выдать доступ: ${worker.full_name}`}>
+      <Modal open={grantOpen} onClose={() => setGrantOpen(false)} title={`Выдать доступ: ${shortName(worker.full_name)}`}>
         {grantSuccess ? (
           <p style={{ margin: 0 }}>
             Учётная запись создана. Сообщите пользователю email и пароль отдельно (лично/мессенджером) — здесь они не
@@ -273,6 +275,8 @@ function WorkerCard({
                 profiles={allProfiles}
                 workers={allWorkers}
                 value={grantReportsTo}
+                positions={positions}
+                forLevel={levelOfPosition(positions, grantPositionId)}
                 onChange={setGrantReportsTo}
                 excludeKeys={new Set([workerValue(worker.id)])}
                 noneLabel="— не назначен —"
@@ -286,7 +290,7 @@ function WorkerCard({
         )}
       </Modal>
 
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title={`Редактировать: ${worker.full_name}`}>
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title={`Редактировать: ${shortName(worker.full_name)}`}>
         <form onSubmit={handleEditSave} style={{ display: 'grid', gap: 12 }}>
           <label>
             Должность
@@ -305,6 +309,8 @@ function WorkerCard({
               profiles={allProfiles}
               workers={allWorkers}
               value={editReportsTo}
+              positions={positions}
+              forLevel={levelOfPosition(positions, editPositionId)}
               onChange={setEditReportsTo}
               excludeKeys={excludeKeys}
               noneLabel="— не назначен —"
@@ -325,7 +331,7 @@ function WorkerCard({
         <option value="">— без бригадира —</option>
         {foremen.map((f) => (
           <option key={f.id} value={f.id}>
-            {f.full_name}
+            {shortName(f.full_name)}
           </option>
         ))}
       </select>
@@ -570,6 +576,8 @@ export default function WorkersSettings() {
             profiles={allProfiles}
             workers={workers}
             value={reportsTo}
+            positions={positions}
+            forLevel={levelOfPosition(positions, positionId)}
             onChange={setReportsTo}
             noneLabel="— не назначен —"
           />
@@ -591,7 +599,7 @@ export default function WorkersSettings() {
             <option value="">— пока не назначен —</option>
             {foremen.map((f) => (
               <option key={f.id} value={f.id}>
-                {f.full_name}
+                {shortName(f.full_name)}
               </option>
             ))}
           </select>
@@ -635,7 +643,7 @@ export default function WorkersSettings() {
             <option value="__none__">— без бригадира —</option>
             {foremen.map((f) => (
               <option key={f.id} value={f.id}>
-                {f.full_name}
+                {shortName(f.full_name)}
               </option>
             ))}
           </select>

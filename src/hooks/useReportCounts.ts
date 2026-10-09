@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../context/AuthContext'
-import { isManagement } from '../types/roles'
 
 const POLL_INTERVAL_MS = 60_000
 const REPORTS_CHANGED_EVENT = 'gqg:reports-changed'
@@ -19,7 +18,8 @@ export function notifyReportsChanged() {
 // от 17.09.2026: сначала отладить механику, push — отдельная задача
 // поверх уже настроенного PWA-манифеста).
 export function useReportCounts() {
-  const { session, profile } = useAuth()
+  const { session, profile, can } = useAuth()
+  const canApprove = can('approve_reports')
   const [pendingApprovals, setPendingApprovals] = useState(0)
   const [needsRevision, setNeedsRevision] = useState(0)
 
@@ -30,13 +30,14 @@ export function useReportCounts() {
 
     async function load() {
       if (!profile) return
-      if (isManagement(profile.role)) {
+      if (canApprove) {
         const { count } = await supabase
           .from('reports')
           .select('id', { count: 'exact', head: true })
           .eq('approval_status', 'submitted')
         if (!cancelled) setPendingApprovals(count ?? 0)
-      } else if (profile.role === 'party_chief') {
+      }
+      if (profile.role === 'party_chief') {
         const { count } = await supabase
           .from('reports')
           .select('id', { count: 'exact', head: true })
@@ -58,7 +59,7 @@ export function useReportCounts() {
       window.removeEventListener('focus', load)
       window.removeEventListener(REPORTS_CHANGED_EVENT, load)
     }
-  }, [session, profile])
+  }, [session, profile, canApprove])
 
   return { pendingApprovals, needsRevision }
 }

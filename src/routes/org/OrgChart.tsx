@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { Network, UserPlus, UserCircle2, Plus, Search, ChevronRight, Users, ArrowRight, ArrowDown } from 'lucide-react'
+import { Network, UserCircle2, Plus, Search, ChevronRight, Users, ArrowRight, ArrowDown } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../context/AuthContext'
-import { isManagement, ROLE_LABELS, ROLE_OPTIONS, type UserRole } from '../../types/roles'
-import { createUserFromScratch } from '../../lib/grantAccess'
+import { isManagement, ROLE_LABELS } from '../../types/roles'
+import { shortName } from '../../lib/shortName'
+import { levelOfPosition } from '../../lib/accessLevels'
+import AddEmployeeWizard from '../../components/AddEmployeeWizard'
 import type { DrillingOrganization, DrillingTask, Position, Profile, TaskWorkerAssignment, Worker, WorkerStay } from '../../types/database'
 import {
   buildPersonNodes,
@@ -50,10 +52,6 @@ const initials = (name: string) =>
     .join('')
     .toUpperCase()
 
-const shortName = (full: string) => {
-  const parts = full.split(' ').filter(Boolean)
-  return parts.length <= 1 ? full : `${parts[0]} ${parts.slice(1).map((x) => x[0] + '.').join('')}`
-}
 
 // Рабочая информация о человеке: скважины (для мастера) и смены бригады.
 interface OrgCtx {
@@ -115,7 +113,7 @@ function HzNode({ person, ctx }: { person: ChartPerson; ctx: OrgCtx }) {
           <button type="button" className="hz-card-main" onClick={() => ctx.onSelect(person)}>
             <span className="hz-av">{initials(person.fullName)}</span>
             <span className="hz-txt">
-              <span className="hz-name">{person.fullName}</span>
+              <span className="hz-name">{shortName(person.fullName)}</span>
               <span className="hz-pos">{person.positionName}</span>
             </span>
           </button>
@@ -187,7 +185,7 @@ function MobileNode({ person, ctx, level, open, toggle }: { person: ChartPerson;
         <button type="button" className="mo-main" onClick={() => ctx.onSelect(person)}>
           <span className="hz-av">{initials(person.fullName)}</span>
           <span className="hz-txt">
-            <span className="hz-name">{person.fullName}</span>
+            <span className="hz-name">{shortName(person.fullName)}</span>
             <span className="hz-pos">{person.positionName}</span>
           </span>
           {overtimeOf(person, ctx) > 0 && <span className="hz-ot">+{overtimeOf(person, ctx)} дн.</span>}
@@ -258,15 +256,6 @@ export default function OrgChart() {
   // назначенной должности", и назначается туда отдельным кликом (тот же
   // openNode/handleSave, что и для узлов дерева).
   const [addPersonOpen, setAddPersonOpen] = useState(false)
-  const [addKind, setAddKind] = useState<'worker' | 'profile'>('worker')
-  const [addFullName, setAddFullName] = useState('')
-  const [addEmail, setAddEmail] = useState('')
-  const [addPassword, setAddPassword] = useState('')
-  const [addRole, setAddRole] = useState<UserRole>('party_chief')
-  const [addOrganizationId, setAddOrganizationId] = useState('')
-  const [addSaving, setAddSaving] = useState(false)
-  const [addError, setAddError] = useState<string | null>(null)
-  const [addSuccessMsg, setAddSuccessMsg] = useState<string | null>(null)
 
   const canEdit = isManagement(profile?.role)
 
@@ -499,8 +488,8 @@ export default function OrgChart() {
             {rows.map(({ st, w, info, master }) => (
               <button key={st.id} type="button" className="org-stay-row" onClick={() => { setView('chart'); setPanelKey(workerValue(st.worker_id)) }}>
                 <span className="org-stay-name">
-                  <b>{w!.full_name}</b>
-                  <span className="text-muted">{positionName(w!.position_id)}{master ? ' · ' + master.full_name : ''}</span>
+                  <b>{shortName(w!.full_name)}</b>
+                  <span className="text-muted">{positionName(w!.position_id)}{master ? ' · ' + shortName(master.full_name) : ''}</span>
                 </span>
                 <span className="org-stay-bar">
                   <span style={{ display: 'flex', height: 8, borderRadius: 4, background: 'var(--color-surface-muted)', overflow: 'hidden' }}>
@@ -531,7 +520,7 @@ export default function OrgChart() {
         <div className="org-panel-head">
           <span className="hz-av hz-av-lg">{initials(p.fullName)}</span>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>{p.fullName}</div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{shortName(p.fullName)}</div>
             <div className="text-muted" style={{ fontSize: 12 }}>{p.positionName || 'Должность не назначена'}</div>
           </div>
         </div>
@@ -543,7 +532,7 @@ export default function OrgChart() {
           <div className="eyebrow">Руководитель</div>
           {boss ? (
             <button type="button" className="org-link" onClick={() => setPanelKey(boss.key)}>
-              {boss.fullName} <span className="text-muted">· {boss.positionName}</span>
+              {shortName(boss.fullName)} <span className="text-muted">· {boss.positionName}</span>
             </button>
           ) : (
             <div className="text-muted" style={{ fontSize: 13 }}>не назначен</div>
@@ -555,7 +544,7 @@ export default function OrgChart() {
             <div style={{ display: 'grid', gap: 3 }}>
               {subs.map((k) => (
                 <button key={k.key} type="button" className="org-link" onClick={() => setPanelKey(k.key)}>
-                  {k.fullName} <span className="text-muted">· {k.positionName}</span>
+                  {shortName(k.fullName)} <span className="text-muted">· {k.positionName}</span>
                 </button>
               ))}
             </div>
@@ -600,7 +589,7 @@ export default function OrgChart() {
             workerName={shortName(p.fullName)}
             foremanId={p.foremanId}
             canManage={canEdit || (!!profile && p.foremanId === profile.id)}
-            masters={profiles.filter((x) => x.role === 'party_chief').map((x) => ({ id: x.id, name: x.full_name, onDuty: x.on_duty ?? null }))}
+            masters={profiles.filter((x) => x.role === 'party_chief').map((x) => ({ id: x.id, name: shortName(x.full_name), onDuty: x.on_duty ?? null }))}
             activeTasks={activeTasks}
             onChanged={load}
           />
@@ -688,67 +677,6 @@ export default function OrgChart() {
     setSelected(null)
   }
 
-  function openAddPerson() {
-    setAddKind('worker')
-    setAddFullName('')
-    setAddEmail('')
-    setAddPassword('')
-    setAddRole('party_chief')
-    setAddOrganizationId('')
-    setAddError(null)
-    setAddSuccessMsg(null)
-    setAddPersonOpen(true)
-  }
-
-  async function handleAddPerson(e: FormEvent) {
-    e.preventDefault()
-    setAddSaving(true)
-    setAddError(null)
-    setAddSuccessMsg(null)
-
-    if (addKind === 'profile') {
-      const result = await createUserFromScratch({
-        fullName: addFullName,
-        email: addEmail,
-        password: addPassword,
-        role: addRole,
-      })
-      setAddSaving(false)
-      if ('error' in result) {
-        setAddError(result.error)
-        return
-      }
-      setProfiles((prev) => [...prev, result.profile].sort((a, b) => a.full_name.localeCompare(b.full_name)))
-      setAddSuccessMsg(
-        'Пользователь создан. Сообщите ему email и пароль отдельно (лично/мессенджером) — здесь они не сохраняются. Назначьте должность в списке ниже.',
-      )
-      setAddFullName('')
-      setAddEmail('')
-      setAddPassword('')
-      return
-    }
-
-    const { data: newWorker, error: insertError } = await supabase
-      .from('workers')
-      .insert({
-        full_name: addFullName.trim(),
-        organization_id: addOrganizationId,
-        position_id: null,
-        reports_to_profile_id: null,
-        reports_to_worker_id: null,
-        assigned_foreman_id: null,
-      })
-      .select()
-      .single()
-    setAddSaving(false)
-    if (insertError || !newWorker) {
-      setAddError(insertError?.message ?? 'Не удалось создать работника')
-      return
-    }
-    setWorkers((prev) => [...prev, newWorker].sort((a, b) => a.full_name.localeCompare(b.full_name)))
-    setAddPersonOpen(false)
-  }
-
   return (
     <div>
       <h1 style={{ display: 'flex', alignItems: 'center', gap: 9, margin: '0 0 12px' }}>
@@ -792,15 +720,9 @@ export default function OrgChart() {
         )}
         {canEdit && (
           <div className="org-toolbar-actions">
-            <button type="button" onClick={openAddPerson} className="org-tb-primary">
-              <Plus size={15} /> Добавить человека
+            <button type="button" onClick={() => setAddPersonOpen(true)} className="org-tb-primary">
+              <Plus size={15} /> Добавить сотрудника
             </button>
-            <Link to="/users" className="btn-outline">
-              <UserPlus size={15} /> Пользователи
-            </Link>
-            <Link to="/settings/workers" className="btn-outline">
-              <UserPlus size={15} /> Работники
-            </Link>
           </div>
         )}
       </div>
@@ -846,7 +768,7 @@ export default function OrgChart() {
       )}
 
       {isMobile && (
-        <Modal open={panelPerson != null} onClose={() => setPanelKey(null)} title={panelPerson?.fullName ?? ''}>
+        <Modal open={panelPerson != null} onClose={() => setPanelKey(null)} title={shortName(panelPerson?.fullName)}>
           {panelPerson && renderPanel(panelPerson)}
         </Modal>
       )}
@@ -869,7 +791,7 @@ export default function OrgChart() {
               >
                 <UserCircle2 size={16} className="text-muted" />
                 <span>
-                  {p.fullName}
+                  {shortName(p.fullName)}
                   {p.role && <span className="text-muted"> — {ROLE_LABELS[p.role]}</span>}
                 </span>
               </button>
@@ -881,7 +803,7 @@ export default function OrgChart() {
       <Modal
         open={selected != null}
         onClose={closeNode}
-        title={selected ? (selected.positionId ? `${selected.positionName} — ${selected.fullName}` : `Назначить должность: ${selected.fullName}`) : ''}
+        title={selected ? (selected.positionId ? `${selected.positionName} — ${shortName(selected.fullName)}` : `Назначить должность: ${shortName(selected.fullName)}`) : ''}
       >
         {selected && (
           <div style={{ display: 'grid', gap: 18 }}>
@@ -904,6 +826,8 @@ export default function OrgChart() {
                     profiles={profiles}
                     workers={workers}
                     value={editReportsTo}
+                    positions={positions}
+                    forLevel={levelOfPosition(positions, editPositionId)}
                     onChange={setEditReportsTo}
                     excludeKeys={excludeKeys}
                     noneLabel="— не назначен —"
@@ -928,7 +852,7 @@ export default function OrgChart() {
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <UserCircle2 size={18} className="text-muted" />
-                {selected.fullName}
+                {shortName(selected.fullName)}
                 {selected.role && ` — ${ROLE_LABELS[selected.role]}`}
               </div>
             )}
@@ -947,81 +871,18 @@ export default function OrgChart() {
         </div>
       </Modal>
 
-      <Modal open={addPersonOpen} onClose={() => setAddPersonOpen(false)} title="Добавить человека">
-        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-          <button
-            type="button"
-            className={addKind === 'worker' ? '' : 'btn-outline'}
-            onClick={() => setAddKind('worker')}
-            style={{ flex: 1, fontSize: 13 }}
-          >
-            Работник
-          </button>
-          <button
-            type="button"
-            className={addKind === 'profile' ? '' : 'btn-outline'}
-            onClick={() => setAddKind('profile')}
-            style={{ flex: 1, fontSize: 13 }}
-          >
-            Пользователь
-          </button>
-        </div>
-        <form onSubmit={handleAddPerson} style={{ display: 'grid', gap: 12 }}>
-          <label>
-            ФИО
-            <input required value={addFullName} onChange={(e) => setAddFullName(e.target.value)} />
-          </label>
-          {addKind === 'profile' ? (
-            <>
-              <label>
-                Email
-                <input type="email" required value={addEmail} onChange={(e) => setAddEmail(e.target.value)} />
-              </label>
-              <label>
-                Временный пароль
-                <input
-                  type="text"
-                  required
-                  minLength={6}
-                  value={addPassword}
-                  onChange={(e) => setAddPassword(e.target.value)}
-                />
-              </label>
-              <label>
-                Роль
-                <select value={addRole} onChange={(e) => setAddRole(e.target.value as UserRole)}>
-                  {ROLE_OPTIONS.map((r) => (
-                    <option key={r} value={r}>
-                      {ROLE_LABELS[r]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          ) : (
-            <label>
-              Организация
-              <select required value={addOrganizationId} onChange={(e) => setAddOrganizationId(e.target.value)}>
-                <option value="">— выбрать —</option>
-                {organizations.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          {addError && <p className="text-error" style={{ margin: 0 }}>{addError}</p>}
-          {addSuccessMsg && <p className="text-success" style={{ margin: 0 }}>{addSuccessMsg}</p>}
-          <button type="submit" disabled={addSaving}>
-            {addSaving ? 'Добавляем…' : 'Добавить'}
-          </button>
-        </form>
-        <p className="text-muted" style={{ fontSize: 12, marginTop: 10, marginBottom: 0 }}>
-          Должность и руководителя можно будет назначить сразу после — новый человек появится в разделе "Без
-          назначенной должности".
-        </p>
-      </Modal>
+      <AddEmployeeWizard
+        open={addPersonOpen}
+        onClose={() => setAddPersonOpen(false)}
+        positions={positions}
+        profiles={profiles}
+        workers={workers}
+        organizations={organizations}
+        onCreated={({ profile: p, worker: w }) => {
+          if (p) setProfiles((prev) => [...prev, p].sort((x, y) => x.full_name.localeCompare(y.full_name)))
+          if (w) setWorkers((prev) => [...prev, w].sort((x, y) => x.full_name.localeCompare(y.full_name)))
+        }}
+      />
     </div>
   )
 }

@@ -6,7 +6,7 @@
 // (см. миграцию 0012_developer_role.sql), а не сокрытие в UI. Поэтому
 // 'developer' сознательно НЕ добавлена в ROLE_OPTIONS формы создания
 // пользователя (UsersList.tsx) — через интерфейс её никто не заведёт.
-export type UserRole = 'general_director' | 'technical_director' | 'party_chief' | 'developer'
+export type UserRole = 'general_director' | 'technical_director' | 'party_chief' | 'developer' | 'senior_itr'
 
 // 25.09.2026 — подпись роли 'party_chief' переименована из "Начальник
 // буровой партии (бригадир)" в "Ответственный": сам identifier в БД не
@@ -21,16 +21,17 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   technical_director: 'Технический директор',
   party_chief: 'Ответственный',
   developer: 'Разработчик',
+  senior_itr: 'Старший ИТР',
 }
 
 // Роли, доступные для выбора при создании/правке пользователя через
 // интерфейс — 'developer' сознательно исключена (см. комментарий выше).
 // Вынесено из UsersList.tsx 25.09.2026 — тот же список нужен и в
 // WorkersSettings.tsx ("Выдать доступ").
-export const ROLE_OPTIONS: UserRole[] = ['general_director', 'technical_director', 'party_chief']
+export const ROLE_OPTIONS: UserRole[] = ['general_director', 'technical_director', 'senior_itr', 'party_chief']
 
 // Гендир, техдир и разработчик имеют идентичные права везде, где
 // проверяется isManagement (см. ТЗ, раздел 2 + решение 22.09.2026) —
 // удобно проверять доступ одной функцией, а не дублировать условия.
 export const isManagement = (role: UserRole | null | undefined): boolean =>
-  role === 'general_director' || role === 'technical_director' || role === 'developer'
+  role === 'general_director' || role === 'technical_director' || role === 'developer' || role === 'senior_itr'

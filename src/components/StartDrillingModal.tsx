@@ -5,6 +5,7 @@ import Modal from './Modal'
 import AreaFilterHint from './AreaFilterHint'
 import { useAreaCandidates } from '../hooks/useAreaCandidates'
 import type { DrillingOrganization, DrillingRig, DrillingTask } from '../types/database'
+import { shortName } from '../lib/shortName'
 
 // «Запустить бурение» на запланированной скважине (04.10.2026): назначаем то,
 // чего не было при планировании — организацию, станок, бригадира, дату начала
@@ -111,7 +112,7 @@ export default function StartDrillingModal({
             <option value="">— выбрать —</option>
             {pick.candidates.map((f) => (
               <option key={f.id} value={f.id}>
-                {f.full_name}
+                {shortName(f.full_name)}
               </option>
             ))}
           </select>

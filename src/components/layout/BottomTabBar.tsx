@@ -23,13 +23,13 @@ const MAX_TABS = 5
 
 export default function BottomTabBar() {
   const { pathname } = useLocation()
-  const { session, profile } = useAuth()
+  const { session, profile, can, workArea } = useAuth()
   const { pendingApprovals } = useReportCounts()
   const [moreOpen, setMoreOpen] = useState(false)
 
   if (!session || !profile) return null
 
-  const allItems = NAV_ITEMS.filter((item) => item.show(profile.role) && !item.desktopOnly)
+  const allItems = NAV_ITEMS.filter((item) => item.show(profile.role, can, workArea) && !item.desktopOnly)
   const overflow = allItems.length > MAX_TABS
   const primaryItems = overflow ? allItems.slice(0, MAX_TABS - 1) : allItems
   const moreItems = overflow ? allItems.slice(MAX_TABS - 1) : []
